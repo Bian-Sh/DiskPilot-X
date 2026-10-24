@@ -7,10 +7,15 @@ namespace SpaceMonger.Core.Services.Settings;
 
 public class SettingsService : ISettingsService
 {
-    private static readonly string SettingsFilePath = Path.Combine(
+    private readonly string SettingsFilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "SpaceMonger",
         "settings.dat");
+
+    public SettingsService(string? settingsFilePath = null)
+    {
+        if(!string.IsNullOrWhiteSpace(settingsFilePath))SettingsFilePath=Path.GetFullPath(settingsFilePath);
+    }
 
     public AppSettings LoadSettings()
     {

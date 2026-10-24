@@ -17,7 +17,10 @@ public sealed class ManageDiskSkillsTool(ISkillPromptProvider skillPromptProvide
     {
         "get_copilot_context",
         "resolve_path",
-        "propose_copilot_action",
+        "scan_path",
+        "navigate_path",
+        "get_analysis_evidence",
+        "publish_recommendations",
         "read_unity_registry_context",
         "find_by_name",
         "find_by_path",
@@ -33,7 +36,7 @@ public sealed class ManageDiskSkillsTool(ISkillPromptProvider skillPromptProvide
     public override ToolRiskLevel RiskLevel => ToolRiskLevel.Medium;
 
     public override JsonElement Schema { get; } = SchemaJson("""
-        {"type":"object","properties":{"operation":{"type":"string","enum":["list","read","create","update","delete"]},"id":{"type":"string","description":"Lowercase skill id using letters, digits, and hyphens."},"domain":{"type":"string","enum":["disk_management"]},"host_tools":{"type":"array","items":{"type":"string","enum":["get_copilot_context","resolve_path","propose_copilot_action","read_unity_registry_context","find_by_name","find_by_path","list_children","summarize_subtree","find_large_files"]}},"title":{"type":"string"},"description":{"type":"string"},"body_markdown":{"type":"string","description":"Concise SKILL.md body sections after Purpose. Use imperative instructions; put risk rules here, not in app code."},"overwrite":{"type":"boolean"}},"required":["operation"]}
+        {"type":"object","properties":{"operation":{"type":"string","enum":["list","read","create","update","delete"]},"id":{"type":"string","description":"Lowercase skill id using letters, digits, and hyphens."},"domain":{"type":"string","enum":["disk_management"]},"host_tools":{"type":"array","items":{"type":"string","enum":["get_copilot_context","resolve_path","scan_path","navigate_path","get_analysis_evidence","publish_recommendations","read_unity_registry_context","find_by_name","find_by_path","list_children","summarize_subtree","find_large_files"]}},"title":{"type":"string"},"description":{"type":"string"},"body_markdown":{"type":"string","description":"Concise SKILL.md body sections after Purpose. Use imperative instructions; put risk rules here, not in app code."},"overwrite":{"type":"boolean"}},"required":["operation"]}
         """);
 
     public override Task<JsonElement> ExecuteAsync(AgentContext context, JsonElement arguments, CancellationToken cancellationToken)

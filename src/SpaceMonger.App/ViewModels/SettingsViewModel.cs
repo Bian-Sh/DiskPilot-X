@@ -9,7 +9,7 @@ using SpaceMonger.App.Services;
 using SpaceMonger.Core.Enums;
 using SpaceMonger.Core.Models;
 using SpaceMonger.Core.Models.Theme;
-using SpaceMonger.Core.Services.Llm;
+using SpaceMonger.Core.Services.Assistant;
 using SpaceMonger.Core.Services.Settings;
 using SpaceMonger.Core.Services.Whitelist;
 
@@ -26,7 +26,7 @@ public enum ValidationState
 public partial class SettingsViewModel : ObservableObject
 {
     private readonly ISettingsService _settingsService;
-    private readonly ILlmClient _llmClient;
+    private readonly ModelConnectionTester _llmClient;
     private readonly ThemeManager _themeManager;
     private readonly IPathWhitelistMatcher _whitelistMatcher;
     private bool _isLoadingSettings;
@@ -205,7 +205,7 @@ public partial class SettingsViewModel : ObservableObject
 
     public static IReadOnlyList<ThemeProfile> AvailableThemePresets { get; } = ThemeProfile.BuiltInPresets;
 
-    public SettingsViewModel(ISettingsService settingsService, ILlmClient llmClient, ThemeManager themeManager, IPathWhitelistMatcher? whitelistMatcher = null)
+    public SettingsViewModel(ISettingsService settingsService, ModelConnectionTester llmClient, ThemeManager themeManager, IPathWhitelistMatcher? whitelistMatcher = null)
     {
         _settingsService = settingsService;
         _llmClient = llmClient;
@@ -322,7 +322,7 @@ public partial class SettingsViewModel : ObservableObject
 
         try
         {
-            var isValid = await _llmClient.ValidateApiKeyAsync(ApiKey, AnthropicBaseUrl);
+            var isValid = await _llmClient.ValidateAsync(ApiKey, AnthropicBaseUrl, ChatViewModel.ResolveModel(ChatModelName, AnthropicBaseUrl, false), CancellationToken.None);
 
             if (isValid)
             {
@@ -341,7 +341,7 @@ public partial class SettingsViewModel : ObservableObject
         {
             ValidationState = ValidationState.Invalid;
             IsApiKeyValid = false;
-            ValidationMessage = L.Format("ValidationFailedMessage", ex.Message);
+            ValidationMessage = L.Format("ValidationFailedMessage", "模型连接验证失败，请检查地址、模型与凭据。");
         }
     }
 

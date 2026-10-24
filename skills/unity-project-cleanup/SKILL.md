@@ -101,7 +101,7 @@ The app must not downgrade a candidate to Safe/Caution from timestamps or missin
 
 ## Decision procedure
 1. Confirm whether scan data already exists for the requested roots.
-2. When the user asks to clean Unity `Library` across the machine and no explicit root is supplied, run `DiscoverUnityLibraries` so the app enumerates all ready disks and scans them sequentially.
+2. 用户没有给出扫描根时，用 ask_user 确认本次扫描范围；用 scan_path 扫描，再通过 get_analysis_evidence 与树查询核对 Unity 标记，最后调用 publish_recommendations 发布本次扫描内的建议。
 3. If analysis would overwrite existing recommendations, use one confirmation card; do not ask in chat whether to create it.
 4. Enumerate candidate roots and drives step-by-step using localized UI labels, for example semantic steps like scan C drive, scan D drive, merge Unity Hub data, and write recommended cleanup list.
 5. Cross-check Hub inventory before downgrading any Unity project risk.

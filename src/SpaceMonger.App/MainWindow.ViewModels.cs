@@ -137,7 +137,7 @@ public partial class MainWindow
     {
         _chatViewModel = chatVm;
         ChatPanel.SetViewModel(chatVm);
-        chatVm.SetActionExecutor(this);
+        ConnectAssistantWorkspace();
         chatVm.ClearConsoleRequested += AppLog.UiSink.Clear;
 
         ChatPanel.OpenSettingsRequested += () => OpenSettingsDialog();

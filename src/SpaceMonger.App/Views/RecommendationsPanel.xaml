@@ -357,7 +357,15 @@
                             Click="CleanUpButton_Click"
                             ToolTipService.ShowOnDisabled="True"
                             ToolTip="{loc:Loc CleanUpToolTip}"
-                            Style="{StaticResource VP.DangerButton}" />
+                            >
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource VP.DangerButton}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DataContext.IsCopilotBusy, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                     <Button Content="{loc:Loc AnalyzeButton}"
                             Padding="16,5"
                             Margin="6,0,0,0"

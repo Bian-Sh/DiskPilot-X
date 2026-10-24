@@ -1,147 +1,36 @@
+using System.Runtime.CompilerServices;
 using FluentAssertions;
+using TinyHarness;
 using NSubstitute;
-using System.Text.Json;
 using SpaceMonger.Core.Models;
-using SpaceMonger.Core.Services.Agent;
-using SpaceMonger.Core.Services.Chat;
-using SpaceMonger.Core.Services.Copilot;
+using SpaceMonger.Core.Services.Assistant;
+using SpaceMonger.Core.Services.Settings;
 
 namespace SpaceMonger.Core.Tests;
 
 public class ChatServiceStreamingTests
 {
     [Fact]
-    public async Task StreamMessageWithThinkingAsync_EmitsAnswerInMultipleChunks()
+    public async Task FirstTokenArrivesBeforeWholeModelTurnCompletes()
     {
-        const string answer = "First line of the answer.\nSecond line of the answer with more details.";
-        var runtime = Substitute.For<IAgentRuntime>();
-        runtime.RunAsync(
-                Arg.Any<AgentContext?>(),
-                Arg.Any<IReadOnlyList<(string Role, string Content)>>(),
-                Arg.Any<string>(),
-                Arg.Any<IReadOnlyList<AiSkill>>(),
-                Arg.Any<string?>(),
-                Arg.Any<string>(),
-                Arg.Any<string?>(),
-                Arg.Any<bool>(),
-                Arg.Any<Action<string>?>(),
-                Arg.Any<CancellationToken>())
-            .Returns(new AgentResponse(answer, [], [], false));
-
-        var service = new ChatService(runtime);
-        var chunks = new List<string>();
-
-        var response = await service.StreamMessageWithThinkingAsync(
-            "question",
-            null,
-            null,
-            new FileEntry { Path = @"C:\", Name = "C:", IsDirectory = true },
-            new ScanSession { TargetPath = @"C:\" },
-            false,
-            [],
-            "zh-CN",
-            "key",
-            null,
-            false,
-            null,
-            chunks.Add,
-            CancellationToken.None);
-
-        response.Text.Should().Be(answer);
-        chunks.Should().HaveCountGreaterThan(1);
-        string.Concat(chunks).Should().Be(answer);
+        var client=new ControlledClient();
+        var settings=Substitute.For<ISettingsService>();settings.LoadSettings().Returns(new AppSettings());
+        var assistant=new DiskAssistantService(_=>client,[],new AssistantWorkspace(),settings);
+        var first=new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var running=assistant.RunAsync("测试流式",new("key",null,"test"),e=>{if(e.Kind==AgentEventKind.TextDelta)first.TrySetResult(e.Text!);},CancellationToken.None);
+        (await first.Task.WaitAsync(TimeSpan.FromSeconds(5))).Should().Be("第一段");
+        running.IsCompleted.Should().BeFalse();
+        client.Release.TrySetResult();
+        var result=await running.WaitAsync(TimeSpan.FromSeconds(5));
+        result.Text.Should().Be("第一段第二段");
     }
-
-    [Fact]
-    public async Task StreamMessageWithThinkingAsync_EmitsGenericToolObservationNote()
+    private sealed class ControlledClient:IModelClient
     {
-        var runtime = Substitute.For<IAgentRuntime>();
-        runtime.RunAsync(
-                Arg.Any<AgentContext?>(),
-                Arg.Any<IReadOnlyList<(string Role, string Content)>>(),
-                Arg.Any<string>(),
-                Arg.Any<IReadOnlyList<AiSkill>>(),
-                Arg.Any<string?>(),
-                Arg.Any<string>(),
-                Arg.Any<string?>(),
-                Arg.Any<bool>(),
-                Arg.Any<Action<string>?>(),
-                Arg.Any<CancellationToken>())
-            .Returns(new AgentResponse(
-                "done",
-                [],
-                [
-                    new AgentToolResult("call_1", "get_copilot_context", false, JsonSerializer.SerializeToElement(new { ok = true })),
-                    new AgentToolResult("call_2", "list_top_children", true, JsonSerializer.SerializeToElement(new { error = "missing scan" }))
-                ],
-                true));
-
-        var service = new ChatService(runtime);
-        var thinkingChunks = new List<string>();
-        var textChunks = new List<string>();
-
-        await service.StreamMessageWithThinkingAsync(
-            "question",
-            null,
-            null,
-            new FileEntry { Path = @"C:\", Name = "C:", IsDirectory = true },
-            new ScanSession { TargetPath = @"C:\" },
-            false,
-            [],
-            "zh-CN",
-            "key",
-            null,
-            true,
-            thinkingChunks.Add,
-            textChunks.Add,
-            CancellationToken.None);
-
-        var thinking = string.Concat(thinkingChunks);
-        thinking.Should().Contain("Processed 2 agent tool observation(s): 1 succeeded, 1 failed.");
-        thinking.Should().Contain("Tool limit reached");
-        thinking.Should().NotContain("read-only file tree");
-        thinking.Should().NotContain("Ignored");
-    }
-
-    [Fact]
-    public async Task StreamSkillMessageWithThinkingAsync_EmitsGenericToolObservationNote()
-    {
-        var runtime = Substitute.For<IAgentRuntime>();
-        runtime.RunAsync(
-                Arg.Any<AgentContext?>(),
-                Arg.Any<IReadOnlyList<(string Role, string Content)>>(),
-                Arg.Any<string>(),
-                Arg.Any<IReadOnlyList<AiSkill>>(),
-                Arg.Any<string?>(),
-                Arg.Any<string>(),
-                Arg.Any<string?>(),
-                Arg.Any<bool>(),
-                Arg.Any<Action<string>?>(),
-                Arg.Any<CancellationToken>())
-            .Returns(new AgentResponse(
-                "done",
-                [],
-                [new AgentToolResult("call_1", "propose_copilot_action", false, JsonSerializer.SerializeToElement(new { action = "StartScan" }))],
-                false));
-
-        var service = new ChatService(runtime);
-        var thinkingChunks = new List<string>();
-
-        await service.StreamSkillMessageWithThinkingAsync(
-            "scan please",
-            [],
-            "zh-CN",
-            "key",
-            null,
-            true,
-            thinkingChunks.Add,
-            _ => { },
-            CancellationToken.None);
-
-        var thinking = string.Concat(thinkingChunks);
-        thinking.Should().Contain("Processed 1 agent tool observation(s): 1 succeeded, 0 failed.");
-        thinking.Should().NotContain("file tree");
-        thinking.Should().NotContain("no scan context");
-        thinking.Should().NotContain("Ignored");
+        public TaskCompletionSource Release {get;}=new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async IAsyncEnumerable<ModelStreamEvent> StreamAsync(ModelRequest request,[EnumeratorCancellation]CancellationToken ct)
+        {
+            yield return new TextDeltaEvent("第一段");await Release.Task.WaitAsync(ct);
+            yield return new TextDeltaEvent("第二段");yield return new ModelCompletedEvent("end_turn");
+        }
     }
 }

@@ -17,23 +17,23 @@ public class ThemeProfile
 
     // ── Primary Palette ──────────────────────────────────────────
 
-    /// <summary>Accent color as hex ARGB (e.g. "#FF2562A7").</summary>
-    public string AccentColor { get; set; } = "#FF2562A7";
+    /// <summary>Accent color as hex ARGB (e.g. "#FF2563EB").</summary>
+    public string AccentColor { get; set; } = "#FF2563EB";
 
     /// <summary>Accent hover color.</summary>
-    public string AccentHoverColor { get; set; } = "#FF2E73C2";
+    public string AccentHoverColor { get; set; } = "#FF3B82F6";
 
     /// <summary>Background color.</summary>
-    public string BackgroundColor { get; set; } = "#FF343440";
+    public string BackgroundColor { get; set; } = "#FF0D121A";
 
     /// <summary>Alternative background (cards, panels).</summary>
-    public string BackgroundAltColor { get; set; } = "#FF484853";
+    public string BackgroundAltColor { get; set; } = "#FF18202D";
 
     // ── Text Colors ──────────────────────────────────────────────
 
     public string TextPrimaryColor { get; set; } = "#FFFFFFFF";
-    public string TextSecondaryColor { get; set; } = "#FFC7C7CC";
-    public string TextTertiaryColor { get; set; } = "#FFAEAEB2";
+    public string TextSecondaryColor { get; set; } = "#FF9AA8BC";
+    public string TextTertiaryColor { get; set; } = "#FF8796AB";
 
     // ── Glass & Blur ─────────────────────────────────────────────
 
@@ -77,13 +77,13 @@ public class ThemeProfile
     {
         Name = "深色",
         IsBuiltIn = true,
-        AccentColor = "#FF2562A7",
-        AccentHoverColor = "#FF2E73C2",
-        BackgroundColor = "#FF343440",
-        BackgroundAltColor = "#FF484853",
+        AccentColor = "#FF2563EB",
+        AccentHoverColor = "#FF3B82F6",
+        BackgroundColor = "#FF0D121A",
+        BackgroundAltColor = "#FF18202D",
         TextPrimaryColor = "#FFFFFFFF",
-        TextSecondaryColor = "#FFC7C7CC",
-        TextTertiaryColor = "#FFAEAEB2",
+        TextSecondaryColor = "#FF9AA8BC",
+        TextTertiaryColor = "#FF8796AB",
         GlassEnabled = false,
         GlassBackdropType = 0,
         BlurRadius = 0,
@@ -95,13 +95,13 @@ public class ThemeProfile
     {
         Name = "浅色",
         IsBuiltIn = true,
-        AccentColor = "#FF0071E3",
-        AccentHoverColor = "#FF2890F5",
-        BackgroundColor = "#FFF2F2F7",
+        AccentColor = "#FF2563EB",
+        AccentHoverColor = "#FF3B82F6",
+        BackgroundColor = "#FFEDF2F7",
         BackgroundAltColor = "#FFFFFFFF",
-        TextPrimaryColor = "#FF1C1C1E",
-        TextSecondaryColor = "#FF6E6E73",
-        TextTertiaryColor = "#FF8E8E93",
+        TextPrimaryColor = "#FF18202C",
+        TextSecondaryColor = "#FF5E6B7A",
+        TextTertiaryColor = "#FF758295",
         GlassEnabled = false,
         GlassBackdropType = 0,
         BlurRadius = 0,

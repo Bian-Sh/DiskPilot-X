@@ -859,4 +859,42 @@
   <data name="CopilotCardUserNotesLabel" xml:space="preserve">
     <value>补充说明（可选）</value>
   </data>
+  <data name="CopilotStartTitle" xml:space="preserve"><value>从哪里开始检查？</value></data>
+  <data name="CopilotStartDescription" xml:space="preserve"><value>告诉我想检查的目录，我可以扫描、解释空间占用，并准备可复核的清理建议。</value></data>
+  <data name="CopilotPlaceholder" xml:space="preserve"><value>描述任务，或输入 @ 选择技能</value></data>
+  <data name="CopilotNewConversation" xml:space="preserve"><value>新建会话</value></data>
+  <data name="CopilotChooseSkill" xml:space="preserve"><value>选择技能</value></data>
+  <data name="CopilotJumpLatest" xml:space="preserve"><value>↓ 回到最新</value></data>
+  <data name="CopilotCopy" xml:space="preserve"><value>复制</value></data>
+  <data name="CopilotInputLabel" xml:space="preserve"><value>Copilot 输入</value></data>
+  <data name="CopilotReady" xml:space="preserve"><value>准备就绪</value></data>
+  <data name="CopilotWorking" xml:space="preserve"><value>正在处理</value></data>
+  <data name="CopilotCompleted" xml:space="preserve"><value>已完成</value></data>
+  <data name="CopilotStopped" xml:space="preserve"><value>已停止</value></data>
+  <data name="CopilotFailed" xml:space="preserve"><value>执行失败</value></data>
+  <data name="CopilotWaiting" xml:space="preserve"><value>等待你的确认</value></data>
+  <data name="CopilotStop" xml:space="preserve"><value>停止</value></data>
+  <data name="CopilotStatus_Running" xml:space="preserve"><value>进行中</value></data>
+  <data name="CopilotStatus_Completed" xml:space="preserve"><value>完成</value></data>
+  <data name="CopilotStatus_Failed" xml:space="preserve"><value>失败</value></data>
+  <data name="CopilotStatus_Cancelled" xml:space="preserve"><value>已停止</value></data>
+  <data name="CopilotStatus_WaitingForUser" xml:space="preserve"><value>等待确认</value></data>
+  <data name="CopilotTool_get_copilot_context" xml:space="preserve"><value>了解当前工作区</value></data>
+  <data name="CopilotTool_scan_path" xml:space="preserve"><value>扫描目录</value></data>
+  <data name="CopilotTool_get_analysis_evidence" xml:space="preserve"><value>检查分析证据</value></data>
+  <data name="CopilotTool_publish_recommendations" xml:space="preserve"><value>发布清理建议</value></data>
+  <data name="CopilotTool_navigate_path" xml:space="preserve"><value>定位文件树</value></data>
+  <data name="CopilotTool_set_view" xml:space="preserve"><value>切换磁盘视图</value></data>
+  <data name="CopilotTool_find_by_name" xml:space="preserve"><value>按名称查找</value></data>
+  <data name="CopilotTool_find_by_path" xml:space="preserve"><value>查询路径</value></data>
+  <data name="CopilotTool_list_children" xml:space="preserve"><value>查看目录内容</value></data>
+  <data name="CopilotTool_summarize_subtree" xml:space="preserve"><value>汇总空间占用</value></data>
+  <data name="CopilotTool_find_large_files" xml:space="preserve"><value>查找大文件</value></data>
+  <data name="CopilotTool_resolve_path" xml:space="preserve"><value>校验目标路径</value></data>
+  <data name="CopilotTool_list_recommendations" xml:space="preserve"><value>读取清理清单</value></data>
+  <data name="CopilotTool_select_recommendations" xml:space="preserve"><value>更新清理选择</value></data>
+  <data name="CopilotTool_cleanup_recommendations" xml:space="preserve"><value>执行确认的清理</value></data>
+  <data name="CopilotTool_ask_user" xml:space="preserve"><value>请求必要输入</value></data>
+  <data name="CopilotTool_manage_disk_skills" xml:space="preserve"><value>管理磁盘技能</value></data>
+  <data name="CopilotTool_read_unity_registry_context" xml:space="preserve"><value>核对 Unity 环境</value></data>
 </root>

@@ -23,7 +23,7 @@ public class ManageDiskSkillsToolTests
                     operation = "create",
                     id = "unity-cache-audit",
                     domain = "disk_management",
-                    host_tools = new[] { "find_large_files", "propose_copilot_action" },
+                    host_tools = new[] { "find_large_files", "scan_path" },
                     title = "Unity Cache Audit Skill",
                     description = "Use when auditing Unity-generated cache folders with SpaceMonger scan evidence.",
                     body_markdown = "## Steps\n- Inspect scanned Unity cache folders.\n- Rank risk from skill evidence before proposing cleanup."
@@ -70,7 +70,7 @@ public class ManageDiskSkillsToolTests
                     operation = "create",
                     id = "write-emails",
                     domain = "email",
-                    host_tools = new[] { "propose_copilot_action" },
+                    host_tools = new[] { "scan_path" },
                     title = "Write Emails",
                     description = "Draft outgoing email replies.",
                     body_markdown = "## Steps\n- Draft email."

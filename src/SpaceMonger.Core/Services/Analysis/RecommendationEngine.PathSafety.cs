@@ -1,9 +1,5 @@
-﻿using System.Text.Json;
-using System.Text.RegularExpressions;
-using SpaceMonger.Core.Diagnostics;
-using SpaceMonger.Core.Enums;
 using SpaceMonger.Core.Models;
-using SpaceMonger.Core.Services.Llm;
+using SpaceMonger.Core.Enums;
 
 namespace SpaceMonger.Core.Services.Analysis;
 
@@ -35,29 +31,12 @@ public partial class RecommendationEngine
 
     private static FileEntry? FindEntryByPath(FileEntry root, string targetPath)
     {
-        var normalizedTarget = targetPath.Replace('\\', '/').TrimEnd('/');
-        var normalizedRoot = root.Path.Replace('\\', '/').TrimEnd('/');
-
-        if (string.Equals(normalizedRoot, normalizedTarget, StringComparison.OrdinalIgnoreCase))
+        if (!Path.IsPathFullyQualified(targetPath) || !TryNormalizePath(targetPath, out var normalizedTarget))
         {
-            return root;
+            return null;
         }
-
-        foreach (var child in root.Children)
-        {
-            var found = FindEntryByPath(child, targetPath);
-            if (found is not null)
-            {
-                return found;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool IsProtectedPath(string path)
-    {
-        return ClassifyPathSafety(path) != PathSafetyKind.Normal;
+        return EnumerateEntries(root).FirstOrDefault(entry =>
+            string.Equals(NormalizePath(entry.Path), normalizedTarget, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsHardProtectedPath(string path)
@@ -120,14 +99,28 @@ public partial class RecommendationEngine
 
     private static bool IsSameOrUnderPrefix(string normalizedPath, string prefix)
     {
-        var normalizedPrefix = NormalizePath(prefix);
+        var normalizedPrefix = Path.IsPathFullyQualified(prefix) ? NormalizePath(prefix) : prefix.Replace('/', '\\').TrimEnd('\\');
         return string.Equals(normalizedPath, normalizedPrefix, StringComparison.OrdinalIgnoreCase) ||
-            normalizedPath.StartsWith(normalizedPrefix + "\\", StringComparison.OrdinalIgnoreCase);
+            normalizedPath.StartsWith(normalizedPrefix.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string NormalizePath(string path)
     {
-        return path.Replace('/', '\\').TrimEnd('\\');
+        return Path.TrimEndingDirectorySeparator(Path.GetFullPath(path.Replace('/', '\\')));
+    }
+
+    private static bool TryNormalizePath(string path, out string normalizedPath)
+    {
+        try
+        {
+            normalizedPath = NormalizePath(path);
+            return true;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or System.Security.SecurityException)
+        {
+            normalizedPath = string.Empty;
+            return false;
+        }
     }
 
     private static void ApplySystemPathRiskAdjustment(CleanupRecommendation recommendation)

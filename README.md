@@ -2,7 +2,21 @@
 
 A modern disk space analyzer for Windows inspired by the legendary [SpaceMonger](https://github.com/seanofw/spacemonger1), with AI-powered cleanup recommendations.
 
-![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4) ![Windows](https://img.shields.io/badge/platform-Windows-0078D6) ![License](https://img.shields.io/badge/license-MIT-green)
+![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4) ![Windows](https://img.shields.io/badge/platform-Windows-0078D6) ![License](https://img.shields.io/badge/license-MIT-green)
+
+## AI 协作核心
+
+AI 继续位于右侧面板，磁盘扫描、Treemap、文件树和推荐列表仍是主工作区。会话由仓库内固定版本的 Tiny Harness 驱动，使用原生流式工具调用，工具结果返回同一轮 Agent。
+
+- 可以直接指定路径，让 Copilot 扫描、查询空间、切换视图并定位目录。
+- 手动分析与对话共用推荐发布能力，路径、大小、范围、白名单和系统保护由本地服务核验。
+- 右侧展示有序正文及可折叠工具过程，保留技能提及、上下文关联和发送/停止。
+- 清理必须确认具体清单与删除方式；确认期间清单改变会失效。
+- 继续使用现有加密 API Key、Anthropic 兼容 Base URL、聊天/分析模型和思考设置。
+
+手动分析复用相同运行时与工具，但原始分析历史与对话隔离；更改 AI 对话排除规则后，会刷新后续模型上下文，已有界面消息仍可在本地查看。
+
+构建需要 .NET 10 SDK；无需检出或安装原 Loom-X 仓库。设计与验收见 docs/ai-first-loomx/。Windows 发布包放在 outputs 下带上海时间的目录中。
 
 ## About
 
@@ -35,7 +49,7 @@ SpaceMonger Copilot carries that same philosophy forward — instant visual clar
 
 ## Prerequisites
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) (or later)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) (or later)
 - Windows 10 or Windows 11
 - An [Anthropic API key](https://console.anthropic.com/) for AI features (optional — scanning and visualization work without it)
 
@@ -62,7 +76,7 @@ cd src
 dotnet run --project SpaceMonger.App
 ```
 
-> **Note:** The application requires administrator privileges to access all directories. It will trigger a UAC elevation prompt on launch.
+> 应用默认以普通用户权限运行；受限目录可能无法读取，扫描结果会据实反映可访问范围。
 
 ## Run Tests
 

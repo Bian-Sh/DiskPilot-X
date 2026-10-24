@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -44,9 +44,33 @@ public partial class MainWindow
             TreeView = TreeViewControl.GetAcceptanceState(),
             RecommendationsVisible = RecommendationsPanel.Visibility == Visibility.Visible,
             ConsoleVisible = ConsoleFrame.Visibility == Visibility.Visible,
+            Copilot = new { Busy = _chatViewModel?.IsOperationRunning, Status = _chatViewModel?.StatusText, Model = _chatViewModel?.ModelDisplayName, Width = ChatPanelColumn.ActualWidth, Pending = _chatViewModel?.PendingInteractionCard?.Title, MessageCount = _chatViewModel?.Messages.Count, LastMessage = _chatViewModel?.Messages.LastOrDefault()?.Text, SegmentCount = _chatViewModel?.Messages.LastOrDefault()?.Segments.Count },
+            Recommendations = _recommendationsViewModel?.Recommendations.Select(r => new { r.Id, r.TargetPath, r.Size, r.IsAccepted }).ToArray(),
+            ScanTotals = new { Files = mainVm?.CurrentSession?.TotalFiles, Folders = mainVm?.CurrentSession?.TotalFolders, Bytes = mainVm?.CurrentSession?.TotalSize },
+
         };
     }
 
+    internal object AcceptanceCapture(string? outputPath)
+    {
+        var settingsPath = Environment.GetEnvironmentVariable("SPACEMONGER_ACCEPTANCE_SETTINGS");
+        if (string.IsNullOrWhiteSpace(settingsPath) || string.IsNullOrWhiteSpace(outputPath)) throw new InvalidOperationException("验收截图需要独立设置目录。");
+        var allowedRoot = Path.GetFullPath(Path.GetDirectoryName(settingsPath)!).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var target = Path.GetFullPath(outputPath);
+        if (!target.StartsWith(allowedRoot, StringComparison.OrdinalIgnoreCase) || !target.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("截图只能写入本次验收目录。");
+        UpdateLayout(); var visual = (FrameworkElement)Content;
+        var image = new System.Windows.Media.Imaging.RenderTargetBitmap(Math.Max(1, (int)Math.Ceiling(visual.ActualWidth)), Math.Max(1, (int)Math.Ceiling(visual.ActualHeight)), 96, 96, PixelFormats.Pbgra32);
+        image.Render(visual); var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder(); encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(image));
+        using var file = File.Create(target); encoder.Save(file); return new { Path = target, Width = image.PixelWidth, Height = image.PixelHeight };
+    }
+    internal object AcceptanceSetCopilotWidth(int width)
+    {
+        ChatPanelColumn.Width = new GridLength(Math.Clamp(width, 300, 700)); UpdateLayout(); return GetAcceptanceState();
+    }
+    internal object AcceptanceSetTheme(string? name)
+    {
+        App.Services!.GetRequiredService<SpaceMonger.App.Services.ThemeManager>().ApplyTheme(name == "light" ? SpaceMonger.Core.Models.Theme.ThemeProfile.VisionProLight : SpaceMonger.Core.Models.Theme.ThemeProfile.VisionProDark); return GetAcceptanceState();
+    }
     internal void AcceptanceNavigateToPath(string path)
     {
         NavigateToPathOrSelect(path);

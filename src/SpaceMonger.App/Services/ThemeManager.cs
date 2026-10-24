@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using SpaceMonger.Core.Models.Theme;
@@ -91,7 +91,9 @@ public class ThemeManager
 
         void SetBrush(string key, Color color)
         {
-            app.Resources[key] = new SolidColorBrush(color);
+            // 复用可变画刷，使现有 Markdown 文档也能跟随明暗主题切换。
+            if (app.Resources[key] is SolidColorBrush existing && !existing.IsFrozen) existing.Color = color;
+            else app.Resources[key] = new SolidColorBrush(color);
         }
 
         void SetColor(string key, Color color)

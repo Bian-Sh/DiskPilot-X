@@ -5,6 +5,7 @@ using SpaceMonger.App.Localization;
 using SpaceMonger.Core.Enums;
 using SpaceMonger.Core.Models;
 using SpaceMonger.Core.Services.Treemap;
+using SpaceMonger.Core.Services.FileTree;
 
 namespace SpaceMonger.App.ViewModels;
 
@@ -316,26 +317,74 @@ public partial class TreemapViewModel : ObservableObject
 
     public void ApplyCleanupResults(List<CleanupAction> results, ScanSession session)
     {
+        var query = new FileTreeQueryService();
+        var removed = new HashSet<FileEntry>();
+
         foreach (var action in results)
         {
             if (action.Result is not (CleanupResult.Success or CleanupResult.AlreadyRemoved))
                 continue;
 
-            var entry = action.Recommendation.Entry;
-            if (entry?.Parent is null)
+            // 推荐可能引用过滤副本；只从当前扫描树解析，已移除路径自然不会重复扣减。
+            var entry = query.FindByPath(session, action.Recommendation.TargetPath);
+            if (entry is null)
                 continue;
 
-            entry.Parent.RemoveChild(entry);
+            var files = 0;
+            var folders = 0;
+            var pending = new Stack<FileEntry>();
+            pending.Push(entry);
+            while (pending.TryPop(out var current))
+            {
+                removed.Add(current);
+                if (current.IsDirectory)
+                    folders++;
+                else
+                    files++;
 
-            if (entry.IsDirectory)
-                session.TotalFolders--;
-            else
-                session.TotalFiles--;
+                foreach (var child in current.Children)
+                    pending.Push(child);
+            }
 
-            session.TotalSize -= entry.Size;
+            var size = entry.Size;
+            var parent = entry.Parent;
+            parent?.RemoveChild(entry);
+            entry.Parent = null;
+            session.TotalFiles -= files;
+            session.TotalFolders -= folders;
+            session.TotalSize -= size;
+
+            if (entry == session.RootEntry)
+            {
+                session.RootEntry = null;
+                _scanRoot = null;
+            }
+
+            // 当前目录或其祖先被删除时，返回仍然存在的上级。
+            if (CurrentRoot is not null && removed.Contains(CurrentRoot))
+                CurrentRoot = parent ?? CreateExternalParent(entry.Path);
         }
 
+        if (removed.Count == 0)
+            return;
+
+        if (SelectedNode is not null && removed.Contains(SelectedNode.Entry))
+            SelectedNode = null;
+        if (HoveredNode is not null && removed.Contains(HoveredNode.Entry))
+            HoveredNode = null;
+
+        PruneHistory(_navigationStack);
+        PruneHistory(_forwardStack);
+        UpdateBreadcrumb();
         RecomputeLayout();
+
+        void PruneHistory(Stack<FileEntry> history)
+        {
+            var surviving = history.Where(entry => !removed.Contains(entry) && entry != CurrentRoot).Reverse().ToList();
+            history.Clear();
+            foreach (var entry in surviving)
+                history.Push(entry);
+        }
     }
 
     private void RecomputeLayout()

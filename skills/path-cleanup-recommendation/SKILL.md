@@ -1,41 +1,25 @@
 ---
 name: path-cleanup-recommendation
-description: Use when the user asks SpaceMonger Copilot to scan and analyze cleanup recommendations for a specific folder, drive, environment-variable path, or named local path.
+description: 为用户指定的路径扫描并生成可复核的清理建议。
 ---
 
 # Path Cleanup Recommendation Skill
 
-## Purpose
-Run the native SpaceMonger Copilot workflow for “scan this path, then generate cleanup recommendations”.
+## 目的
 
-## When To Use
-Use this skill when the user asks to analyze, recommend cleanup for, or find cleanable items in a specific local path or folder. Examples include `%USERPROFILE%`, `D:\Downloads`, “Downloads”, “这个目录”, “当前文件夹”, or any user-selected path.
+使用当前 Harness 原生工具完成路径扫描、证据分析和建议发布，工具结果持续返回同一轮 Agent。
 
-Do not use this skill when the user is only asking what the recommendation feature means, how to use it, or what existing recommendations say.
+## 执行步骤
 
-## Workflow
-1. Validate the target path first. Call `resolve_path` for any user-supplied path, environment-variable path, relative path, or named folder before proposing scan or analysis.
-2. Check current state. Use `Host disk context JSON` and, when state is not already clear, call `get_copilot_context` to inspect whether scan data or cleanup recommendation data already exists.
-3. If existing scan data or recommendation data would be replaced, do not continue silently. Create the chat confirmation card by calling `propose_copilot_action` with `will_overwrite_existing_data=true`; the card lets the user choose overwrite/continue or cancel. Do not use an app modal dialog and do not ask in plain prose only.
-4. Scan the validated target folder with `propose_copilot_action` using `kind=StartScan`, the resolved path, and `follow_up_prompt`. The follow-up prompt must be an explicit agent instruction to call `propose_copilot_action` with `kind=AnalyzeCleanup` for the current scan scope after the scan succeeds; do not make it a vague user-facing summary prompt.
-5. In the follow-up turn, analyze cleanup candidates by calling `propose_copilot_action` with `kind=AnalyzeCleanup`, `will_overwrite_existing_data=false` unless context says recommendations already exist, and a scope label for the current scan.
-6. Finish with a short completion message. Tell the user that generated recommendations are available in the recommendation list for review.
+1. 用 resolve_path 校验用户路径，再用 get_copilot_context 获取当前 root、current_path 和 scan_id。
+2. 当前扫描已覆盖目标时直接查询；未覆盖或用户明确要求重扫时调用 scan_path，并等待真实完成。覆盖已有结果的确认由宿主处理，拒绝后停止。
+3. 调用 get_analysis_evidence 检查当前范围的元数据与内容指纹，必要时用 list_children、summarize_subtree、find_large_files 补充证据。
+4. 用 publish_recommendations 发布候选，带当前 scan_id。每项包含 path、category、safety_rating、explanation；大小由本地扫描决定。无候选也发布空 recommendations 数组。
+5. 根据工具实际接受/过滤结果回答，告诉用户建议在推荐列表中。不要把未发布候选说成已完成，不递归启动另一轮分析。
 
+## 保护规则
 
-## Existing Scan Reuse
-- After `resolve_path`, compare the resolved target path with `get_copilot_context.scan_root_path` and `get_copilot_context.current_view_path` when present.
-- If the current conversation just completed the scan for that same path, do not scan again. Call `propose_copilot_action` with `kind=AnalyzeCleanup`, `will_overwrite_existing_data=false`, and `workflow_active_step_id="analyze_recommendations"`.
-- If the app already has scan data for the same path but the user did not just ask to continue from that scan, ask through a chat confirmation card whether to use the existing scan data for analysis. Use `kind=AnalyzeCleanup`, `will_overwrite_existing_data=true`, `confirm_text` like "Use existing scan", and `cancel_text` like "Cancel". Do not silently rescan.
-- Only call `kind=StartScan` when there is no matching scan context or the user explicitly asks to rescan/refresh the scan.
-
-## Existing Data Policy
-- Existing scan data means Treemap, TreeView, and AI-readable file tree context are already populated and a new scan would replace them.
-- Existing recommendation data means the recommendation list/ScrollView already has generated cleanup candidates and a new analysis would replace them.
-- If either kind of existing data matters for the next step, set `will_overwrite_existing_data=true` on the proposed host action so the chat input overlay confirmation card is shown.
-- If there is no existing data to overwrite, set `will_overwrite_existing_data=false` so clear low-risk work can execute directly.
-- When the user clicks the app’s native “分析” button directly, do not add an AI tool-call confirmation solely because the recommendation ScrollView already has data; that button path owns its own prompt. This skill governs AI-driven chat workflows.
-
-## Safety
-- Never delete, move, or modify files.
-- Only scan metadata and generate reviewable recommendations.
-- Actual cleanup remains controlled by the app’s separate cleanup confirmation flow.
+- 只检查用户指定范围，遵守白名单和本地路径保护。
+- 文件夹名称不足以证明可删除，结合内容、项目标记和修改时间判断。
+- 本技能只生成建议；真正删除必须由用户明确要求，并通过应用绑定清单的确认。
+- 不使用文本 JSON 工具协议、旧提案动作或 follow_up_prompt。

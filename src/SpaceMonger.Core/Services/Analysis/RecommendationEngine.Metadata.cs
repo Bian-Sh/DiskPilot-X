@@ -1,17 +1,12 @@
-using System.Text.Json;
-using System.Text.RegularExpressions;
-using SpaceMonger.Core.Diagnostics;
-using SpaceMonger.Core.Enums;
 using SpaceMonger.Core.Models;
-using SpaceMonger.Core.Services.Llm;
 
 namespace SpaceMonger.Core.Services.Analysis;
 
 public partial class RecommendationEngine
 {
-    private string BuildCompactMetadata(ScanSession session, FileEntry analysisRoot)
+    private string BuildCompactMetadata(ScanSession session, FileEntry analysisRoot, IReadOnlyList<PathWhitelistEntry> whitelist)
     {
-        var snapshot = BuildMetadataSnapshot(analysisRoot);
+        var snapshot = BuildMetadataSnapshot(analysisRoot, whitelist);
 
         // Top files by size
         var topFiles = snapshot.TopFiles
@@ -35,7 +30,7 @@ public partial class RecommendationEngine
             .ToList();
 
         var patternItems = patternDirs
-            .Select(d => $"{d.Path}|{d.Size}|{BuildContentFingerprint(d)}")
+            .Select(d => $"{d.Path}|{d.Size}|{BuildContentFingerprint(d, whitelist)}")
             .ToList();
 
         // Also attach content fingerprints to top directories that match
@@ -57,7 +52,7 @@ public partial class RecommendationEngine
                 }
                 var baseLine = $"{d.Path}|{d.Size}|{d.Children.Count(c => c.IsDirectory)} dirs, {d.Children.Count(c => !c.IsDirectory)} files";
                 return needsFingerprint
-                    ? $"{baseLine}|CONTENT_FINGERPRINT: {BuildContentFingerprint(d)}"
+                    ? $"{baseLine}|CONTENT_FINGERPRINT: {BuildContentFingerprint(d, whitelist)}"
                     : baseLine;
             })
             .ToList();
@@ -111,10 +106,23 @@ public partial class RecommendationEngine
             sb.AppendLine();
         }
 
+        var unityLibraries = FindUnityLibraryDirectories(analysisRoot, null)
+            .Where(library => library.Size > 0 && !IsCleanupExcluded(library.Path, whitelist))
+            .Take(MaxKnownPatternItems)
+            .ToList();
+        if (unityLibraries.Count > 0)
+        {
+            sb.AppendLine("## UNITY LIBRARY EVIDENCE (path|size_bytes|project_markers)");
+            foreach (var library in unityLibraries)
+            {
+                sb.AppendLine($"{library.Path}|{library.Size}|Assets + ProjectSettings");
+            }
+        }
+
         return sb.ToString();
     }
 
-    private MetadataSnapshot BuildMetadataSnapshot(FileEntry root)
+    private MetadataSnapshot BuildMetadataSnapshot(FileEntry root, IReadOnlyList<PathWhitelistEntry> whitelist)
     {
         var snapshot = new MetadataSnapshot();
         var pending = new Stack<FileEntry>();
@@ -123,7 +131,7 @@ public partial class RecommendationEngine
         while (pending.Count > 0)
         {
             var entry = pending.Pop();
-            if (IsCleanupExcluded(entry.Path))
+            if (IsCleanupExcluded(entry.Path, whitelist))
             {
                 continue;
             }
@@ -205,10 +213,10 @@ public partial class RecommendationEngine
     /// distinguish a real temp folder from a user working folder that happens
     /// to have "temp" in its name.
     /// </summary>
-    private string BuildContentFingerprint(FileEntry dir)
+    private string BuildContentFingerprint(FileEntry dir, IReadOnlyList<PathWhitelistEntry> whitelist)
     {
         var allFiles = new List<FileEntry>();
-        var omittedFiles = CollectFilesOnly(dir, allFiles, MaxFingerprintFiles);
+        var omittedFiles = CollectFilesOnly(dir, allFiles, MaxFingerprintFiles, whitelist);
 
         if (allFiles.Count == 0)
             return "empty";
@@ -263,7 +271,7 @@ public partial class RecommendationEngine
         return sb.ToString();
     }
 
-    private int CollectFilesOnly(FileEntry entry, List<FileEntry> files, int maxCount)
+    private int CollectFilesOnly(FileEntry entry, List<FileEntry> files, int maxCount, IReadOnlyList<PathWhitelistEntry> whitelist)
     {
         var omittedFiles = 0;
         var pending = new Stack<FileEntry>();
@@ -274,7 +282,7 @@ public partial class RecommendationEngine
             var current = pending.Pop();
             foreach (var child in current.Children)
             {
-                if (IsCleanupExcluded(child.Path))
+                if (IsCleanupExcluded(child.Path, whitelist))
                 {
                     continue;
                 }

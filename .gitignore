@@ -60,3 +60,36 @@ desktop.ini
 /outputs
 /.codegraph
 /work
+# >>> Comet managed project state >>>
+!/.comet/
+/.comet/*
+!/.comet/config.yaml
+# <<< Comet managed project state <<<
+
+# 本机 Comet 钩子和适配脚本（含本机路径，可重新生成）
+/.agents/skills/comet/
+/.amazonq/skills/comet/
+/.amazonq/settings.local.json
+/.claude/skills/comet/
+/.codebuddy/skills/comet/
+/.codebuddy/settings.json
+/.codex/hooks.json
+/.devin/skills/comet/
+/.devin/hooks.json
+/.gemini/skills/comet/
+/.gemini/settings.json
+/.github/skills/comet/
+/.github/hooks/comet-guard.json
+/.kiro/skills/comet/
+/.kiro/hooks/comet-hook-router.kiro.hook
+/.qoder/skills/comet/
+/.qoder/settings.json
+/.qwen/skills/comet/
+/.qwen/settings.json
+/.trae/skills/comet/
+/.trae/hooks.json
+/.trae-cn/skills/comet/
+/.workbuddy/skills/comet/
+/.workbuddy/settings.json
+/.zcode/skills/comet/
+/.zcode/config.json

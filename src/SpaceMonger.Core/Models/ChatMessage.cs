@@ -1,4 +1,7 @@
-﻿using System.ComponentModel;
+using System.Text.Json;
+using System.Collections.ObjectModel;
+using TinyHarness;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Globalization;
 using System.Text.RegularExpressions;
@@ -19,6 +22,131 @@ public class ChatMessage : INotifyPropertyChanged
     private string _operationResultText = string.Empty;
     private string _completedAtText = string.Empty;
     private bool _isThinkingExpanded;
+
+    public ObservableCollection<ChatSegment> Segments { get; } = new();
+
+    private ChatSegment? _activeSegment;
+    private bool _hasStepDeltas;
+
+    /// <summary>将真实 Agent 事件投影为有序内容；工具结果仅回填对应调用。</summary>
+    public void ApplyActivity(AgentEvent activity)
+    {
+        switch (activity.Kind)
+        {
+            case AgentEventKind.StepStarted:
+                CompleteActiveSegment();
+                _hasStepDeltas = false;
+                break;
+            case AgentEventKind.TextDelta:
+            case AgentEventKind.ReasoningDelta:
+                if (string.IsNullOrEmpty(activity.Text)) break;
+                _hasStepDeltas = true;
+                IsStreaming = true;
+                AppendContent(activity.Kind == AgentEventKind.TextDelta
+                    ? ChatSegmentKind.Text : ChatSegmentKind.Thinking, activity.Text, activity.IsSummary);
+                break;
+            case AgentEventKind.ToolCallStarted:
+                CompleteActiveSegment();
+                IsStreaming = true;
+                GetToolSegment(activity.ToolCallId, activity.ToolName);
+                break;
+            case AgentEventKind.MessageCompleted when activity.Message?.Role == ChatRole.Tool:
+                var result = activity.Message;
+                var resultSegment = GetToolSegment(result.ToolCallId ?? activity.ToolCallId, result.ToolName ?? activity.ToolName);
+                resultSegment.Text = result.Content ?? string.Empty;
+                try { using var json = JsonDocument.Parse(result.Content ?? ""); if(json.RootElement.ValueKind == JsonValueKind.Object && json.RootElement.TryGetProperty("cancelled",out var cancelled) && cancelled.ValueKind == JsonValueKind.True) resultSegment.Status = ChatSegmentStatus.Cancelled; } catch(JsonException) { }
+                break;
+            case AgentEventKind.MessageCompleted when activity.Message?.Role == ChatRole.Assistant:
+                // 完整消息是流式内容的快照；仅在没有增量时用于补齐内容。
+                if (!_hasStepDeltas)
+                {
+                    var snapshot = activity.Message;
+                    if (snapshot.Blocks.Count > 0)
+                    {
+                        foreach (var block in snapshot.Blocks)
+                        {
+                            if (block.Kind == ChatContentKind.ToolCall && block.ToolCall is { } call)
+                            {
+                                CompleteActiveSegment();
+                                GetToolSegment(call.Id, call.Name);
+                            }
+                            else if (!string.IsNullOrEmpty(block.Text))
+                            {
+                                AppendContent(block.Kind == ChatContentKind.Thinking
+                                    ? ChatSegmentKind.Thinking : ChatSegmentKind.Text, block.Text, block.IsSummary);
+                            }
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(snapshot.Content))
+                        AppendContent(ChatSegmentKind.Text, snapshot.Content);
+                    _hasStepDeltas = true;
+                }
+                foreach(var call in activity.Message!.ToolCalls)
+                    GetToolSegment(call.Id, call.Name).Detail = "参数：" + ToolCallProjection.EnsureSafe(call).ArgumentsJson;
+                CompleteActiveSegment();
+                break;
+            case AgentEventKind.ToolApprovalRequested:
+                GetToolSegment(activity.ToolCallId, activity.ToolName).Status = ChatSegmentStatus.WaitingForUser;
+                break;
+            case AgentEventKind.ToolCallCompleted:
+                var tool = GetToolSegment(activity.ToolCallId, activity.ToolName);
+                if (!string.IsNullOrWhiteSpace(activity.Detail)) tool.Detail = string.IsNullOrWhiteSpace(tool.Detail) ? activity.Detail : tool.Detail + "\n" + activity.Detail;
+                if(tool.Status != ChatSegmentStatus.Cancelled) tool.Status = activity.Success == false ? ChatSegmentStatus.Failed : ChatSegmentStatus.Completed;
+                break;
+            case AgentEventKind.TaskCompleted:
+            case AgentEventKind.TaskFailed:
+            case AgentEventKind.TaskCancelled:
+                var status = activity.Kind switch
+                {
+                    AgentEventKind.TaskFailed => ChatSegmentStatus.Failed,
+                    AgentEventKind.TaskCancelled => ChatSegmentStatus.Cancelled,
+                    _ => ChatSegmentStatus.Completed
+                };
+                foreach (var segment in Segments.Where(segment =>
+                    segment.Status is ChatSegmentStatus.Running or ChatSegmentStatus.WaitingForUser))
+                {
+                    segment.Status = status;
+                    if (segment.IsTool && !string.IsNullOrEmpty(activity.Detail)) segment.Detail = activity.Detail;
+                }
+                _activeSegment = null;
+                IsStreaming = false;
+                IsError = activity.Kind == AgentEventKind.TaskFailed;
+                if (IsError) OperationResultText = activity.Detail ?? string.Empty;
+                MarkCompletedAt(activity.Timestamp.LocalDateTime);
+                break;
+        }
+    }
+
+    private void AppendContent(ChatSegmentKind kind, string text, bool isSummary = false)
+    {
+        if (_activeSegment is null || _activeSegment.Kind != kind || _activeSegment.IsSummary != isSummary)
+        {
+            CompleteActiveSegment();
+            _activeSegment = new ChatSegment(kind) { IsSummary = isSummary };
+            Segments.Add(_activeSegment);
+        }
+        _activeSegment.Text += text;
+        if (kind == ChatSegmentKind.Text) Text += text;
+        else Thinking += text;
+    }
+
+    private void CompleteActiveSegment()
+    {
+        if (_activeSegment is not null) _activeSegment.Status = ChatSegmentStatus.Completed;
+        _activeSegment = null;
+    }
+
+    private ChatSegment GetToolSegment(string? callId, string? name)
+    {
+        var segment = string.IsNullOrEmpty(callId) ? null : Segments.FirstOrDefault(item => item.IsTool && item.ToolCallId == callId);
+        if (segment is null)
+        {
+            segment = new ChatSegment(ChatSegmentKind.Tool) { ToolCallId = callId, ToolName = name };
+            Segments.Add(segment);
+        }
+        else if (!string.IsNullOrEmpty(name)) segment.ToolName = name;
+        return segment;
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

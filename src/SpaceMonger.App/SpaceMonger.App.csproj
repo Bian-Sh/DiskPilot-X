@@ -26,7 +26,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <AssemblyTitle>SpaceMonger Copilot</AssemblyTitle>
     <Product>SpaceMonger Copilot</Product>

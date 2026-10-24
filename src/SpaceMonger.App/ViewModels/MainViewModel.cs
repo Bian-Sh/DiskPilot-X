@@ -27,6 +27,11 @@ public partial class MainViewModel : ObservableObject
     private bool _isScanning;
 
     [ObservableProperty]
+    private bool _isCopilotBusy;
+
+    partial void OnIsCopilotBusyChanged(bool value) => ScanCommand.NotifyCanExecuteChanged();
+
+    [ObservableProperty]
     private bool _isExternalScan;
 
     [ObservableProperty]
@@ -99,7 +104,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(CanScan))]
-    private async Task ScanAsync()
+    private async Task ScanAsync(CancellationToken cancellationToken)
     {
         var scanTarget = SelectedPath;
 
@@ -113,7 +118,7 @@ public partial class MainViewModel : ObservableObject
         IsScanning = true;
         SetLocalizedScanTitle("ScanningStatus");
         ScanProgressText = string.Empty;
-        _scanCts = new CancellationTokenSource();
+        _scanCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         try
         {
@@ -158,7 +163,20 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool CanScan() => !IsScanning && SelectedPath is not null && _fileScanner.IsReady;
+    public async Task<ScanSession> ScanForAssistantAsync(string path, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (IsScanning || !_fileScanner.IsReady) throw new InvalidOperationException("已有扫描任务或扫描器正在准备。");
+        var previous = CurrentSession?.Id;
+        SelectedPath = path;
+        await ScanAsync(ct);
+        ct.ThrowIfCancellationRequested();
+        if (CurrentSession is null || CurrentSession.Id == previous || CurrentSession.IsCancelled)
+            throw new InvalidOperationException("本次扫描没有产生完整结果。");
+        return CurrentSession;
+    }
+
+    private bool CanScan() => !IsCopilotBusy && !IsScanning && SelectedPath is not null && _fileScanner.IsReady;
 
     partial void OnIsScanningChanged(bool value)
     {

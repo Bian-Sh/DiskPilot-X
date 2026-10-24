@@ -138,53 +138,13 @@ public partial class ChatViewModel
         SelectedSlashCommandSuggestion = IsSlashCommandMenuOpen ? SlashCommandSuggestions.FirstOrDefault() : null;
     }
 
+    [RelayCommand]
     private void ClearConversation()
     {
-        _logger.LogInformation("Chat conversation cleared; messages={MessageCount}", Messages.Count);
-        _chatService.ClearHistory();
-        Messages.Clear();
-        PendingInteractionCard = null;
-        _pendingInteractionSourceMessage = null;
-        IsWorkflowProgressVisible = false;
-        WorkflowSteps.Clear();
-        CurrentWorkflowStepNumber = 0;
-        OnPropertyChanged(nameof(HasWorkflowSteps));
-        OnPropertyChanged(nameof(ShouldShowWorkflowStepIndicator));
-        NotifyWorkflowProgressChanged();
-        LinkedEntry = null;
-        LinkedRecommendation = null;
-        LinkedItemPath = null;
-        ErrorMessage = null;
+        if (assistant.IsRunning) { ErrorMessage = "请先停止当前任务再清空会话。"; return; }
+        assistant.ClearHistory(); Messages.Clear(); PendingInteractionCard = null; ErrorMessage = null; StatusText = L.Text("CopilotReady");
     }
-
-    private void StartNewConversationSegment()
-    {
-        _logger.LogInformation("Chat conversation segment started; messages={MessageCount}", Messages.Count);
-        _chatService.ClearHistory();
-        PendingInteractionCard = null;
-        _pendingInteractionSourceMessage = null;
-        IsWorkflowProgressVisible = false;
-        WorkflowSteps.Clear();
-        CurrentWorkflowStepNumber = 0;
-        OnPropertyChanged(nameof(HasWorkflowSteps));
-        OnPropertyChanged(nameof(ShouldShowWorkflowStepIndicator));
-        NotifyWorkflowProgressChanged();
-        LinkedEntry = null;
-        LinkedRecommendation = null;
-        LinkedItemPath = null;
-        ErrorMessage = null;
-        Messages.Add(new ChatMessage
-        {
-            Sender = ChatSender.System,
-            Text = L.Text("ChatNewSessionDividerDescription"),
-            Timestamp = DateTime.Now
-        });
-    }
-
-    [RelayCommand]
-    private void ToggleThinking(ChatMessage message) => message.IsThinkingExpanded = !message.IsThinkingExpanded;
+    private void StartNewConversationSegment() => ClearConversation();
 }
-
 public sealed record ChatCommandSuggestion(string Command, string Description);
-
 public sealed record ChatSkillSuggestion(string Mention, string DisplayName, string Description);

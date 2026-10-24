@@ -1,357 +1,144 @@
-﻿using System.IO;
+using System.IO;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Windows;
-using SpaceMonger.App.Converters;
 using Microsoft.Extensions.DependencyInjection;
-using SpaceMonger.App.Localization;
-using SpaceMonger.App.Services.Copilot;
+using SpaceMonger.App.Converters;
 using SpaceMonger.App.ViewModels;
 using SpaceMonger.Core.Models;
+using SpaceMonger.Core.Services.Agent;
 using SpaceMonger.Core.Services.Analysis;
-using SpaceMonger.Core.Services.Copilot;
+using SpaceMonger.Core.Services.Assistant;
+using SpaceMonger.Core.Services.Cleanup;
+using SpaceMonger.Core.Services.FileTree;
 using SpaceMonger.Core.Services.Scanning;
 using SpaceMonger.Core.Services.Settings;
-using Serilog;
+using SpaceMonger.Core.Services.Whitelist;
 
 namespace SpaceMonger.App;
 
-public partial class MainWindow : IAiDiskActionExecutor
+public partial class MainWindow
 {
-    public bool HasExistingRecommendations => _recommendationsViewModel?.Recommendations.Count > 0;
-
-    public Task<AiActionResult> ExecuteAsync(AiActionRequest request, CancellationToken cancellationToken, IProgress<AiActionProgress>? progress = null)
+    private void ConnectAssistantWorkspace()
     {
-        return Dispatcher.InvokeAsync(async () => request.Kind switch
+        var workspace = App.Services!.GetRequiredService<AssistantWorkspace>();
+        workspace.ReadContext = ct => Dispatcher.InvokeAsync(() =>
         {
-            AiActionKind.StartScan => await ExecuteCopilotScanAsync(request, cancellationToken),
-            AiActionKind.AnalyzeCleanup => await ExecuteCopilotAnalyzeCleanupAsync(request),
-            AiActionKind.DiscoverUnityLibraries => await ExecuteCopilotDiscoverUnityLibrariesAsync(request, cancellationToken, progress),
-            AiActionKind.NavigateToScannedPath => ExecuteCopilotNavigate(request),
-            AiActionKind.SelectRecommendation => ExecuteCopilotRecommendationSelection(request, true),
-            AiActionKind.DeselectRecommendation => ExecuteCopilotRecommendationSelection(request, false),
-            _ => AiActionResult.Fail(Localized("Unsupported AI disk management action.", "不支持的 AI 磁盘管理动作。"))
-        }).Task.Unwrap();
+            ct.ThrowIfCancellationRequested();
+            var main = DataContext as MainViewModel;
+            return new AgentContext(main?.CurrentSession, _treemapViewModel?.CurrentRoot,
+                _chatViewModel?.LinkedEntry ?? _treemapViewModel?.SelectedNode?.Entry, _chatViewModel?.LinkedRecommendation,
+                _recommendationsViewModel?.HasAnyRecommendations == true);
+        }).Task;
+        workspace.Execute = (operation, args, ct) => Dispatcher.InvokeAsync(() => ExecuteAssistantOperationAsync(operation,args,ct)).Task.Unwrap();
+        if (_chatViewModel is not null && DataContext is MainViewModel vm)
+            _chatViewModel.PropertyChanged += (_, e) => { if(e.PropertyName == nameof(ChatViewModel.IsOperationRunning)) vm.IsCopilotBusy=_chatViewModel.IsOperationRunning||_cleanupRunning; };
     }
 
-    private async Task<AiActionResult> ExecuteCopilotDiscoverUnityLibrariesAsync(AiActionRequest request, CancellationToken cancellationToken, IProgress<AiActionProgress>? progress)
+    private async Task<JsonNode> ExecuteAssistantOperationAsync(string operation, JsonNode? args, CancellationToken ct)
     {
-        if (_recommendationsViewModel is null)
-            return AiActionResult.Fail(Localized("Cleanup recommendations are not ready yet.", "清理建议视图尚未准备好。"));
-
-        if (DataContext is not MainViewModel mainVm)
-            return AiActionResult.Fail(Localized("The main window is not connected to the scan view model yet.", "主窗口尚未连接扫描视图模型。"));
-
-        if (mainVm.IsScanning)
-            return AiActionResult.Fail(Localized("A scan is already running.", "当前已有扫描任务正在运行。"));
-
-        var targets = BuildUnityDiscoveryTargets(request).ToList();
-        if (targets.Count == 0)
-            return AiActionResult.Fail(Localized("No ready drives or valid scan roots were found.", "没有找到可扫描磁盘或有效扫描根目录。"));
-
-        EnsureBottomPanelVisible();
-        ShowRecommendationsPanel();
-        _recommendationsViewModel.BeginExternalRecommendationLoad();
-
-        try
+        ct.ThrowIfCancellationRequested();
+        if (DataContext is not MainViewModel main || _recommendationsViewModel is null) return AssistantError("工作区尚未准备好。");
+        var settingsService=App.Services!.GetRequiredService<ISettingsService>();
+        var settings=settingsService.LoadSettings();
+        var matcher=App.Services!.GetRequiredService<IPathWhitelistMatcher>();
+        bool Hidden(string? path)=>matcher.IsExcluded(path,settings.AiConversationWhitelist);
+        switch(operation)
         {
-            var recommendations = new List<CleanupRecommendation>();
-            var scannedCount = 0;
-            var failedTargets = new List<string>();
-            var enumerateTitle = string.IsNullOrWhiteSpace(request.Path)
-                ? Localized("AI is checking ready drives", "AI 正在确认可扫描磁盘")
-                : Localized("AI is checking the scan root", "AI 正在确认扫描根目录");
-            progress?.Report(new AiActionProgress("enumerate_drives", enumerateTitle, AiActionProgressStatus.Completed));
-
-            using var scanCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            using var externalScan = mainVm.BeginExternalScan(enumerateTitle, string.Empty, scanCancellation.Cancel);
-            var fileScanner = App.Services!.GetRequiredService<IFileScanner>();
-
-            foreach (var target in targets)
+            case "scan_path":
             {
-                scanCancellation.Token.ThrowIfCancellationRequested();
-                var title = L.Format("AiScanTitleFormat", FormatAiScanTargetLabel(target.Path));
-                progress?.Report(new AiActionProgress(target.StepId, title, AiActionProgressStatus.Running));
-                mainVm.SetLocalizedScanTitle("AiScanTitleFormat", FormatAiScanTargetLabel(target.Path));
-                mainVm.ScanProgressText = string.Empty;
-                Log.Information("{Message}", title);
-
-                try
-                {
-                    var scanSession = await fileScanner.ScanAsync(
-                        target.Path,
-                        new Progress<ScanProgress>(scanProgress =>
-                            Dispatcher.BeginInvoke(() => mainVm.ScanProgressText = scanProgress.FileCount > 0 || scanProgress.FolderCount > 0
-                                ? L.Format("ScanProgressStatus", scanProgress.CurrentPath, scanProgress.FileCount, scanProgress.FolderCount)
-                                : scanProgress.CurrentPath)),
-                        scanCancellation.Token);
-
-                    scannedCount++;
-                    CacheAiScanSession(scanSession);
-                    if (scanSession.RootEntry is null)
-                    {
-                        progress?.Report(new AiActionProgress(target.StepId, title, AiActionProgressStatus.Completed));
-                        continue;
-                    }
-
-                    var targetRecommendations = RecommendationEngine
-                        .BuildUnityLibraryRecommendations(scanSession.RootEntry)
-                        .ToList();
-                    if (targetRecommendations.Count > 0)
-                    {
-                        recommendations.AddRange(targetRecommendations);
-                    }
-
-                    progress?.Report(new AiActionProgress(target.StepId, title, AiActionProgressStatus.Completed));
-                }
-                catch (OperationCanceledException)
-                {
-                    progress?.Report(new AiActionProgress(target.StepId, title, AiActionProgressStatus.Failed));
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    failedTargets.Add($"{target.Path} ({ex.Message})");
-                    progress?.Report(new AiActionProgress(target.StepId, title, AiActionProgressStatus.Failed));
-                }
+                var target=ScanPathResolver.Resolve(args?["path"]?.GetValue<string>()??"");
+                if(string.IsNullOrWhiteSpace(target)||Hidden(target)||matcher.IsExcluded(target,settings.ScanWhitelist)) return AssistantError("扫描路径为空或已排除。");
+                if(main.IsScanning || _cleanupRunning) return AssistantError("当前磁盘操作尚未完成。");
+                if(main.CurrentSession is not null && _chatViewModel is not null && !await _chatViewModel.ConfirmAsync("替换当前扫描结果",$"扫描 {target}","将更新 Treemap、文件树与当前分析上下文。",ct)) return new JsonObject{["ok"]=false,["cancelled"]=true};
+                var session=await main.ScanForAssistantAsync(target,ct);
+                CacheAiScanSession(session);
+                return new JsonObject{["ok"]=true,["scan_id"]=session.Id.ToString(),["path"]=session.TargetPath,["files"]=session.TotalFiles,["folders"]=session.TotalFolders};
             }
-
-            var distinctRecommendations = recommendations
-                .GroupBy(item => item.TargetPath, StringComparer.OrdinalIgnoreCase)
-                .Select(group => group.First())
-                .OrderByDescending(item => item.Size)
-                .ToList();
-
-            var writeTitle = Localized("AI is writing cleanup recommendations", "AI 正在写入清理建议");
-            progress?.Report(new AiActionProgress("write_unity_recommendations", writeTitle, AiActionProgressStatus.Running));
-            _recommendationsViewModel.SetExternalRecommendations(distinctRecommendations);
-            progress?.Report(new AiActionProgress("write_unity_recommendations", writeTitle, AiActionProgressStatus.Completed));
-
-            var details = Localized(
-                string.IsNullOrWhiteSpace(request.Path)
-                    ? $"Scanned {scannedCount}/{targets.Count} ready drive(s); found {distinctRecommendations.Count} cleanup candidate(s)."
-                    : $"Scanned {scannedCount}/{targets.Count} path(s); found {distinctRecommendations.Count} cleanup candidate(s).",
-                string.IsNullOrWhiteSpace(request.Path)
-                    ? $"已扫描 {scannedCount}/{targets.Count} 个可用磁盘；找到 {distinctRecommendations.Count} 个清理候选项。"
-                    : $"已扫描 {scannedCount}/{targets.Count} 个路径；找到 {distinctRecommendations.Count} 个清理候选项。");
-            if (failedTargets.Count > 0)
+            case "navigate_path":
             {
-                details += Environment.NewLine + Localized("Skipped/failed targets: ", "跳过/失败的目标：") + string.Join(", ", failedTargets);
+                var target=args?["path"]?.GetValue<string>();
+                if(main.CurrentSession is null || string.IsNullOrWhiteSpace(target)||Hidden(target)
+                    ||App.Services!.GetRequiredService<IFileTreeQueryService>().FindByPath(main.CurrentSession,target) is null) return AssistantError("路径未扫描或不允许 AI 访问。");
+                NavigateToPathOrSelect(target);
+                var view=args?["view"]?.GetValue<string>();
+                if(view is not null && !SetAssistantView(view)) return AssistantError("视图只支持 treemap 或 tree。");
+                return new JsonObject{["ok"]=true,["path"]=target,["current_path"]=_treemapViewModel?.CurrentRoot?.Path,["view"]=TreeViewControl.Visibility==Visibility.Visible?"tree":"treemap"};
             }
-
-            mainVm.ScanProgressText = details;
-            Log.Information("{Message}", details);
-            return AiActionResult.Ok(Localized("Discovery complete. Review the recommendations panel before deleting anything.", "发现完成。删除前请先在推荐清理面板中复核。"), details);
-        }
-        finally
-        {
-            _recommendationsViewModel.EndExternalRecommendationLoad();
-        }
-    }
-
-    private static IEnumerable<UnityDiscoveryTarget> BuildUnityDiscoveryTargets(AiActionRequest request)
-    {
-        if (!string.IsNullOrWhiteSpace(request.Path) && Directory.Exists(request.Path))
-        {
-            yield return new UnityDiscoveryTarget(request.Path, "scan_scope:" + request.Path);
-            yield break;
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.Path))
-        {
-            yield break;
-        }
-
-        foreach (var drive in DriveInfo.GetDrives().Where(drive => drive.IsReady).OrderBy(drive => drive.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            yield return new UnityDiscoveryTarget(drive.Name, "scan_drive:" + drive.Name.TrimEnd('\\'));
-        }
-    }
-
-    private async Task<AiActionResult> ExecuteCopilotScanAsync(AiActionRequest request, CancellationToken cancellationToken)
-    {
-        var path = string.IsNullOrWhiteSpace(request.Path) ? null : ScanPathResolver.Resolve(request.Path);
-        if (string.IsNullOrWhiteSpace(path))
-            return AiActionResult.Fail(Localized("Missing path to scan.", "缺少要扫描的路径。"));
-
-        if (DataContext is not MainViewModel mainVm)
-            return AiActionResult.Fail(Localized("The main window is not connected to the scan view model yet.", "主窗口尚未连接扫描视图模型。"));
-
-        if (mainVm.IsScanning)
-            return AiActionResult.Fail(Localized("A scan is already running.", "当前已有扫描任务正在运行。"));
-
-        mainVm.SelectedPath = path;
-        if (!mainVm.ScanCommand.CanExecute(null))
-            return AiActionResult.Fail(Localized("This path cannot be scanned right now.", "当前路径暂时不能扫描。"), path);
-
-        mainVm.ScanCommand.Execute(null);
-        using var cancellationRegistration = cancellationToken.Register(() =>
-        {
-            Dispatcher.BeginInvoke(() =>
+            case "set_view":
+                return new JsonObject{["ok"]=SetAssistantView(args?["view"]?.GetValue<string>()),["view"]=TreeViewControl.Visibility==Visibility.Visible?"tree":"treemap"};
+            case "publish_recommendations":
             {
-                if (mainVm.CancelScanCommand.CanExecute(null))
-                    mainVm.CancelScanCommand.Execute(null);
-            });
-        });
-        await WaitForScanToFinishAsync(mainVm, cancellationToken);
-
-        return mainVm.CurrentSession is null
-            ? AiActionResult.Fail(Localized("The scan did not produce a usable result.", "扫描没有产生可用结果。"), LocalizeScanProgress(mainVm.ScanProgressText))
-            : AiActionResult.Ok(Localized("Scan complete. TreeView, Treemap, and chat context have been refreshed.", "扫描完成，已刷新 TreeView、Treemap 和聊天上下文。"), LocalizeScanProgress(mainVm.ScanProgressText));
+                if(main.IsScanning || _cleanupRunning || main.CurrentSession?.Id.ToString()!=args?["scan_id"]?.GetValue<string>()) return AssistantError("扫描结果已改变或磁盘正在操作。");
+                var originalId=main.CurrentSession!.Id;
+                if(_recommendationsViewModel.HasAnyRecommendations && _chatViewModel is not null
+                    && !await _chatViewModel.ConfirmAsync("替换当前清理建议","将用本轮校验后的建议替换列表。","此操作不会删除文件。",ct)) return new JsonObject{["ok"]=false,["cancelled"]=true};
+                if(main.CurrentSession?.Id!=originalId) return AssistantError("扫描结果已改变，请重新分析。");
+                var analysisMode=args?["analysis_mode"]?.GetValue<bool>()==true;
+                var focusPath=args?["focus_path"]?.GetValue<string>();
+                var localFocus=new FileTreeQueryService().FindByPath(main.CurrentSession!,focusPath??main.CurrentSession!.RootEntry!.Path);
+                if(localFocus is null)return AssistantError("分析范围已失效。");
+                var raw=JsonSerializer.SerializeToElement(args);
+                var analysis=App.Services!.GetRequiredService<RecommendationEngine>().ValidateCandidates(main.CurrentSession!,raw,localFocus);
+                analysis.Recommendations=analysis.Recommendations.Where(r=>analysisMode||!WouldAffectExcludedPath(r.TargetPath,settings.AiConversationWhitelist)).ToList();
+                _recommendationsViewModel.SetExternalRecommendations(analysis.Recommendations,analysis.Diagnostics);
+                EnsureBottomPanelVisible(); ShowRecommendationsPanel();
+                return RecommendationState(main.CurrentSession!,settings,analysisMode);
+            }
+            case "list_recommendations":
+                if(main.CurrentSession is null) return AssistantError("尚无扫描结果。");
+                return RecommendationState(main.CurrentSession,settings);
+            case "select_recommendations":
+            {
+                var ids=ReadIds(args);var selected=args?["selected"]?.GetValue<bool>()??true;
+                var items=_recommendationsViewModel.Recommendations.Where(r=>ids.Contains(r.Id)&&!Hidden(r.TargetPath)).ToList();
+                if(items.Count!=ids.Count)return AssistantError("建议 ID 不存在或已被排除。");
+                foreach(var item in items){item.IsAccepted=selected;item.IsDismissed=!selected;}
+                _recommendationsViewModel.RefreshFilteredRecommendations();
+                return main.CurrentSession is null?AssistantError("扫描结果失效。"):RecommendationState(main.CurrentSession,settings);
+            }
+            case "cleanup_recommendations":
+                return await ExecuteSharedCleanupAsync(ReadIds(args),args?["version"]?.GetValue<string>(),true,ct);
+            case "confirm_skill_change":
+            {
+                if(_chatViewModel is null)return AssistantError("无法显示技能变更确认。");
+                var confirmed=await _chatViewModel.ConfirmAsync("确认修改磁盘技能",$"操作：{args?["operation"]}；技能：{args?["id"]}","仅允许修改用户技能，内置技能受保护。",ct);
+                return new JsonObject{["ok"]=confirmed,["cancelled"]=!confirmed};
+            }
+            case "ask_user":
+            {
+                if(_chatViewModel is null)return AssistantError("无法显示输入请求。");
+                var accepted=await _chatViewModel.ConfirmAsync("需要你的输入",args?["question"]?.GetValue<string>()??"请补充任务信息。","可在备注中填写你的回答。",ct,true);
+                return new JsonObject{["ok"]=accepted,["cancelled"]=!accepted,["answer"]=accepted?_chatViewModel.LastUserNotes:null};
+            }
+            default:return AssistantError("未知磁盘操作。");
+        }
     }
-
-    private async Task<AiActionResult> ExecuteCopilotAnalyzeCleanupAsync(AiActionRequest request)
+    private bool SetAssistantView(string? view)
     {
-        if (_recommendationsViewModel is null || _settingsViewModel is null)
-            return AiActionResult.Fail(Localized("Cleanup recommendations are not ready yet.", "清理建议视图尚未准备好。"));
-
-        if (_recommendationsViewModel.IsAnalyzing)
-            return AiActionResult.Fail(Localized("Cleanup recommendation analysis is already running.", "推荐清理分析正在进行中。"));
-
-        if (DataContext is not MainViewModel mainVm || mainVm.CurrentSession is null)
-            return AiActionResult.Fail(Localized("Complete a scan before analyzing cleanup candidates.", "需要先完成一次扫描，才能分析可清理内容。"));
-
-        var settingsService = App.Services!.GetRequiredService<ISettingsService>();
-        var loadedSettings = settingsService.LoadSettings();
-        var apiKey = settingsService.GetApiKey(loadedSettings);
-        if (string.IsNullOrWhiteSpace(apiKey))
-            return AiActionResult.Fail(Localized("Configure a model service API Key before running cleanup recommendation analysis.", "需要先配置模型服务 API Key，才能运行推荐清理分析。"));
-
-        EnsureBottomPanelVisible();
-        ShowRecommendationsPanel();
-
-        FileEntry? focusEntry = null;
-        if (!string.IsNullOrWhiteSpace(request.Path) && _treemapViewModel?.CurrentRoot is not null)
-        {
-            if (_treemapViewModel.NavigateToPath(request.Path))
-                focusEntry = _treemapViewModel.CurrentRoot;
-        }
-
-        focusEntry ??= _treemapViewModel?.CurrentRoot is not null && _treemapViewModel.CurrentRoot != mainVm.CurrentSession.RootEntry
-            ? _treemapViewModel.CurrentRoot
-            : null;
-
-        _recommendationsViewModel.SetContext(
-            mainVm.CurrentSession,
-            apiKey,
-            loadedSettings.AnthropicBaseUrl,
-            loadedSettings.AnalysisModelName,
-            loadedSettings.EnableThinking,
-            loadedSettings.Language,
-            focusEntry);
-
-        var scopeLabel = focusEntry is not null
-            ? L.Format("AnalyzingFolderStatus", focusEntry.Name)
-            : L.Text("AnalyzingScanResultsStatus");
-        mainVm.ScanProgressText = scopeLabel;
-        Log.Information("{Message}", scopeLabel);
-        await _recommendationsViewModel.AnalyzeCommand.ExecuteAsync(null);
-
-        if (_recommendationsViewModel.AnalysisError is not null)
-        {
-            return AiActionResult.Fail(Localized("Cleanup recommendation analysis failed.", "推荐清理分析失败。"), _recommendationsViewModel.AnalysisError);
-        }
-
-        var count = _recommendationsViewModel.Recommendations.Count;
-        mainVm.ScanProgressText = L.Format("AnalysisCompleteStatus", count, count == 1 ? "" : "s");
-        Log.Information("{Message}", mainVm.ScanProgressText);
-        return AiActionResult.Ok(
-            count > 0
-                ? Localized($"Generated {count} cleanup recommendation{(count == 1 ? "" : "s")}; review them in Recommendations.", $"已生成 {count} 条清理建议，已在“推荐清理”中展示。")
-                : Localized("Cleanup recommendation analysis complete; no cleanup candidates were found.", "推荐清理分析完成，未发现可推荐清理项。"),
-            BuildRecommendationSummary(_recommendationsViewModel.FilteredRecommendations.Count > 0
-                ? _recommendationsViewModel.FilteredRecommendations
-                : _recommendationsViewModel.Recommendations));
+        if(view=="tree"){TreeViewTabBtn.IsChecked=true;return true;}
+        if(view=="treemap"){TreemapTabBtn.IsChecked=true;return true;}
+        return false;
     }
-
+    private JsonNode RecommendationState(ScanSession session,AppSettings settings,bool analysisMode=false)
+    {
+        var all=_recommendationsViewModel!.Recommendations.ToList();
+        var matcher=App.Services!.GetRequiredService<IPathWhitelistMatcher>();
+        return JsonSerializer.SerializeToNode(new{ok=true,scan_id=session.Id,version=CleanupPlan.ComputeVersion(session,all,CurrentDeletionMode),
+            deletion_mode=CurrentDeletionMode.ToString(),recommendations=all.Where(r=>analysisMode||!matcher.IsExcluded(r.TargetPath,settings.AiConversationWhitelist))
+                .Select(r=>new{id=r.Id,path=r.TargetPath,size_bytes=r.Size,safety_rating=r.SafetyRating.ToString(),explanation=r.Explanation,selected=r.IsAccepted})})!;
+    }
+    private static bool WouldAffectExcludedPath(string target,IEnumerable<PathWhitelistEntry> rules)
+    {
+        var matcher=new PathWhitelistMatcher();
+        var list=rules.ToList();
+        return matcher.IsExcluded(target,list)||list.Any(rule=>matcher.IsExcluded(rule.Path,[new PathWhitelistEntry{Path=target}]));
+    }
+    private static List<string> ReadIds(JsonNode? args)=>args?["ids"] is JsonArray ids?ids.Select(n=>n?.GetValue<string>()??"").ToList():[];
+    private static JsonNode AssistantError(string message)=>new JsonObject{["ok"]=false,["error"]=message};
     internal static string? BuildRecommendationSummary(IEnumerable<CleanupRecommendation> recommendations)
     {
-        var topItems = recommendations
-            .Where(item => item.Size > 0 || !string.IsNullOrWhiteSpace(item.TargetPath))
-            .OrderByDescending(item => item.Size)
-            .Take(3)
-            .Select(item => $"- {Path.GetFileName(item.TargetPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}: {FileSizeConverter.FormatSize(item.Size)}")
-            .ToList();
-
-        if (topItems.Count == 0)
-        {
-            return null;
-        }
-
-        return Localized("Top items shown in Recommendations:", "推荐清理中显示的主要项目：")
-               + Environment.NewLine
-               + string.Join(Environment.NewLine, topItems);
+        var lines=recommendations.OrderByDescending(r=>r.Size).Take(3).Select(r=>$"- {Path.GetFileName(r.TargetPath.TrimEnd(Path.DirectorySeparatorChar))}: {FileSizeConverter.FormatSize(r.Size)}").ToArray();
+        return lines.Length==0?null:"主要清理候选："+Environment.NewLine+string.Join(Environment.NewLine,lines);
     }
-
-    private AiActionResult ExecuteCopilotNavigate(AiActionRequest request)
-    {
-        var path = string.IsNullOrWhiteSpace(request.Path) ? null : ScanPathResolver.Resolve(request.Path);
-        if (string.IsNullOrWhiteSpace(path))
-            return AiActionResult.Fail(Localized("Missing path to locate.", "缺少要定位的路径。"));
-
-        if (_treemapViewModel is null)
-            return AiActionResult.Fail(Localized("Treemap is not ready yet.", "Treemap 尚未准备好。"));
-
-        return _treemapViewModel.NavigateToPath(path)
-            ? AiActionResult.Ok(Localized("Located the path in the current scan tree.", "已在当前扫描树中定位路径。"), path)
-            : AiActionResult.Fail(Localized("This path is not in the current scan tree. You can confirm whether to scan it first.", "当前扫描树中没有这个路径。可以先确认是否需要扫描该路径。"), path);
-    }
-
-    private AiActionResult ExecuteCopilotRecommendationSelection(AiActionRequest request, bool accept)
-    {
-        if (_recommendationsViewModel is null || string.IsNullOrWhiteSpace(request.RecommendationId))
-            return AiActionResult.Fail(Localized("Missing recommendation ID.", "缺少推荐项 ID。"));
-
-        var recommendation = _recommendationsViewModel.Recommendations
-            .FirstOrDefault(item => string.Equals(item.Id, request.RecommendationId, StringComparison.OrdinalIgnoreCase));
-        if (recommendation is null)
-            return AiActionResult.Fail(Localized("The matching recommendation was not found.", "没有找到对应的推荐项。"), request.RecommendationId);
-
-        recommendation.IsAccepted = accept;
-        recommendation.IsDismissed = !accept;
-        _recommendationsViewModel.RefreshFilteredRecommendations();
-        return AiActionResult.Ok(accept ? Localized("Recommendation selected.", "已选中推荐项。") : Localized("Recommendation deselected/dismissed.", "已取消/忽略推荐项。"), recommendation.TargetPath);
-    }
-
-    private static string FormatAiScanTargetLabel(string path)
-    {
-        var root = Path.GetPathRoot(path.Trim());
-        if (!string.IsNullOrWhiteSpace(root) && string.Equals(Path.GetFullPath(path), root, StringComparison.OrdinalIgnoreCase))
-        {
-            var drive = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (drive.EndsWith(":", StringComparison.Ordinal))
-            {
-                var letter = drive.TrimEnd(':');
-                return L.CurrentLanguageName.StartsWith("en", StringComparison.OrdinalIgnoreCase)
-                    ? $"{letter} drive"
-                    : $"{letter} 盘";
-            }
-        }
-
-        return path;
-    }
-
-    private static string Localized(string english, string chinese)
-        => L.CurrentLanguageName.StartsWith("en", StringComparison.OrdinalIgnoreCase) ? english : chinese;
-
-    private static string? LocalizeScanProgress(string? progressText)
-    {
-        return progressText;
-    }
-
-    private static async Task WaitForScanToFinishAsync(MainViewModel mainVm, CancellationToken cancellationToken)
-    {
-        while (mainVm.IsScanning)
-        {
-            await Task.Delay(250, cancellationToken);
-        }
-    }
-
-    private static async Task WaitForScannerReadyAsync(IFileScanner scanner, CancellationToken cancellationToken)
-    {
-        while (!scanner.IsReady)
-        {
-            await Task.Delay(250, cancellationToken);
-        }
-    }
-
-    private sealed record UnityDiscoveryTarget(string Path, string StepId);
 }

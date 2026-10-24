@@ -1,3 +1,4 @@
+using System.Net.Http;
 ﻿using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -10,7 +11,7 @@ using SpaceMonger.App.ViewModels;
 using SpaceMonger.Core.Services.Analysis;
 using SpaceMonger.Core.Services.Agent;
 using SpaceMonger.Core.Services.FileTree;
-using SpaceMonger.Core.Services.Chat;
+using SpaceMonger.Core.Services.Assistant;
 using SpaceMonger.Core.Services.Llm;
 using SpaceMonger.Core.Services.Scanning;
 using SpaceMonger.Core.Services.Settings;
@@ -65,10 +66,12 @@ public partial class App : Application
         services.AddSingleton<ICleanupService, CleanupService>();
 
         // US2 services
-        services.AddSingleton<ISettingsService, SettingsService>();
-        services.AddSingleton<ILlmClient, AnthropicClient>();
+        services.AddSingleton<ISettingsService>(_ => new SettingsService(AcceptanceAutomationServer.IsEnabled()
+            ? Environment.GetEnvironmentVariable("SPACEMONGER_ACCEPTANCE_SETTINGS") : null));
+        services.AddSingleton<ModelConnectionTester>();
         services.AddSingleton<IDuplicateDetector, DuplicateDetector>();
-        services.AddSingleton<IRecommendationEngine, RecommendationEngine>();
+        services.AddSingleton<RecommendationEngine>();
+        services.AddSingleton<IRecommendationEngine, HarnessRecommendationEngine>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<RecommendationsViewModel>();
 
@@ -79,13 +82,16 @@ public partial class App : Application
         services.AddSingleton<IAgentTool, ListChildrenTool>();
         services.AddSingleton<IAgentTool, SummarizeSubtreeTool>();
         services.AddSingleton<IAgentTool, FindLargeFilesTool>();
-        services.AddSingleton<IAgentTool, GetCopilotContextTool>();
         services.AddSingleton<IAgentTool, ResolvePathTool>();
-        services.AddSingleton<IAgentTool, ProposeCopilotActionTool>();
         services.AddSingleton<IAgentTool, ReadUnityRegistryContextTool>();
         services.AddSingleton<IAgentTool, ManageDiskSkillsTool>();
-        services.AddSingleton<IAgentRuntime, AgentRuntime>();
-        services.AddSingleton<IChatService, ChatService>();
+        services.AddSingleton<AssistantWorkspace>();
+        services.AddSingleton<DiskAssistantService>(provider => new DiskAssistantService(
+            options => new AnthropicModelClient(provider.GetRequiredService<IHttpClientFactory>().CreateClient("Anthropic"),
+                options.ApiKey, options.BaseUrl, options.Model, options.EnableThinking),
+            provider.GetServices<IAgentTool>(), provider.GetRequiredService<AssistantWorkspace>(),
+            provider.GetRequiredService<ISettingsService>(), provider.GetRequiredService<RecommendationEngine>(),
+            provider.GetRequiredService<ILoggerFactory>()));
         services.AddTransient<ChatViewModel>();
 
         // TreeView services
@@ -138,6 +144,7 @@ public partial class App : Application
             treeViewModel.SetRoot(session.RootEntry!, session);
         };
 
+        if (AcceptanceAutomationServer.IsEnabled()) mainWindow.ShowActivated = false;
         mainWindow.Show();
         Log.Information("Main window shown");
 

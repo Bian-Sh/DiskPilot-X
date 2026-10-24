@@ -1,11 +1,17 @@
-﻿using System.Collections.Specialized;
+using SpaceMonger.App.Localization;
+using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Globalization;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Shapes;
-using SpaceMonger.App.Localization;
+using System.Windows.Threading;
+using SpaceMonger.App.Converters;
 using SpaceMonger.App.ViewModels;
 using SpaceMonger.Core.Models;
 
@@ -13,359 +19,135 @@ namespace SpaceMonger.App.Views;
 
 public partial class ChatPanel : UserControl
 {
-    private ChatViewModel? _viewModel;
-
+    private ChatViewModel? viewModel;
+    private readonly HashSet<ChatMessage> observedMessages = [];
+    private bool followTail = true;
+    private bool holdReading;
+    private bool scrollQueued;
     public event Action? OpenSettingsRequested;
-
-    public ChatPanel()
+    public ChatPanel() { InitializeComponent(); if(App.Services?.GetService(typeof(SpaceMonger.App.Services.ThemeManager)) is SpaceMonger.App.Services.ThemeManager manager) manager.ThemeChanged += RefreshMarkdownViews; L.LanguageChanged += ()=> { _=Dispatcher.InvokeAsync(()=> { var offset=MessagesScrollViewer.VerticalOffset; MessagesItemsControl.Items.Refresh(); if(!followTail)MessagesScrollViewer.ScrollToVerticalOffset(offset); }); }; }
+    private void RefreshMarkdownViews()
     {
-        InitializeComponent();
-        L.LanguageChanged += OnLanguageChanged;
+        var pending=new Stack<DependencyObject>();pending.Push(this);
+        while(pending.TryPop(out var node))
+        {
+            if(node is CopilotMarkdownView markdown){if(markdown.IsVisible)markdown.RefreshDocument();continue;}
+            for(var index=0;index<VisualTreeHelper.GetChildrenCount(node);index++)pending.Push(VisualTreeHelper.GetChild(node,index));
+        }
     }
-
     public void SetViewModel(ChatViewModel vm)
     {
-        // Unsubscribe from previous view model's collection if any
-        if (_viewModel != null)
-        {
-            _viewModel.Messages.CollectionChanged -= Messages_CollectionChanged;
-            foreach (var message in _viewModel.Messages)
-            {
-                message.PropertyChanged -= Message_PropertyChanged;
-            }
-        }
-
-        _viewModel = vm;
-        DataContext = vm;
-
-        // Subscribe to collection changes for auto-scroll
-        vm.Messages.CollectionChanged += Messages_CollectionChanged;
-        foreach (var message in vm.Messages)
-        {
-            message.PropertyChanged += Message_PropertyChanged;
-        }
+        if(viewModel is not null) viewModel.Messages.CollectionChanged -= MessagesChanged;
+        foreach(var message in observedMessages.ToArray()) Detach(message);
+        viewModel=vm; DataContext=vm; vm.Messages.CollectionChanged += MessagesChanged;
+        foreach(var message in vm.Messages) Attach(message);
+        QueueScroll();
     }
-
-
-    public void FocusInput()
+    public void FocusInput() { InputTextBox.Focus(); InputTextBox.CaretIndex=InputTextBox.Text.Length; }
+    private void Attach(ChatMessage message)
     {
-        InputTextBox.Focus();
-        Keyboard.Focus(InputTextBox);
-        InputTextBox.CaretIndex = InputTextBox.Text?.Length ?? 0;
+        if(!observedMessages.Add(message)) return;
+        message.PropertyChanged += MessageChanged; message.Segments.CollectionChanged += SegmentsChanged;
+        foreach(var segment in message.Segments) segment.PropertyChanged += MessageChanged;
     }
-    private void OnLanguageChanged()
+    private void Detach(ChatMessage message)
     {
-        Dispatcher.InvokeAsync(() =>
-        {
-            // Update all copy button tooltips
-            UpdateCopyButtonTooltips();
-        });
+        message.PropertyChanged -= MessageChanged; message.Segments.CollectionChanged -= SegmentsChanged;
+        foreach(var segment in message.Segments) segment.PropertyChanged -= MessageChanged;
+        observedMessages.Remove(message);
     }
-
-    private void UpdateCopyButtonTooltips()
+    private void MessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        var tooltipText = L.Text("CopyMessageToolTip");
-        
-        // Find all copy buttons in the visual tree
-        var stackPanel = FindChild<StackPanel>(MessagesItemsControl);
-        if (stackPanel == null) return;
-
-        foreach (var child in stackPanel.Children)
-        {
-            if (child is FrameworkElement element)
-            {
-                var aiCopyBorder = FindChildByName<Border>(element, "AiCopyButtonBorder");
-                if (aiCopyBorder != null)
-                {
-                    ToolTipService.SetToolTip(aiCopyBorder, tooltipText);
-                }
-
-                var userCopyBorder = FindChildByName<Border>(element, "UserCopyButtonBorder");
-                if (userCopyBorder != null)
-                {
-                    ToolTipService.SetToolTip(userCopyBorder, tooltipText);
-                }
-            }
-        }
+        if(viewModel is null) return;
+        foreach(var message in observedMessages.Where(m=>!viewModel.Messages.Contains(m)).ToArray()) Detach(message);
+        foreach(var message in viewModel.Messages) Attach(message);
+        QueueScroll();
     }
-
-    private void Messages_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void SegmentsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (e.OldItems is not null)
-        {
-            foreach (ChatMessage message in e.OldItems)
-            {
-                message.PropertyChanged -= Message_PropertyChanged;
-            }
-        }
-
-        if (e.NewItems is not null)
-        {
-            foreach (ChatMessage message in e.NewItems)
-            {
-                message.PropertyChanged += Message_PropertyChanged;
-            }
-        }
-
-        if (e.Action == NotifyCollectionChangedAction.Add)
-        {
-            ScrollToBottom();
-        }
+        if(e.NewItems is not null) foreach(ChatSegment segment in e.NewItems) segment.PropertyChanged += MessageChanged;
+        if(e.OldItems is not null) foreach(ChatSegment segment in e.OldItems) segment.PropertyChanged -= MessageChanged;
+        QueueScroll();
     }
-
-    private void Message_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void MessageChanged(object? sender, PropertyChangedEventArgs e) => QueueScroll();
+    private void QueueScroll()
     {
-        if (e.PropertyName is nameof(ChatMessage.Text) or nameof(ChatMessage.Thinking))
-        {
-            ScrollToBottom();
-        }
+        if(scrollQueued) return; scrollQueued=true;
+        _=Dispatcher.InvokeAsync(()=> { scrollQueued=false; if(followTail) MessagesScrollViewer.ScrollToEnd(); JumpButton.Visibility=!followTail && viewModel?.HasMessages==true?Visibility.Visible:Visibility.Collapsed; }, DispatcherPriority.Background);
     }
-
-    private void ScrollToBottom()
+    private void Messages_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
-        // Use Dispatcher to ensure layout has updated before scrolling
-        Dispatcher.InvokeAsync(() =>
-        {
-            MessagesScrollViewer.ScrollToEnd();
-        }, System.Windows.Threading.DispatcherPriority.Background);
+        if(e.ExtentHeightChange==0 && e.ViewportHeightChange==0) followTail=MessagesScrollViewer.ScrollableHeight-MessagesScrollViewer.VerticalOffset<24;
+        else if(followTail) QueueScroll();
+        JumpButton.Visibility=!followTail && viewModel?.HasMessages==true?Visibility.Visible:Visibility.Collapsed;
     }
-
-    private void InputTextBox_KeyDown(object sender, KeyEventArgs e)
+    private void Process_ExpansionChanged(object sender,RoutedEventArgs e) { var offset=MessagesScrollViewer.VerticalOffset;holdReading=true;followTail=false;QueueScroll();_=Dispatcher.InvokeAsync(()=>MessagesScrollViewer.ScrollToVerticalOffset(offset),DispatcherPriority.Loaded); }
+    private void Messages_PreviewMouseDown(object sender,MouseButtonEventArgs e)=>holdReading=false;
+    private void Messages_PreviewMouseWheel(object sender,MouseWheelEventArgs e)=>holdReading=false;
+    private void Submit_Click(object sender,RoutedEventArgs e) { if(viewModel?.IsOperationRunning!=true){holdReading=false;followTail=true;QueueScroll();} }
+    private void Jump_Click(object sender,RoutedEventArgs e) { holdReading=false; followTail=true; MessagesScrollViewer.ScrollToEnd(); JumpButton.Visibility=Visibility.Collapsed; }
+    private void Settings_Click(object sender,RoutedEventArgs e) => OpenSettingsRequested?.Invoke();
+    private void Skills_Click(object sender,RoutedEventArgs e) { if(viewModel is null)return; viewModel.InputText="@"; FocusInput(); }
+    private void Skill_Click(object sender,MouseButtonEventArgs e) { if(SkillList.SelectedItem is ChatSkillSuggestion skill) viewModel?.SelectSkillMentionCommand.Execute(skill); FocusInput(); }
+    private void Slash_Click(object sender,MouseButtonEventArgs e) { if(SlashList.SelectedItem is ChatCommandSuggestion command) viewModel?.SelectSlashCommandCommand.Execute(command); FocusInput(); }
+    private void Input_KeyDown(object sender,KeyEventArgs e)
     {
-        if (_viewModel?.IsCompletionMenuOpen == true)
-        {
-            if (e.Key == Key.Down)
-            {
-                _viewModel.MoveCompletionSelection(1);
-                e.Handled = true;
-                return;
-            }
-
-            if (e.Key == Key.Up)
-            {
-                _viewModel.MoveCompletionSelection(-1);
-                e.Handled = true;
-                return;
-            }
-
-            if (e.Key is Key.Tab or Key.Enter)
-            {
-                _viewModel.ConfirmActiveCompletion();
-                InputTextBox.CaretIndex = InputTextBox.Text?.Length ?? 0;
-                e.Handled = true;
-                return;
-            }
-
-            if (e.Key == Key.Escape)
-            {
-                _viewModel.IsSlashCommandMenuOpen = false;
-                _viewModel.IsSkillMentionMenuOpen = false;
-                e.Handled = true;
-                return;
-            }
-        }
-
-        if (e.Key == Key.Enter && !Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
-        {
-            if (_viewModel?.SubmitOrStopCommand.CanExecute(null) == true)
-            {
-                _viewModel.SubmitOrStopCommand.Execute(null);
-            }
-            e.Handled = true;
-        }
+        if(viewModel is null) return;
+        if(viewModel.IsCompletionMenuOpen && e.Key is Key.Up or Key.Down) { viewModel.MoveCompletionSelection(e.Key==Key.Up?-1:1); e.Handled=true; return; }
+        if(e.Key is Key.Enter or Key.Tab && viewModel.ConfirmActiveCompletion()) { e.Handled=true; return; }
+        if(e.Key==Key.Escape) { viewModel.IsSlashCommandMenuOpen=false; viewModel.IsSkillMentionMenuOpen=false; return; }
+        if(e.Key==Key.Enter && !Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && !viewModel.IsOperationRunning) { holdReading=false; followTail=true; QueueScroll(); viewModel.SubmitOrStopCommand.Execute(null); e.Handled=true; }
     }
-
-    private void OpenSettingsButton_Click(object sender, RoutedEventArgs e)
+    private void Copy_Click(object sender,RoutedEventArgs e)
     {
-        OpenSettingsRequested?.Invoke();
-    }
-
-    private void ClearContextButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_viewModel != null)
-        {
-            _viewModel.LinkedEntry = null;
-            _viewModel.LinkedRecommendation = null;
-            _viewModel.LinkedItemPath = null;
-        }
-    }
-
-    private void ThinkingBorder_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is FrameworkElement element && element.DataContext is ChatMessage message)
-        {
-            message.IsThinkingExpanded = !message.IsThinkingExpanded;
-            e.Handled = true;
-        }
-    }
-
-    private void BubbleBorder_MouseEnter(object sender, MouseEventArgs e)
-    {
-        if (sender is Border border)
-        {
-            // Find the copy button border in the visual tree
-            var grid = FindChild<Grid>(border);
-            if (grid != null)
-            {
-                                // Find AI action row
-                var aiActions = FindChildByName<StackPanel>(grid, "AiMessageActions");
-                if (aiActions != null && aiActions.Visibility == Visibility.Visible)
-                {
-                    aiActions.Opacity = 1;
-                }
-
-                // Find User copy button
-                var userCopyBorder = FindChildByName<Border>(grid, "UserCopyButtonBorder");
-                if (userCopyBorder != null && userCopyBorder.Visibility == Visibility.Visible)
-                {
-                    userCopyBorder.Opacity = 1;
-                }
-            }
-        }
-    }
-
-    private void BubbleBorder_MouseLeave(object sender, MouseEventArgs e)
-    {
-        if (sender is Border border)
-        {
-            var grid = FindChild<Grid>(border);
-            if (grid != null)
-            {
-                var aiActions = FindChildByName<StackPanel>(grid, "AiMessageActions");
-                if (aiActions != null)
-                {
-                    aiActions.Opacity = 0;
-                }
-
-                var userCopyBorder = FindChildByName<Border>(grid, "UserCopyButtonBorder");
-                if (userCopyBorder != null)
-                {
-                    userCopyBorder.Opacity = 0;
-                }
-            }
-        }
-    }
-
-    private void CopyButton_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is Border border && border.DataContext is ChatMessage message)
-        {
-            var textToCopy = message.Text;
-            if (!string.IsNullOrEmpty(textToCopy))
-            {
-                try
-                {
-                    Clipboard.SetText(textToCopy);
-                    
-                    // Visual feedback - briefly brighten the icon
-                    var icon = FindChild<Path>(border);
-                    if (icon != null)
-                    {
-                        var originalOpacity = icon.Opacity;
-                        icon.Opacity = 1;
-                        icon.Stroke = new SolidColorBrush(Color.FromRgb(100, 200, 255)); // Light blue flash
-                        
-                        var timer = new System.Windows.Threading.DispatcherTimer
-                        {
-                            Interval = TimeSpan.FromMilliseconds(300)
-                        };
-                        timer.Tick += (s, args) =>
-                        {
-                            icon.Opacity = originalOpacity;
-                            icon.Stroke = new SolidColorBrush(Colors.White);
-                            timer.Stop();
-                        };
-                        timer.Start();
-                    }
-                }
-                catch
-                {
-                    // Clipboard might be unavailable
-                }
-            }
-            e.Handled = true;
-        }
-    }
-
-    private void CopyButton_MouseEnter(object sender, MouseEventArgs e)
-    {
-        if (sender is Border border)
-        {
-            var icon = FindChild<Path>(border);
-            if (icon != null)
-            {
-                icon.Opacity = 1; // Full brightness on hover
-            }
-        }
-    }
-
-    private void CopyButton_MouseLeave(object sender, MouseEventArgs e)
-    {
-        if (sender is Border border)
-        {
-            var icon = FindChild<Path>(border);
-            if (icon != null)
-            {
-                icon.Opacity = 0.6; // Back to default
-            }
-        }
-    }
-
-    private void FlowDocumentScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
-    {
-        // Forward the mouse wheel event to the parent ScrollViewer
-        if (sender is FlowDocumentScrollViewer)
-        {
-            var parentScrollViewer = FindParent<ScrollViewer>((DependencyObject)sender);
-            if (parentScrollViewer != null)
-            {
-                parentScrollViewer.ScrollToVerticalOffset(parentScrollViewer.VerticalOffset - e.Delta);
-                e.Handled = true;
-            }
-        }
-    }
-
-    private static T? FindParent<T>(DependencyObject child) where T : DependencyObject
-    {
-        var parent = VisualTreeHelper.GetParent(child);
-        while (parent != null)
-        {
-            if (parent is T typedParent)
-                return typedParent;
-            parent = VisualTreeHelper.GetParent(parent);
-        }
-        return null;
-    }
-
-    private static T? FindChild<T>(DependencyObject parent) where T : DependencyObject
-    {
-        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
-        {
-            var child = VisualTreeHelper.GetChild(parent, i);
-            if (child is T typedChild)
-                return typedChild;
-
-            var result = FindChild<T>(child);
-            if (result != null)
-                return result;
-        }
-        return null;
-    }
-
-    private static T? FindChildByName<T>(DependencyObject parent, string name) where T : FrameworkElement
-    {
-        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
-        {
-            var child = VisualTreeHelper.GetChild(parent, i);
-            if (child is T typedChild && typedChild.Name == name)
-                return typedChild;
-
-            var result = FindChildByName<T>(child, name);
-            if (result != null)
-                return result;
-        }
-        return null;
+        if(sender is FrameworkElement {DataContext:ChatMessage message} && !string.IsNullOrWhiteSpace(message.Text))
+            try { Clipboard.SetText(message.Text); } catch(System.Runtime.InteropServices.ExternalException) { }
     }
 }
 
+/// <summary>将连续增量合并到短 UI 节奏，避免每个 token 都重建整段 Markdown。</summary>
+public sealed class CopilotMarkdownView : FlowDocumentScrollViewer
+{
+    public static readonly DependencyProperty MarkdownProperty=DependencyProperty.Register(nameof(Markdown),typeof(string),typeof(CopilotMarkdownView),new PropertyMetadata("",Changed));
+    private readonly DispatcherTimer timer;
+    private static readonly MarkdownToFlowDocumentConverter Converter=new();
+    public string Markdown {get=>(string)GetValue(MarkdownProperty);set=>SetValue(MarkdownProperty,value);}
+    public CopilotMarkdownView()
+    {
+        Background=Brushes.Transparent;BorderThickness=new Thickness(0);Padding=new Thickness(0);IsToolBarVisible=false;IsSelectionEnabled=true;
+        VerticalScrollBarVisibility=ScrollBarVisibility.Disabled;HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled;
+        timer=new DispatcherTimer(DispatcherPriority.Background){Interval=TimeSpan.FromMilliseconds(45)};
+        timer.Tick+=(_,_)=> {timer.Stop(); if(IsVisible)RefreshDocument();};
+        Unloaded+=(_,_)=>timer.Stop(); Loaded+=(_,_)=>timer.Start(); IsVisibleChanged+=(_,e)=>{if(e.NewValue is true)timer.Start();};
+    }
+    public void RefreshDocument()
+    {
+        var document=(FlowDocument)Converter.Convert(Markdown??"",typeof(FlowDocument),null!,CultureInfo.CurrentCulture);document.PagePadding=new Thickness(0);Document=document;
+    }
+    private static void Changed(DependencyObject sender,DependencyPropertyChangedEventArgs e) {var view=(CopilotMarkdownView)sender;if(view.timer is not null && !view.timer.IsEnabled)view.timer.Start();}
+    protected override void OnPreviewMouseWheel(MouseWheelEventArgs e)
+    {
+        for(var parent=VisualTreeHelper.GetParent(this);parent is not null;parent=VisualTreeHelper.GetParent(parent))
+            if(parent is ScrollViewer scroll) {scroll.ScrollToVerticalOffset(scroll.VerticalOffset-e.Delta);e.Handled=true;return;}
+        base.OnPreviewMouseWheel(e);
+    }
+}
 
+public sealed class ProcessLabelConverter : IValueConverter
+{
+    public object Convert(object value,Type targetType,object parameter,CultureInfo culture)
+    {
+        var key = value is ChatSegmentStatus status ? "CopilotStatus_" + status : "CopilotTool_" + value;
+        var label=L.Text(key); return label==key?value?.ToString()??"":label;
+    }
+    public object ConvertBack(object value,Type targetType,object parameter,CultureInfo culture)=>throw new NotSupportedException();
+}
+
+public sealed class JsonDetailConverter : IValueConverter
+{
+    public object Convert(object value,Type targetType,object parameter,CultureInfo culture)
+    {
+        var text=value as string??"";try {using var json=JsonDocument.Parse(text);return JsonSerializer.Serialize(json.RootElement,new JsonSerializerOptions{WriteIndented=true,Encoder=JavaScriptEncoder.UnsafeRelaxedJsonEscaping});}catch(JsonException){return text;}
+    }
+    public object ConvertBack(object value,Type targetType,object parameter,CultureInfo culture)=>throw new NotSupportedException();
+}

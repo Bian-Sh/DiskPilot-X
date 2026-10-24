@@ -34,20 +34,28 @@ public class CleanupService : ICleanupService
 
             try
             {
-                bool isDirectory = Directory.Exists(recommendation.TargetPath);
-
-                await Task.Run(() =>
+                var snapshot = await Task.Run(() =>
                 {
+                    var targetPath = recommendation.TargetPath;
+                    var expected = recommendation.ExpectedCleanupFingerprint;
+                    var current = CleanupFilesystemSnapshot.Capture(targetPath, cancellationToken);
+                    if (!current.Exists)
+                        return current;
+                    if (expected is not null && current.Fingerprint != expected)
+                        throw new InvalidOperationException("清理目标已改变，必须重新批准。");
+                    cancellationToken.ThrowIfCancellationRequested();
+                    bool isDirectory = current.IsDirectory;
+
                     switch (mode)
                     {
                         case DeletionMode.PermanentDelete:
                             if (isDirectory)
                             {
-                                Directory.Delete(recommendation.TargetPath, recursive: true);
+                                Directory.Delete(targetPath, recursive: true);
                             }
                             else
                             {
-                                File.Delete(recommendation.TargetPath);
+                                File.Delete(targetPath);
                             }
                             break;
 
@@ -55,23 +63,24 @@ public class CleanupService : ICleanupService
                             if (isDirectory)
                             {
                                 FileSystem.DeleteDirectory(
-                                    recommendation.TargetPath,
+                                    targetPath,
                                     UIOption.OnlyErrorDialogs,
                                     RecycleOption.SendToRecycleBin);
                             }
                             else
                             {
                                 FileSystem.DeleteFile(
-                                    recommendation.TargetPath,
+                                    targetPath,
                                     UIOption.OnlyErrorDialogs,
                                     RecycleOption.SendToRecycleBin);
                             }
                             break;
                     }
+                    return current;
                 }, cancellationToken).ConfigureAwait(false);
 
-                action.Result = CleanupResult.Success;
-                action.ActualSizeFreed = recommendation.Size;
+                action.Result = snapshot.Exists ? CleanupResult.Success : CleanupResult.AlreadyRemoved;
+                action.ActualSizeFreed = snapshot.Exists ? snapshot.Size : 0;
             }
             catch (FileNotFoundException)
             {
@@ -80,6 +89,11 @@ public class CleanupService : ICleanupService
             catch (DirectoryNotFoundException)
             {
                 action.Result = CleanupResult.AlreadyRemoved;
+            }
+            catch (InvalidOperationException ex)
+            {
+                action.Result = CleanupResult.Skipped;
+                action.FailureReason = ex.Message;
             }
             catch (IOException ex)
             {

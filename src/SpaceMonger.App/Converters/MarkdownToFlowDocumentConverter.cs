@@ -35,7 +35,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
     {
         var document = new FlowDocument
         {
-            FontFamily = new FontFamily("Segoe UI"),
+            FontFamily = new FontFamily("Segoe UI, Microsoft YaHei UI"),
             FontSize = 13,
             Foreground = (Brush)Application.Current.FindResource("VP.TextPrimaryBrush"),
         };

@@ -1,0 +1,63 @@
+{
+  "repository": "Bian-Sh/Loom-X",
+  "commit": "c907403bdcd35dc27e4460906cc572cfe8da1b08",
+  "files": [
+    {
+      "file": "AgentEvent.cs",
+      "sha256": "50d34b854baf51b4952ab229ce5c49e1188222988bd3e772083ebd067fbe5513",
+      "originalFile": "AgentEvent.cs",
+      "originalSha256": "56e0951b97ccd487c064976de67261f51f94f2ca0445d59bfd97608aad936a83"
+    },
+    {
+      "file": "AgentLoop.cs",
+      "sha256": "58f6777e89e5c499a12901d67ab607555cf2d8a96435765ba6bfc2bdaf819239",
+      "originalFile": "AgentLoop.cs",
+      "originalSha256": "2e9d1c681bbcab81310c91774c367e9863c6b77ece59e29ed74ef0ed011e6bbf"
+    },
+    {
+      "file": "AgentSession.cs",
+      "sha256": "db57f84af3922009d5e6df08ad476477e8a4a0dac6fd1c448201f3540124d0b0",
+      "originalFile": "AgentSession.cs",
+      "originalSha256": "8d8e1fa49a2d13d03a97521a207447de10efbbd3bf327194cfd0fdbb4094d433"
+    },
+    {
+      "file": "ChatMessage.cs",
+      "sha256": "3cb61216abd1e8623328808cdc35cd8acd336c52751f1f991dcaa35ce4b3dd22",
+      "originalFile": "ChatMessage.cs",
+      "originalSha256": "65cfa7a9a78aa8960c19b2842ba7faa225790aceda135b19f21ec134dff99d46"
+    },
+    {
+      "file": "IModelClient.cs",
+      "sha256": "feef41494f6de47295642e8d63f540090be7a272af356236de8257d66f2e3ab6",
+      "originalFile": "IModelClient.cs",
+      "originalSha256": "7961b96a91f1ac64ec0046515aa4a160f084bb875173c0f075fd79fc46f0313e"
+    },
+    {
+      "file": "TinyHarness.csproj",
+      "sha256": "df843e0019c8fe0dc27ad471f665c8def24b4810bb9ab949926c62d46b804776",
+      "originalFile": "LoomX.Harness.csproj",
+      "originalSha256": "346651e584d342e287e8650c3bb2fc49bbe1de8dac5ff0723d86dbffe857e8f7"
+    },
+    {
+      "file": "ModelRequestError.cs",
+      "sha256": "76991bca46e4c919352e453097935721baf3ed40f165013fbb94ca9bd09a635b",
+      "originalFile": "ModelRequestError.cs",
+      "originalSha256": "9dd732224f2b0f90a697b5732f1867bc29e45191f2bff6237d0d74a740823c22"
+    },
+    {
+      "file": "ToolCallProjection.cs",
+      "sha256": "0a2cd996ef070b55380eca73e84445055240ed1f1931168e29358d35132cd75a",
+      "originalFile": "ToolCallProjection.cs",
+      "originalSha256": "b264b720253642a6e3d416245ae48cd4a5da6970db8e01ea7c4e62b930665156"
+    },
+    {
+      "file": "ToolRegistry.cs",
+      "sha256": "3f810732c9c9bbcf1007ae11263fbbd395029bc131b24b85f191f138e62fbd63",
+      "originalFile": "ToolRegistry.cs",
+      "originalSha256": "65330d8b507d28aed6aabb6095343fe38e08e8d0519da4df00f658d97a9f9f25"
+    }
+  ],
+  "name": "Tiny Harness",
+  "namespace": "TinyHarness",
+  "modifications": "工程、程序集和命名空间改为 TinyHarness，展示名称为 Tiny Harness；移除原宿主的友元程序集声明。originalFile 和 originalSha256 记录上游快照，file 和 sha256 记录本地文件。"
+}

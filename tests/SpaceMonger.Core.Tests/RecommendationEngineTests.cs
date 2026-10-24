@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using NSubstitute;
 using SpaceMonger.Core.Enums;
 using SpaceMonger.Core.Models;
@@ -13,333 +13,178 @@ namespace SpaceMonger.Core.Tests;
 public class RecommendationEngineTests
 {
     [Fact]
-    public async Task AnalyzeWithDiagnosticsAsync_ParsesJsonFromUnclosedMarkdownFence()
+    public void ValidateCandidates_AcceptsStructuredToolArgumentsAndLocalMetadata()
     {
-        var targetPath = @"C:\Users\BianShanghai\AppData\Local\npm-cache\_cacache";
-        var root = new FileEntry
-        {
-            Path = @"C:\",
-            Name = @"C:\",
-            IsDirectory = true,
-            Children =
-            [
-                new FileEntry
-                {
-                    Path = targetPath,
-                    Name = "_cacache",
-                    IsDirectory = true,
-                    Size = 2_028_726_426,
-                }
-            ]
-        };
-
-        var session = new ScanSession
-        {
-            TargetPath = @"C:\",
-            RootEntry = root,
-        };
-
-        var llmClient = Substitute.For<ILlmClient>();
-        llmClient.SendAnalysisAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns("""
-                ```json
-                {
-                  "recommendations": [
-                    {
-                      "path": "C:\\Users\\BianShanghai\\AppData\\Local\\npm-cache\\_cacache",
-                      "size_bytes": 2028726426,
-                      "category": "PackageManagerCache",
-                      "safety_rating": "Safe",
-                      "explanation": "npm cache directory containing downloaded package artifacts."
-                    }
-                  ]
-                }
-                """);
-
-        var engine = new RecommendationEngine(llmClient, Substitute.For<IDuplicateDetector>());
-
-        var result = await engine.AnalyzeWithDiagnosticsAsync(session, "api-key", null, null, false, "zh-CN", CancellationToken.None);
+        var entry = Directory(@"C:\Users\tester\AppData\Local\npm-cache\_cacache", 2_028_726_426);
+        var root = Directory(@"C:\");
+        AddChild(root, entry);
+        var result = new RecommendationEngine().ValidateCandidates(Session(root), Candidates(entry.Path, "PackageManagerCache"));
 
         result.Diagnostics.ParseError.Should().BeNull();
-        result.Diagnostics.ExtractedJsonLength.Should().BeGreaterThan(0);
         result.Diagnostics.ParsedRecommendationCount.Should().Be(1);
-        result.Recommendations.Should().ContainSingle().Which.Should().Match<CleanupRecommendation>(r =>
-            r.TargetPath == targetPath &&
-            r.Category == RecommendationCategory.PackageManagerCache &&
-            r.SafetyRating == SafetyRating.Safe);
+        var recommendation = result.Recommendations.Should().ContainSingle().Subject;
+        recommendation.TargetPath.Should().Be(entry.Path);
+        recommendation.Entry.Should().BeSameAs(entry);
+        recommendation.Size.Should().Be(entry.Size);
+        recommendation.Category.Should().Be(RecommendationCategory.PackageManagerCache);
+        recommendation.SafetyRating.Should().Be(SafetyRating.Safe);
+        recommendation.Id.Should().Be("1");
+        result.Diagnostics.RawResponsePath.Should().BeNull();
+        result.Diagnostics.ResponsePreview.Should().BeEmpty();
     }
 
-    [Fact]
-    public async Task SendAnalysisAsync_UsesDeepSeekProAndDisablesThinkingForDeepSeekAnthropicEndpoint()
+    [Theory]
+    [InlineData(@"C:\Windows\assembly\temp", "Safe", SafetyRating.ReviewFirst)]
+    [InlineData(@"C:\Windows\VendorApp\Cache", "Safe", SafetyRating.ReviewFirst)]
+    [InlineData(@"C:\Windows\Temp", "Caution", SafetyRating.Caution)]
+    [InlineData(@"C:\Windows\Prefetch", "ReviewFirst", SafetyRating.ReviewFirst)]
+    public void ValidateCandidates_DowngradesWindowsAdjacentSafetyWithoutUpgradingCaution(string path, string safety, SafetyRating expected)
     {
-        var handler = new CapturingHandler("""
-            {
-              "content": [
-                { "type": "text", "text": "{\"recommendations\":[]}" }
-              ],
-              "stop_reason": "end_turn"
-            }
-            """);
-        var httpClientFactory = Substitute.For<IHttpClientFactory>();
-        httpClientFactory.CreateClient("Anthropic").Returns(new HttpClient(handler));
-        var client = new AnthropicClient(httpClientFactory);
-
-        await client.SendAnalysisAsync("system", "metadata", "key", "https://api.deepseek.com/anthropic", null, true, CancellationToken.None);
-
-        handler.RequestUri.Should().Be("https://api.deepseek.com/anthropic/v1/messages");
-        using var requestJson = JsonDocument.Parse(handler.RequestBody);
-        var root = requestJson.RootElement;
-        root.GetProperty("model").GetString().Should().Be("deepseek-v4-pro");
-        root.GetProperty("thinking").GetProperty("type").GetString().Should().Be("disabled");
-    }
-
-    [Fact]
-    public async Task AnalyzeWithDiagnosticsAsync_AllowsWindowsAdjacentPathButDowngradesSafety()
-    {
-        var targetPath = @"C:\Windows\assembly\temp";
-        var root = CreateRootWithDirectory(targetPath, "temp", 87_258_544);
-        var session = new ScanSession
-        {
-            TargetPath = @"C:\",
-            RootEntry = root,
-        };
-
-        var llmClient = Substitute.For<ILlmClient>();
-        llmClient.SendAnalysisAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(CreateRecommendationResponse(targetPath, 87_258_544, "TemporaryFiles", "Safe"));
-
-        var engine = new RecommendationEngine(llmClient, Substitute.For<IDuplicateDetector>());
-
-        var result = await engine.AnalyzeWithDiagnosticsAsync(session, "api-key", null, null, false, "zh-CN", CancellationToken.None);
-
-        result.Diagnostics.ParsedRecommendationCount.Should().Be(1);
+        var root = Directory(@"C:\");
+        AddChild(root, Directory(path, 87_258_544));
+        var result = new RecommendationEngine().ValidateCandidates(Session(root), Candidates(path, safety: safety));
         result.Diagnostics.ProtectedFilteredCount.Should().Be(0);
-        result.Recommendations.Should().ContainSingle().Which.Should().Match<CleanupRecommendation>(r =>
-            r.TargetPath == targetPath &&
-            r.SafetyRating == SafetyRating.ReviewFirst &&
-            r.Explanation.Contains("System-adjacent location"));
+        var recommendation = result.Recommendations.Should().ContainSingle().Subject;
+        recommendation.SafetyRating.Should().Be(expected);
+        recommendation.Explanation.Should().Contain("System-adjacent location");
     }
 
     [Fact]
-    public async Task AnalyzeWithDiagnosticsAsync_AllowsUnknownWindowsSubfolderButDowngradesSafety()
+    public void ValidateCandidates_FiltersHardProtectedWindowsPathInFullDriveAnalysis()
     {
-        var targetPath = @"C:\Windows\VendorApp\Cache";
-        var root = CreateRootWithDirectory(targetPath, "Cache", 512_000_000);
-        var session = new ScanSession
-        {
-            TargetPath = @"C:\",
-            RootEntry = root,
-        };
-
-        var llmClient = Substitute.For<ILlmClient>();
-        llmClient.SendAnalysisAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(CreateRecommendationResponse(targetPath, 512_000_000, "Other", "Safe"));
-
-        var engine = new RecommendationEngine(llmClient, Substitute.For<IDuplicateDetector>());
-
-        var result = await engine.AnalyzeWithDiagnosticsAsync(session, "api-key", null, null, false, "zh-CN", CancellationToken.None);
-
-        result.Diagnostics.ParsedRecommendationCount.Should().Be(1);
-        result.Diagnostics.ProtectedFilteredCount.Should().Be(0);
-        result.Recommendations.Should().ContainSingle().Which.Should().Match<CleanupRecommendation>(r =>
-            r.TargetPath == targetPath &&
-            r.SafetyRating == SafetyRating.ReviewFirst &&
-            r.Explanation.Contains("System-adjacent location"));
-    }
-
-    [Fact]
-    public async Task AnalyzeWithDiagnosticsAsync_FiltersHardProtectedWindowsPathInFullDriveAnalysis()
-    {
-        var targetPath = @"C:\Windows\System32\kernel32.dll";
-        var root = CreateRootWithDirectory(targetPath, "kernel32.dll", 1_048_576);
-        var session = new ScanSession
-        {
-            TargetPath = @"C:\",
-            RootEntry = root,
-        };
-
-        var llmClient = Substitute.For<ILlmClient>();
-        llmClient.SendAnalysisAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(CreateRecommendationResponse(targetPath, 1_048_576, "Other", "Safe"));
-
-        var engine = new RecommendationEngine(llmClient, Substitute.For<IDuplicateDetector>());
-
-        var result = await engine.AnalyzeWithDiagnosticsAsync(session, "api-key", null, null, false, "zh-CN", CancellationToken.None);
-
-        result.Diagnostics.ParsedRecommendationCount.Should().Be(1);
+        var path = @"C:\Windows\System32\kernel32.dll";
+        var root = Directory(@"C:\");
+        AddChild(root, new FileEntry { Path = path, Name = "kernel32.dll", Size = 1_048_576 });
+        var result = new RecommendationEngine().ValidateCandidates(Session(root), Candidates(path));
         result.Diagnostics.ProtectedFilteredCount.Should().Be(1);
         result.Recommendations.Should().BeEmpty();
     }
 
-
-    [Fact]
-    public async Task AnalyzeWithDiagnosticsAsync_AddsUnityLibraryRecommendationWhenProjectMarkersExist()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void UnityLibrary_RequiresBothProjectMarkers(bool unityProject)
     {
-        var root = new FileEntry { Path = @"D:\", Name = @"D:\", IsDirectory = true };
-        var project = new FileEntry { Path = @"D:\Game", Name = "Game", IsDirectory = true };
-        var library = new FileEntry
-        {
-            Path = @"D:\Game\Library",
-            Name = "Library",
-            IsDirectory = true,
-            Size = 2_147_483_648,
-            LastModified = DateTime.Now.AddYears(-2)
-        };
+        var root = Directory(@"D:\");
+        var project = Directory(@"D:\Game");
+        var library = Directory(@"D:\Game\Library", 2_147_483_648);
         AddChild(root, project);
-        AddChild(project, new FileEntry { Path = @"D:\Game\Assets", Name = "Assets", IsDirectory = true });
-        AddChild(project, new FileEntry { Path = @"D:\Game\ProjectSettings", Name = "ProjectSettings", IsDirectory = true });
+        AddChild(project, Directory(@"D:\Game\Assets"));
+        if (unityProject)
+        {
+            AddChild(project, Directory(@"D:\Game\ProjectSettings"));
+        }
         AddChild(project, library);
+        var engine = new RecommendationEngine();
+        var result = engine.ValidateCandidates(Session(root), JsonSerializer.SerializeToElement(new { recommendations = Array.Empty<object>() }));
+        var unity = RecommendationEngine.BuildUnityLibraryRecommendations(root);
 
-        var session = new ScanSession { TargetPath = @"D:\", RootEntry = root };
-        var llmClient = Substitute.For<ILlmClient>();
-        llmClient.SendAnalysisAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns("""{"recommendations": []}""");
-        var engine = new RecommendationEngine(llmClient, Substitute.For<IDuplicateDetector>());
+        if (!unityProject)
+        {
+            result.Recommendations.Should().BeEmpty();
+            unity.Should().BeEmpty();
+            engine.BuildEvidence(Session(root)).Should().NotContain("UNITY LIBRARY EVIDENCE");
+            return;
+        }
 
-        var result = await engine.AnalyzeWithDiagnosticsAsync(session, "api-key", null, null, false, "zh-CN", CancellationToken.None);
-
-        result.Recommendations.Should().ContainSingle().Which.Should().Match<CleanupRecommendation>(r =>
-            r.TargetPath == @"D:\Game\Library" &&
-            r.Category == RecommendationCategory.BuildCache &&
-            r.SafetyRating == SafetyRating.ReviewFirst &&
-            r.Entry == library &&
-            r.Explanation.Contains("skill/AI risk review"));
+        unity.Should().ContainSingle().Which.Entry.Should().BeSameAs(library);
+        var recommendation = result.Recommendations.Should().ContainSingle().Subject;
+        recommendation.TargetPath.Should().Be(library.Path);
+        recommendation.Category.Should().Be(RecommendationCategory.BuildCache);
+        recommendation.SafetyRating.Should().Be(SafetyRating.ReviewFirst);
+        recommendation.Entry.Should().BeSameAs(library);
+        recommendation.Explanation.Should().Contain("skill/AI risk review");
+        engine.BuildEvidence(Session(root)).Should().Contain("UNITY LIBRARY EVIDENCE").And.Contain("Assets + ProjectSettings");
     }
 
     [Fact]
-    public async Task AnalyzeWithDiagnosticsAsync_DoesNotAddGenericLibraryRecommendationWithoutUnityMarkers()
+    public void BuildEvidence_HandlesDeepLargeTreesWithBoundedMetadata()
     {
-        var root = new FileEntry { Path = @"D:\", Name = @"D:\", IsDirectory = true };
-        var generic = new FileEntry { Path = @"D:\Docs", Name = "Docs", IsDirectory = true };
-        AddChild(root, generic);
-        AddChild(generic, new FileEntry { Path = @"D:\Docs\Library", Name = "Library", IsDirectory = true, Size = 1024 });
-
-        var session = new ScanSession { TargetPath = @"D:\", RootEntry = root };
-        var llmClient = Substitute.For<ILlmClient>();
-        llmClient.SendAnalysisAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns("""{"recommendations": []}""");
-        var engine = new RecommendationEngine(llmClient, Substitute.For<IDuplicateDetector>());
-
-        var result = await engine.AnalyzeWithDiagnosticsAsync(session, "api-key", null, null, false, "zh-CN", CancellationToken.None);
-
-        result.Recommendations.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task AnalyzeWithDiagnosticsAsync_HandlesDeepLargeTreesWithBoundedMetadata()
-    {
-        var root = new FileEntry { Path = @"C:\", Name = @"C:\", IsDirectory = true };
+        var root = Directory(@"C:\");
         var current = root;
         for (var depth = 0; depth < 2_000; depth++)
         {
-            var next = new FileEntry
-            {
-                Path = $@"C:\deep\folder-{depth}",
-                Name = $"folder-{depth}",
-                IsDirectory = true,
-                Size = 10_000 - depth,
-            };
+            var next = Directory($@"C:\deep\folder-{depth}", 10_000 - depth);
             AddChild(current, next);
             current = next;
         }
-
         for (var index = 0; index < 10_000; index++)
         {
             AddChild(root, new FileEntry
             {
-                Path = $@"C:\many\file-{index}.bin",
-                Name = $"file-{index}.bin",
-                Extension = ".bin",
-                IsDirectory = false,
-                Size = 1_048_576 + index,
-                LastModified = DateTime.Today,
+                Path = $@"C:\many\file-{index}.bin", Name = $"file-{index}.bin", Extension = ".bin",
+                Size = 1_048_576 + index, LastModified = DateTime.Today
             });
         }
 
-        var session = new ScanSession { TargetPath = @"C:\", RootEntry = root };
-        string? metadata = null;
-        var llmClient = Substitute.For<ILlmClient>();
-        llmClient.SendAnalysisAsync(Arg.Any<string>(), Arg.Do<string>(value => metadata = value), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns("""{"recommendations": []}""");
-        var engine = new RecommendationEngine(llmClient, Substitute.For<IDuplicateDetector>());
-
-        var result = await engine.AnalyzeWithDiagnosticsAsync(session, "api-key", null, null, false, "zh-CN", CancellationToken.None);
-
-        result.Recommendations.Should().BeEmpty();
-        metadata.Should().NotBeNull();
-        metadata!.Split("file-", StringSplitOptions.None).Length.Should().BeLessThan(250);
+        var metadata = new RecommendationEngine().BuildEvidence(Session(root));
+        metadata.Split("file-", StringSplitOptions.None).Length.Should().BeLessThan(250);
         metadata.Should().Contain("TOTAL_FILES: 10000");
+        metadata.Length.Should().BeLessThan(50_000);
+        new RecommendationEngine().ValidateCandidates(Session(root), Candidates(current.Path))
+            .Recommendations.Should().ContainSingle().Which.Entry.Should().BeSameAs(current);
     }
 
     [Fact]
-    public async Task AnalyzeWithDiagnosticsAsync_LoadsCleanupWhitelistOncePerAnalysis()
+    public void BuildEvidence_BoundsFingerprintFilesAndKeepsContentRiskEvidence()
     {
-        var root = new FileEntry
+        var root = Directory(@"D:\");
+        var cache = Directory(@"D:\Temp", 3000);
+        AddChild(root, cache);
+        for (var index = 0; index < 2100; index++)
         {
-            Path = @"C:\",
-            Name = @"C:\",
-            IsDirectory = true,
-        };
-
-        for (var i = 0; i < 500; i++)
-        {
-            var dir = new FileEntry
+            AddChild(cache, new FileEntry
             {
-                Path = $@"C:\Temp\dir-{i}",
-                Name = $"dir-{i}",
-                IsDirectory = true,
-                Size = 1024,
-            };
-            AddChild(root, dir);
-            AddChild(dir, new FileEntry
-            {
-                Path = $@"C:\Temp\dir-{i}\file.tmp",
-                Name = "file.tmp",
-                Extension = ".tmp",
-                Size = 1024,
-                LastModified = DateTime.Today,
+                Path = $@"D:\Temp\report-{index}.docx", Name = $"report-{index}.docx", Extension = ".docx",
+                Size = 1024, LastModified = new DateTime(2024, 1, 1).AddDays(index)
             });
         }
-
-        var settingsService = Substitute.For<ISettingsService>();
-        settingsService.LoadSettings().Returns(new AppSettings());
-        var llmClient = Substitute.For<ILlmClient>();
-        llmClient.SendAnalysisAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns("""{"recommendations": []}""");
-        var engine = new RecommendationEngine(llmClient, Substitute.For<IDuplicateDetector>(), settingsService);
-
-        await engine.AnalyzeWithDiagnosticsAsync(
-            new ScanSession { TargetPath = @"C:\", RootEntry = root },
-            "api-key",
-            null,
-            null,
-            false,
-            "zh-CN",
-            CancellationToken.None);
-
-        settingsService.Received(1).LoadSettings();
+        var evidence = new RecommendationEngine().BuildEvidence(Session(root));
+        evidence.Should().Contain("files:2000+100 more").And.Contain("user_content:100%").And.Contain("std_temp_location:no");
+        evidence.Length.Should().BeLessThan(20_000);
     }
 
-    private static FileEntry CreateRootWithDirectory(string targetPath, string name, long size)
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void EvidenceAndValidation_LoadCleanupWhitelistOncePerCall(bool buildEvidence)
     {
-        return new FileEntry
+        var root = Directory(@"C:\");
+        for (var index = 0; index < 500; index++)
         {
-            Path = @"C:\",
-            Name = @"C:\",
-            IsDirectory = true,
-            Children =
-            [
-                new FileEntry
-                {
-                    Path = targetPath,
-                    Name = name,
-                    IsDirectory = true,
-                    Size = size,
-                }
-            ]
-        };
+            var dir = Directory($@"C:\Temp\dir-{index}", 1024);
+            AddChild(root, dir);
+            AddChild(dir, new FileEntry { Path = dir.Path + @"\file.tmp", Name = "file.tmp", Extension = ".tmp", Size = 1024 });
+        }
+        var settings = Substitute.For<ISettingsService>();
+        settings.LoadSettings().Returns(new AppSettings());
+        var engine = new RecommendationEngine(settings);
+        if (buildEvidence)
+        {
+            engine.BuildEvidence(Session(root)).Should().Contain("TOTAL_FILES: 500");
+        }
+        else
+        {
+            engine.ValidateCandidates(Session(root), JsonSerializer.SerializeToElement(new
+            {
+                recommendations = root.Children.Select(entry => new { path = entry.Path, category = "TemporaryFiles", safety_rating = "Safe", explanation = "缓存" })
+            })).Recommendations.Should().HaveCount(500);
+        }
+        settings.Received(1).LoadSettings();
     }
 
+    private static FileEntry Directory(string path, long size = 0) => new()
+    {
+        Path = path, Name = path.Split('\\').Last(), IsDirectory = true, Size = size
+    };
+
+    private static ScanSession Session(FileEntry root) => new() { TargetPath = root.Path, RootEntry = root };
+
+    private static JsonElement Candidates(string path, string category = "TemporaryFiles", string safety = "Safe") =>
+        JsonSerializer.SerializeToElement(new
+        {
+            recommendations = new[] { new { path, category, safety_rating = safety, explanation = "待校验候选" } }
+        });
 
     private static void AddChild(FileEntry parent, FileEntry child)
     {
@@ -348,37 +193,4 @@ public class RecommendationEngineTests
         parent.Children.Add(child);
     }
 
-    private static string CreateRecommendationResponse(string path, long sizeBytes, string category, string safetyRating)
-    {
-        return JsonSerializer.Serialize(new
-        {
-            recommendations = new[]
-            {
-                new
-                {
-                    path,
-                    size_bytes = sizeBytes,
-                    category,
-                    safety_rating = safetyRating,
-                    explanation = "AI recommended cleanup candidate."
-                }
-            }
-        });
-    }
-
-    private sealed class CapturingHandler(string responseBody) : HttpMessageHandler
-    {
-        public string RequestBody { get; private set; } = string.Empty;
-        public string RequestUri { get; private set; } = string.Empty;
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            RequestUri = request.RequestUri!.ToString();
-            RequestBody = await request.Content!.ReadAsStringAsync(cancellationToken);
-            return new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(responseBody)
-            };
-        }
-    }
 }

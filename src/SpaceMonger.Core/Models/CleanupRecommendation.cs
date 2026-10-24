@@ -24,6 +24,9 @@ public class CleanupRecommendation : INotifyPropertyChanged
     /// </summary>
     public FileEntry? Entry { get; set; }
 
+    // 批准时的完整目标签名，仅供清理执行前校验。
+    internal string? ExpectedCleanupFingerprint { get; set; }
+
     /// <summary>
     /// Gets or sets the size in bytes of the target.
     /// </summary>

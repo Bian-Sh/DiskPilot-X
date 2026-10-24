@@ -123,20 +123,11 @@ public partial class MainWindow
         {
             WriteConsoleLog("DIAG: thinking_path=" + diagnostics.ThinkingPath);
         }
-
-        if (!string.IsNullOrWhiteSpace(diagnostics.ExtractedJsonPreview))
-        {
-            WriteConsoleLog("DIAG: extracted_json_preview=" + diagnostics.ExtractedJsonPreview);
-        }
-        else if (!string.IsNullOrWhiteSpace(diagnostics.ResponsePreview))
-        {
-            WriteConsoleLog("DIAG: response_preview=" + diagnostics.ResponsePreview);
-        }
     }
 
     private async void OnAnalyzeRequested()
     {
-        if (_recommendationsViewModel is null || _settingsViewModel is null || _recommendationsViewModel.IsAnalyzing)
+        if (_recommendationsViewModel is null || _settingsViewModel is null || _recommendationsViewModel.IsAnalyzing || _chatViewModel?.IsOperationRunning == true || _cleanupRunning || (DataContext as MainViewModel)?.IsScanning == true)
             return;
 
         var mainVm = DataContext as MainViewModel;

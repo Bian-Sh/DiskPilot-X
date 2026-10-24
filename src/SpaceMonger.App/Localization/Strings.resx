@@ -862,4 +862,42 @@
   <data name="CopilotCardUserNotesLabel" xml:space="preserve">
     <value>Additional instructions (optional)</value>
   </data>
+  <data name="CopilotStartTitle" xml:space="preserve"><value>Where should we look?</value></data>
+  <data name="CopilotStartDescription" xml:space="preserve"><value>Choose a folder to scan, understand its space usage, and prepare cleanup suggestions you can review.</value></data>
+  <data name="CopilotPlaceholder" xml:space="preserve"><value>Describe a task, or type @ to choose a skill</value></data>
+  <data name="CopilotNewConversation" xml:space="preserve"><value>New conversation</value></data>
+  <data name="CopilotChooseSkill" xml:space="preserve"><value>Choose a skill</value></data>
+  <data name="CopilotJumpLatest" xml:space="preserve"><value>↓ Latest</value></data>
+  <data name="CopilotCopy" xml:space="preserve"><value>Copy</value></data>
+  <data name="CopilotInputLabel" xml:space="preserve"><value>Copilot input</value></data>
+  <data name="CopilotReady" xml:space="preserve"><value>Ready</value></data>
+  <data name="CopilotWorking" xml:space="preserve"><value>Working</value></data>
+  <data name="CopilotCompleted" xml:space="preserve"><value>Completed</value></data>
+  <data name="CopilotStopped" xml:space="preserve"><value>Stopped</value></data>
+  <data name="CopilotFailed" xml:space="preserve"><value>Failed</value></data>
+  <data name="CopilotWaiting" xml:space="preserve"><value>Waiting for your confirmation</value></data>
+  <data name="CopilotStop" xml:space="preserve"><value>Stop</value></data>
+  <data name="CopilotStatus_Running" xml:space="preserve"><value>Running</value></data>
+  <data name="CopilotStatus_Completed" xml:space="preserve"><value>Done</value></data>
+  <data name="CopilotStatus_Failed" xml:space="preserve"><value>Failed</value></data>
+  <data name="CopilotStatus_Cancelled" xml:space="preserve"><value>Stopped</value></data>
+  <data name="CopilotStatus_WaitingForUser" xml:space="preserve"><value>Waiting</value></data>
+  <data name="CopilotTool_get_copilot_context" xml:space="preserve"><value>Read workspace</value></data>
+  <data name="CopilotTool_scan_path" xml:space="preserve"><value>Scan folder</value></data>
+  <data name="CopilotTool_get_analysis_evidence" xml:space="preserve"><value>Inspect evidence</value></data>
+  <data name="CopilotTool_publish_recommendations" xml:space="preserve"><value>Publish suggestions</value></data>
+  <data name="CopilotTool_navigate_path" xml:space="preserve"><value>Locate path</value></data>
+  <data name="CopilotTool_set_view" xml:space="preserve"><value>Switch view</value></data>
+  <data name="CopilotTool_find_by_name" xml:space="preserve"><value>Find by name</value></data>
+  <data name="CopilotTool_find_by_path" xml:space="preserve"><value>Inspect path</value></data>
+  <data name="CopilotTool_list_children" xml:space="preserve"><value>List folder</value></data>
+  <data name="CopilotTool_summarize_subtree" xml:space="preserve"><value>Summarize usage</value></data>
+  <data name="CopilotTool_find_large_files" xml:space="preserve"><value>Find large files</value></data>
+  <data name="CopilotTool_resolve_path" xml:space="preserve"><value>Resolve path</value></data>
+  <data name="CopilotTool_list_recommendations" xml:space="preserve"><value>Read suggestions</value></data>
+  <data name="CopilotTool_select_recommendations" xml:space="preserve"><value>Update selection</value></data>
+  <data name="CopilotTool_cleanup_recommendations" xml:space="preserve"><value>Run confirmed cleanup</value></data>
+  <data name="CopilotTool_ask_user" xml:space="preserve"><value>Ask for input</value></data>
+  <data name="CopilotTool_manage_disk_skills" xml:space="preserve"><value>Manage skills</value></data>
+  <data name="CopilotTool_read_unity_registry_context" xml:space="preserve"><value>Inspect Unity environment</value></data>
 </root>

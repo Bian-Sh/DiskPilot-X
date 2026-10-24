@@ -1,20 +1,15 @@
-﻿using System.Text.Json;
-using System.Text.RegularExpressions;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using SpaceMonger.Core.Diagnostics;
-using SpaceMonger.Core.Enums;
 using SpaceMonger.Core.Models;
-using SpaceMonger.Core.Services.Llm;
 using SpaceMonger.Core.Services.Settings;
 using SpaceMonger.Core.Services.Whitelist;
 
 namespace SpaceMonger.Core.Services.Analysis;
 
-public partial class RecommendationEngine : IRecommendationEngine
+public partial class RecommendationEngine
 {
-    // Send at most 100 top-level directories and 100 largest files to keep
-    // the prompt well under the API's input token limit (~200K tokens).
+    // 限制目录、文件和内容指纹数量，控制证据体积。
     private const int MaxTopDirs = 100;
     private const int MaxTopFiles = 100;
     private const int MaxKnownPatternItems = 50;
@@ -82,138 +77,170 @@ public partial class RecommendationEngine : IRecommendationEngine
         "Videos"
     ];
 
-    private readonly ILlmClient _llmClient;
     private readonly ISettingsService? _settingsService;
     private readonly IPathWhitelistMatcher _whitelistMatcher;
     private readonly ILogger<RecommendationEngine> _logger;
-    private readonly AsyncLocal<List<PathWhitelistEntry>?> _cleanupRecommendationWhitelist = new();
 
-    public RecommendationEngine(ILlmClient llmClient, IDuplicateDetector duplicateDetector, ISettingsService? settingsService = null, IPathWhitelistMatcher? whitelistMatcher = null, ILogger<RecommendationEngine>? logger = null)
+    public RecommendationEngine(
+        ISettingsService? settingsService = null,
+        IPathWhitelistMatcher? whitelistMatcher = null,
+        ILogger<RecommendationEngine>? logger = null)
     {
-        _llmClient = llmClient;
         _settingsService = settingsService;
         _whitelistMatcher = whitelistMatcher ?? new PathWhitelistMatcher();
         _logger = logger ?? NullLogger<RecommendationEngine>.Instance;
-        _ = duplicateDetector;
     }
 
-    public async Task<List<CleanupRecommendation>> AnalyzeAsync(
-        ScanSession session,
-        string apiKey,
-        string? baseUrl,
-        string? modelName,
-        bool enableThinking,
-        string? responseLanguage,
-        CancellationToken cancellationToken,
-        FileEntry? focusEntry = null)
+    public string BuildEvidence(ScanSession session, FileEntry? focusEntry = null)
     {
-        var result = await AnalyzeWithDiagnosticsAsync(
-            session, apiKey, baseUrl, modelName, enableThinking, responseLanguage, cancellationToken, focusEntry);
-        return result.Recommendations;
-    }
-
-    public async Task<AnalysisResult> AnalyzeWithDiagnosticsAsync(
-        ScanSession session,
-        string apiKey,
-        string? baseUrl,
-        string? modelName,
-        bool enableThinking,
-        string? responseLanguage,
-        CancellationToken cancellationToken,
-        FileEntry? focusEntry = null)
-    {
-        _logger.LogInformation("Analysis started: target={TargetPath}, focus={FocusPath}, model={ModelName}, thinking={EnableThinking}", session.TargetPath, focusEntry?.Path, modelName, enableThinking);
-        var result = new AnalysisResult();
-        _cleanupRecommendationWhitelist.Value = _settingsService?.LoadSettings().CleanupRecommendationWhitelist;
-
-        try
+        var whitelist = SnapshotWhitelist();
+        var root = ResolveAnalysisRoot(session, focusEntry);
+        if (root is null || IsCleanupExcluded(root.Path, whitelist))
         {
-            if (session.RootEntry is null)
-            {
-                _logger.LogWarning("Analysis skipped because scan session root is null: target={TargetPath}", session.TargetPath);
-                result.Diagnostics.ParseError = "ScanSession.RootEntry is null.";
-                return result;
-            }
+            return string.Empty;
+        }
 
-            // When a focusEntry is provided (user drilled into a folder), analyze
-            // only that subtree.  Otherwise analyze the full scan root.
-            var analysisRoot = focusEntry ?? session.RootEntry;
-            if (IsCleanupExcluded(analysisRoot.Path))
-            {
-                _logger.LogWarning("Analysis scope excluded by cleanup recommendation whitelist: {Path}", analysisRoot.Path);
-                result.Diagnostics.ParseError = "Analysis scope is excluded by cleanup recommendation whitelist.";
-                return result;
-            }
+        return BuildCompactMetadata(session, root, whitelist);
+    }
 
-            var metadataJson = BuildCompactMetadata(session, analysisRoot);
-            DebugBreakpoints.Hit("analysis-metadata-built");
-            var systemPrompt = BuildSystemPrompt(responseLanguage);
-
-            result.Diagnostics = new AnalysisDiagnostics
+    public AnalysisResult ValidateCandidates(ScanSession session, JsonElement candidates, FileEntry? focusEntry = null)
+    {
+        var whitelist = SnapshotWhitelist();
+        var result = new AnalysisResult
+        {
+            Diagnostics = new AnalysisDiagnostics
             {
                 TargetPath = session.TargetPath,
-                ScopePath = analysisRoot.Path,
-                IsFocusedScope = focusEntry is not null,
-                MetadataLength = metadataJson.Length,
-            };
-
-            _logger.LogInformation("Analysis metadata built: scope={ScopePath}, chars={MetadataLength}", analysisRoot.Path, metadataJson.Length);
-            var response = await _llmClient.SendAnalysisAsync(systemPrompt, metadataJson, apiKey, baseUrl, modelName, enableThinking, cancellationToken);
-            DebugBreakpoints.Hit("analysis-response-received");
-            _logger.LogInformation("Analysis response received: chars={ResponseLength}", response.Length);
-            result.Diagnostics.ResponseLength = response.Length;
-            result.Diagnostics.ResponsePreview = BuildPreview(response);
-            result.Diagnostics.RawResponsePath = WriteRawResponse(response);
-            result.Diagnostics.ResponseEnvelopePath = AnthropicClient.LastResponseEnvelopePath;
-            result.Diagnostics.StopReason = AnthropicClient.LastResponseStopReason;
-            result.Diagnostics.ThinkingPath = AnthropicClient.LastResponseThinkingPath;
-
-            var recommendations = ParseResponse(response, session.RootEntry, result.Diagnostics);
-            AddUnityLibraryRecommendations(recommendations, analysisRoot);
-            DebugBreakpoints.Hit("analysis-response-parsed");
-            recommendations = recommendations
-                .Where(r => !IsCleanupExcluded(r.TargetPath))
-                .ToList();
-            result.Diagnostics.ParsedRecommendationCount = recommendations.Count;
-            _logger.LogInformation("Analysis response parsed: recommendations={Count}", recommendations.Count);
-
-            if (focusEntry is null)
-            {
-                // Full-drive analysis: hide only truly critical system/user-data
-                // structures.  Known cache/temp locations under Windows should still
-                // be visible, but they are risk-adjusted below instead of shown as
-                // blindly safe cleanup targets.
-                var beforeFilterCount = recommendations.Count;
-                recommendations = recommendations
-                    .Where(r => !IsHardProtectedPath(r.TargetPath))
-                    .ToList();
-                result.Diagnostics.ProtectedFilteredCount = beforeFilterCount - recommendations.Count;
-                _logger.LogInformation("Protected recommendation filter removed {Count} entries", result.Diagnostics.ProtectedFilteredCount);
+                ScopePath = focusEntry?.Path ?? session.RootEntry?.Path ?? session.TargetPath,
+                IsFocusedScope = focusEntry is not null
             }
-
-            foreach (var rec in recommendations)
-            {
-                ApplySystemPathRiskAdjustment(rec);
-            }
-
-            for (int i = 0; i < recommendations.Count; i++)
-            {
-                recommendations[i].Id = (i + 1).ToString();
-            }
-
-            result.Recommendations = recommendations;
-            _logger.LogInformation("Analysis completed: finalRecommendations={Count}", recommendations.Count);
+        };
+        var root = ResolveAnalysisRoot(session, focusEntry);
+        if (root is null || IsCleanupExcluded(root.Path, whitelist))
+        {
+            result.Diagnostics.ParseError = "分析范围不存在于扫描树中或已被推荐白名单排除。";
             return result;
         }
-        finally
+
+        if (candidates.ValueKind != JsonValueKind.Object ||
+            !candidates.TryGetProperty("recommendations", out var items) ||
+            items.ValueKind != JsonValueKind.Array)
         {
-            _cleanupRecommendationWhitelist.Value = null;
+            result.Diagnostics.ParseError = "工具参数必须是包含 recommendations 数组的对象。";
+            return result;
+        }
+
+        var entries = new Dictionary<string, FileEntry>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in EnumerateEntries(root))
+        {
+            var normalizedEntryPath = NormalizePath(entry.Path);
+            if (IsSameOrUnderPrefix(normalizedEntryPath, root.Path))
+            {
+                entries.TryAdd(normalizedEntryPath, entry);
+            }
+        }
+
+        foreach (var item in items.EnumerateArray())
+        {
+            if (!TryReadCandidate(item, result.Diagnostics, out var recommendation))
+            {
+                continue;
+            }
+
+            if (!Path.IsPathFullyQualified(recommendation.TargetPath) ||
+                !TryNormalizePath(recommendation.TargetPath, out var normalizedPath) ||
+                !entries.TryGetValue(normalizedPath, out var entry))
+            {
+                result.Diagnostics.MissingEntryCount++;
+                continue;
+            }
+
+            recommendation.TargetPath = entry.Path;
+            recommendation.Entry = entry;
+            recommendation.Size = entry.Size;
+            recommendation.LastModified = entry.LastModified;
+            AddValidatedRecommendation(result, recommendation, whitelist);
+        }
+
+        foreach (var recommendation in BuildUnityLibraryRecommendations(root))
+        {
+            if (entries.ContainsKey(NormalizePath(recommendation.TargetPath)))
+            {
+                AddValidatedRecommendation(result, recommendation, whitelist);
+            }
+        }
+
+        for (var i = 0; i < result.Recommendations.Count; i++)
+        {
+            result.Recommendations[i].Id = (i + 1).ToString();
+        }
+
+        _logger.LogInformation("候选校验完成：通过 {Count} 项，硬保护过滤 {ProtectedCount} 项", result.Recommendations.Count, result.Diagnostics.ProtectedFilteredCount);
+        return result;
+    }
+
+    public static bool IsDeletionProtected(string path)
+    {
+        return string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path) ||
+            !TryNormalizePath(path, out var normalizedPath) || IsHardProtectedPath(normalizedPath);
+    }
+
+    public bool IsRecommendationExcluded(string path)
+    {
+        return IsCleanupExcluded(path, SnapshotWhitelist());
+    }
+
+    private void AddValidatedRecommendation(AnalysisResult result, CleanupRecommendation recommendation, IReadOnlyList<PathWhitelistEntry> whitelist)
+    {
+        // 目录清理会同时删除后代，必须检查整棵候选子树以免绕过保护或白名单。
+        if (EnumerateEntries(recommendation.Entry!).Any(entry => IsDeletionProtected(entry.Path)))
+        {
+            result.Diagnostics.ProtectedFilteredCount++;
+            return;
+        }
+
+        if (EnumerateEntries(recommendation.Entry!).Any(entry => IsCleanupExcluded(entry.Path, whitelist)) ||
+            result.Recommendations.Any(existing =>
+                IsSameOrUnderPrefix(NormalizePath(recommendation.TargetPath), existing.TargetPath) ||
+                IsSameOrUnderPrefix(NormalizePath(existing.TargetPath), recommendation.TargetPath)))
+        {
+            return;
+        }
+
+        ApplySystemPathRiskAdjustment(recommendation);
+        result.Recommendations.Add(recommendation);
+        result.Diagnostics.ParsedRecommendationCount++;
+    }
+
+    private IReadOnlyList<PathWhitelistEntry> SnapshotWhitelist()
+    {
+        return _settingsService?.LoadSettings().CleanupRecommendationWhitelist
+            .Select(entry => new PathWhitelistEntry { Path = entry.Path, Description = entry.Description })
+            .ToArray() ?? [];
+    }
+
+    private bool IsCleanupExcluded(string path, IReadOnlyList<PathWhitelistEntry> whitelist)
+    {
+        return _whitelistMatcher.IsExcluded(path, whitelist);
+    }
+
+    private static FileEntry? ResolveAnalysisRoot(ScanSession session, FileEntry? focusEntry)
+    {
+        return session.RootEntry is null ? null : focusEntry is null
+            ? session.RootEntry : FindEntryByPath(session.RootEntry, focusEntry.Path);
+    }
+
+    private static IEnumerable<FileEntry> EnumerateEntries(FileEntry root)
+    {
+        var pending = new Stack<FileEntry>();
+        pending.Push(root);
+        while (pending.TryPop(out var entry))
+        {
+            yield return entry;
+            for (var i = entry.Children.Count - 1; i >= 0; i--)
+            {
+                pending.Push(entry.Children[i]);
+            }
         }
     }
-
-    private bool IsCleanupExcluded(string path)
-    {
-        return _whitelistMatcher.IsExcluded(path, _cleanupRecommendationWhitelist.Value);
-    }
-
 }
