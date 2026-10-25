@@ -48,6 +48,12 @@
   <data name="RecommendCleanupToolTip" xml:space="preserve">
     <value>使用 AI 分析当前视图，并推荐可安全移除以释放磁盘空间的文件和文件夹。这里只显示可删除项，被认为重要的文件不会列出。</value>
   </data>
+  <data name="AnalyzeChatPrompt" xml:space="preserve">
+    <value>【应用操作】用户点击了「分析」按钮，请求对当前范围执行清理推荐分析并发布建议。范围：{0}</value>
+  </data>
+  <data name="ChatAppMessageBadge" xml:space="preserve">
+    <value>应用操作</value>
+  </data>
   <data name="AnalyzeButton" xml:space="preserve">
     <value>分析</value>
   </data>
@@ -89,18 +95,6 @@
   </data>
   <data name="ApiKeyRequiredTitle" xml:space="preserve">
     <value>需要 API Key</value>
-  </data>
-  <data name="ConfirmReanalysisMessage" xml:space="preserve">
-    <value>重新分析会替换当前所有推荐，已接受的项目也会丢失。是否继续？</value>
-  </data>
-  <data name="ConfirmReanalysisTitle" xml:space="preserve">
-    <value>确认重新分析</value>
-  </data>
-  <data name="AnalysisFailedStatus" xml:space="preserve">
-    <value>分析失败：{0}</value>
-  </data>
-  <data name="AnalysisCompleteStatus" xml:space="preserve">
-    <value>分析完成：找到 {0} 条推荐。</value>
   </data>
   <data name="CleaningStatus" xml:space="preserve">
     <value>正在清理：{0}/{1} — {2}</value>
@@ -314,12 +308,6 @@
   <data name="AnalysisMayTakeText" xml:space="preserve">
     <value>这可能需要一些时间</value>
   </data>
-  <data name="AnalyzingFolderStatus" xml:space="preserve">
-    <value>正在分析 {0}...</value>
-  </data>
-  <data name="AnalyzingScanResultsStatus" xml:space="preserve">
-    <value>正在分析扫描结果...</value>
-  </data>
   <data name="ConfirmCleanupTitle" xml:space="preserve">
     <value>确认清理</value>
   </data>
@@ -511,17 +499,11 @@
   <data name="SettingsModelsSection" xml:space="preserve">
     <value>Models</value>
   </data>
-  <data name="SettingsAnalysisModelLabel" xml:space="preserve">
-    <value>分析模型</value>
-  </data>
-  <data name="SettingsAnalysisModelHint" xml:space="preserve">
-    <value>清理推荐分析使用的模型</value>
-  </data>
   <data name="SettingsChatModelLabel" xml:space="preserve">
-    <value>聊天模型</value>
+    <value>模型列表</value>
   </data>
   <data name="SettingsChatModelHint" xml:space="preserve">
-    <value>AI 聊天对话使用的模型</value>
+    <value>从服务商获取的可用模型，具体对话模型在 chat 输入区选择。</value>
   </data>
   <data name="SettingsThinkingLabel" xml:space="preserve">
     <value>启用思考</value>
@@ -940,4 +922,13 @@
   <data name="CopilotThinkingSelectorToolTip" xml:space="preserve"><value>下一条消息使用的思考等级</value></data>
   <data name="CopilotModelFilterPlaceholder" xml:space="preserve"><value>搜索或输入自定义模型名，回车应用</value></data>
   <data name="ComposerModelsSectionLabel" xml:space="preserve"><value>模型</value></data>
+  <data name="CopilotChooseModel" xml:space="preserve"><value>选择模型</value></data>
+  <data name="SettingsModelListEmpty" xml:space="preserve"><value>尚未获取模型，请在 AI 设置中刷新模型列表。</value></data>
+  <data name="SettingsModelsUrlLabel" xml:space="preserve"><value>模型获取 URL</value></data>
+  <data name="SettingsModelsUrlHint" xml:space="preserve"><value>填写完整 HTTP(S) URL；留空使用当前接口的默认模型列表地址。</value></data>
+  <data name="SettingsRefreshCliIdentityHint" xml:space="preserve"><value>刷新此 CLI 的最新指纹</value></data>
+  <data name="SettingsCliIdentityRefreshRunning" xml:space="preserve"><value>正在获取最新指纹…</value></data>
+  <data name="SettingsCliIdentityRefreshSuccess" xml:space="preserve"><value>已更新为最新指纹</value></data>
+  <data name="SettingsCliIdentityRefreshFailed" xml:space="preserve"><value>获取失败，已保留当前指纹；点击可重试。</value></data>
+  <data name="SettingsCliIdentityBuiltIn" xml:space="preserve"><value>Grok 使用内置指纹，暂无远程版本源。</value></data>
 </root>

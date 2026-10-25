@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 
 namespace SpaceMonger.Core.Services.Llm;
@@ -38,12 +39,15 @@ public static class CliIdentityService
             ]),
         };
 
-    private static readonly Dictionary<CliIdentityKind, string> LatestVersions = new()
+    private static readonly ConcurrentDictionary<CliIdentityKind, string> LatestVersions = new()
     {
         [CliIdentityKind.ClaudeCode] = "2.1.88",
         [CliIdentityKind.Codex] = "0.151.0",
         [CliIdentityKind.Grok] = "1.0.6",
     };
+
+    /// <summary>版本缓存发生变化时通知界面；后台刷新与手动刷新共用此入口。</summary>
+    public static event Action<CliIdentityKind>? VersionChanged;
 
     private static readonly object VersionGate = new();
     private static volatile bool versionsRefreshed;
@@ -78,60 +82,67 @@ public static class CliIdentityService
         return headers;
     }
 
-    /// <summary>
-    /// 后台刷新各家族最新版本号（npm registry / GitHub Releases）。所有失败都被吞掉并保留当前值；
-    /// 每个进程只尝试一次，超时 3 秒，避免阻塞请求路径。
-    /// </summary>
+    /// <summary>后台只尝试一次；设置页逐项刷新使用不受此限制的入口。</summary>
     public static async Task RefreshVersionsAsync()
     {
-        if (versionsRefreshed) return;
         lock (VersionGate)
         {
             if (versionsRefreshed) return;
             versionsRefreshed = true;
         }
-
-        await Task.WhenAll(RefreshClaudeAsync(), RefreshCodexAsync()).ConfigureAwait(false);
+        await Task.WhenAll(RefreshVersionAsync(CliIdentityKind.ClaudeCode), RefreshVersionAsync(CliIdentityKind.Codex)).ConfigureAwait(false);
     }
 
-    private static async Task RefreshClaudeAsync()
+    public static async Task<bool> RefreshVersionAsync(CliIdentityKind kind, CancellationToken cancellationToken = default)
     {
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("SpaceMongerCopilot/1.0 cli-identity-fetch/1.0");
+        return await RefreshVersionAsync(kind, http, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>获取一个身份的最新版本；失败保留现有指纹，返回 false，允许用户重试。</summary>
+    public static async Task<bool> RefreshVersionAsync(CliIdentityKind kind, HttpClient http, CancellationToken cancellationToken = default)
+    {
+        var url = kind switch
+        {
+            CliIdentityKind.ClaudeCode => "https://registry.npmjs.org/@anthropic-ai/claude-code/latest",
+            CliIdentityKind.Codex => "https://api.github.com/repos/openai/codex/releases/latest",
+            _ => null,
+        };
+        if (url is null) return false;
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("SpaceMongerCopilot/1.0 cli-identity-fetch/1.0");
-            using var response = await http.GetAsync("https://registry.npmjs.org/@anthropic-ai/claude-code/latest").ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode) return;
-            using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync().ConfigureAwait(false)).ConfigureAwait(false);
-            if (document.RootElement.TryGetProperty("version", out var value) && value.ValueKind == JsonValueKind.String
-                && Version.TryParse(value.GetString(), out var parsed) && parsed > Version.Parse(LatestVersions[CliIdentityKind.ClaudeCode]))
-            {
-                LatestVersions[CliIdentityKind.ClaudeCode] = value.GetString()!;
-            }
+            using var response = await http.GetAsync(url, cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode) return false;
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var field = kind == CliIdentityKind.ClaudeCode ? "version" : "tag_name";
+            if (!document.RootElement.TryGetProperty(field, out var value) || value.ValueKind != JsonValueKind.String) return false;
+            var raw = value.GetString() ?? "";
+            var version = kind == CliIdentityKind.Codex
+                ? System.Text.RegularExpressions.Regex.Match(raw, @"\d+\.\d+\.\d+").Value
+                : raw;
+            return RememberVersion(kind, version);
         }
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException or InvalidOperationException or JsonException)
         {
+            return false;
         }
     }
 
-    private static async Task RefreshCodexAsync()
+    public static void RestoreVersions(IReadOnlyDictionary<string, string>? versions)
     {
-        try
-        {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("SpaceMongerCopilot/1.0 cli-identity-fetch/1.0");
-            using var response = await http.GetAsync("https://api.github.com/repos/openai/codex/releases/latest").ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode) return;
-            using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync().ConfigureAwait(false)).ConfigureAwait(false);
-            if (!document.RootElement.TryGetProperty("tag_name", out var value) || value.ValueKind != JsonValueKind.String) return;
-            var match = System.Text.RegularExpressions.Regex.Match(value.GetString()!, @"\d+\.\d+\.\d+");
-            if (match.Success && Version.TryParse(match.Value, out var parsed) && parsed > Version.Parse(LatestVersions[CliIdentityKind.Codex]))
-            {
-                LatestVersions[CliIdentityKind.Codex] = match.Value;
-            }
-        }
-        catch (Exception error) when (error is HttpRequestException or TaskCanceledException or InvalidOperationException or JsonException)
-        {
-        }
+        if (versions is null) return;
+        foreach (var (identity, version) in versions)
+            RememberVersion(LlmContracts.ParseCliIdentity(identity), version);
+    }
+
+    private static bool RememberVersion(CliIdentityKind kind, string version)
+    {
+        if (!Profiles.ContainsKey(kind) || !Version.TryParse(version, out var parsed)) return false;
+        var previous = GetVersion(kind);
+        var actual = LatestVersions.AddOrUpdate(kind, version, (_, current) => parsed > Version.Parse(current) ? version : current);
+        if (!string.Equals(previous, actual, StringComparison.Ordinal)) VersionChanged?.Invoke(kind);
+        return true;
     }
 }

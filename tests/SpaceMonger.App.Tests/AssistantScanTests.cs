@@ -1,6 +1,7 @@
 using FluentAssertions;
 using SpaceMonger.App.ViewModels;
 using SpaceMonger.Core.Models;
+using SpaceMonger.Core.Services.Assistant;
 using SpaceMonger.Core.Services.Scanning;
 namespace SpaceMonger.App.Tests;
 public class AssistantScanTests
@@ -24,6 +25,18 @@ public class AssistantScanTests
         using var cts=new CancellationTokenSource();var scan=vm.ScanForAssistantAsync(Path.GetTempPath(),cts.Token);cts.Cancel();
         Func<Task> action=async()=>await scan;await action.Should().ThrowAsync<OperationCanceledException>();
         vm.CurrentSession.Should().BeSameAs(old);vm.IsScanning.Should().BeFalse();
+    }
+    [Fact]
+    public async Task UserCancelledAssistantScanThrowsDistinctCancelledException()
+    {
+        // 模拟用户点扫描遮罩的取消按钮：只取消扫描令牌，不取消 AI 运行令牌。
+        var scanner=new Scanner(async(_,_,ct)=>{await Task.Delay(Timeout.Infinite,ct);return new();});
+        var vm=new MainViewModel(scanner){CurrentSession=new ScanSession()};
+        var run=vm.ScanForAssistantAsync(Path.GetTempPath(),CancellationToken.None);
+        vm.CancelScanCommand.Execute(null);
+        Func<Task> action=async()=>await run;
+        (await action.Should().ThrowAsync<OperationCancelledByUserException>()).Which.Message.Should().Contain("中断");
+        vm.CurrentSession.Should().NotBeNull();vm.IsScanning.Should().BeFalse();
     }
     [Fact]
     public void CopilotBusyDisablesManualScanCommand()

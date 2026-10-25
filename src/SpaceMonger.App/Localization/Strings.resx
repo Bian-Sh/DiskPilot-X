@@ -48,6 +48,12 @@
   <data name="RecommendCleanupToolTip" xml:space="preserve">
     <value>Uses AI to scan the current view and recommend files and folders that can be safely removed to free up disk space. Only deletable items are shown — files deemed important are not listed.</value>
   </data>
+  <data name="AnalyzeChatPrompt" xml:space="preserve">
+    <value>[App action] The user clicked the Analyze button, requesting cleanup-recommendation analysis for the current scope with results published to the recommendations panel. Scope: {0}</value>
+  </data>
+  <data name="ChatAppMessageBadge" xml:space="preserve">
+    <value>App action</value>
+  </data>
   <data name="AnalyzeButton" xml:space="preserve">
     <value>Analyze</value>
   </data>
@@ -89,18 +95,6 @@
   </data>
   <data name="ApiKeyRequiredTitle" xml:space="preserve">
     <value>API Key Required</value>
-  </data>
-  <data name="ConfirmReanalysisMessage" xml:space="preserve">
-    <value>Re-running analysis will replace all current recommendations. Accepted items will be lost. Continue?</value>
-  </data>
-  <data name="ConfirmReanalysisTitle" xml:space="preserve">
-    <value>Confirm Re-Analysis</value>
-  </data>
-  <data name="AnalysisFailedStatus" xml:space="preserve">
-    <value>Analysis failed: {0}</value>
-  </data>
-  <data name="AnalysisCompleteStatus" xml:space="preserve">
-    <value>Analysis complete: {0} recommendation{1} found.</value>
   </data>
   <data name="CleaningStatus" xml:space="preserve">
     <value>Cleaning: {0}/{1} — {2}</value>
@@ -314,12 +308,6 @@
   <data name="AnalysisMayTakeText" xml:space="preserve">
     <value>This may take a few moments</value>
   </data>
-  <data name="AnalyzingFolderStatus" xml:space="preserve">
-    <value>Analyzing {0}...</value>
-  </data>
-  <data name="AnalyzingScanResultsStatus" xml:space="preserve">
-    <value>Analyzing scan results...</value>
-  </data>
   <data name="ConfirmCleanupTitle" xml:space="preserve">
     <value>Confirm Cleanup</value>
   </data>
@@ -514,17 +502,11 @@
   <data name="SettingsModelsSection" xml:space="preserve">
     <value>Models</value>
   </data>
-  <data name="SettingsAnalysisModelLabel" xml:space="preserve">
-    <value>Analysis model</value>
-  </data>
-  <data name="SettingsAnalysisModelHint" xml:space="preserve">
-    <value>Model used for cleanup recommendation analysis</value>
-  </data>
   <data name="SettingsChatModelLabel" xml:space="preserve">
-    <value>Chat model</value>
+    <value>Model list</value>
   </data>
   <data name="SettingsChatModelHint" xml:space="preserve">
-    <value>Model used for AI chat conversations</value>
+    <value>Available models fetched from your provider; choose the conversation model in chat.</value>
   </data>
   <data name="SettingsThinkingLabel" xml:space="preserve">
     <value>Enable thinking</value>
@@ -943,4 +925,13 @@
   <data name="CopilotThinkingSelectorToolTip" xml:space="preserve"><value>Thinking level used for the next message</value></data>
   <data name="CopilotModelFilterPlaceholder" xml:space="preserve"><value>Search or type a custom model name, Enter to apply</value></data>
   <data name="ComposerModelsSectionLabel" xml:space="preserve"><value>Models</value></data>
+  <data name="CopilotChooseModel" xml:space="preserve"><value>Select model</value></data>
+  <data name="SettingsModelListEmpty" xml:space="preserve"><value>No models fetched. Refresh the model list in AI settings.</value></data>
+  <data name="SettingsModelsUrlLabel" xml:space="preserve"><value>Models URL</value></data>
+  <data name="SettingsModelsUrlHint" xml:space="preserve"><value>Enter a full HTTP(S) URL; leave blank to use the default models endpoint.</value></data>
+  <data name="SettingsRefreshCliIdentityHint" xml:space="preserve"><value>Refresh the latest CLI fingerprint</value></data>
+  <data name="SettingsCliIdentityRefreshRunning" xml:space="preserve"><value>Fetching the latest fingerprint…</value></data>
+  <data name="SettingsCliIdentityRefreshSuccess" xml:space="preserve"><value>Updated to the latest fingerprint</value></data>
+  <data name="SettingsCliIdentityRefreshFailed" xml:space="preserve"><value>Refresh failed. The current fingerprint is preserved; click to retry.</value></data>
+  <data name="SettingsCliIdentityBuiltIn" xml:space="preserve"><value>Grok uses a built-in fingerprint; no remote version source is available.</value></data>
 </root>

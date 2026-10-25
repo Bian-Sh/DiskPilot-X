@@ -127,11 +127,11 @@ public partial class MainWindow
 
     private async void OnAnalyzeRequested()
     {
-        if (_recommendationsViewModel is null || _settingsViewModel is null || _recommendationsViewModel.IsAnalyzing || _chatViewModel?.IsOperationRunning == true || _cleanupRunning || (DataContext as MainViewModel)?.IsScanning == true)
+        if (_recommendationsViewModel is null || _chatViewModel is null || _recommendationsViewModel.IsAnalyzing || _chatViewModel.IsOperationRunning || _cleanupRunning || (DataContext as MainViewModel)?.IsScanning == true)
             return;
 
         var mainVm = DataContext as MainViewModel;
-        if (mainVm?.CurrentSession is null)
+        if (mainVm?.CurrentSession?.RootEntry is null)
         {
             await ShowAppModalAsync(
                 L.Text("AnalyzeNoScanTitle"),
@@ -144,9 +144,8 @@ public partial class MainWindow
         // Retrieve the API key from settings (checks actual saved key, not just validation flag)
         var settingsService = App.Services!.GetRequiredService<SpaceMonger.Core.Services.Settings.ISettingsService>();
         var loadedSettings = settingsService.LoadSettings();
-        var apiKey = settingsService.GetApiKey(loadedSettings);
 
-        if (string.IsNullOrWhiteSpace(apiKey))
+        if (string.IsNullOrWhiteSpace(settingsService.GetApiKey(loadedSettings)))
         {
             var result = await ShowAppMessageAsync(
                 L.Text("ApiKeyRequiredMessage"),
@@ -161,28 +160,9 @@ public partial class MainWindow
 
             // Re-check after settings dialog
             loadedSettings = settingsService.LoadSettings();
-            apiKey = settingsService.GetApiKey(loadedSettings);
-            if (string.IsNullOrWhiteSpace(apiKey))
+            if (string.IsNullOrWhiteSpace(settingsService.GetApiKey(loadedSettings)))
                 return;
         }
-
-        // Warn if re-running analysis will replace the recommendations currently visible in the ScrollView.
-        if (_recommendationsViewModel.HasAnyRecommendations)
-        {
-            var confirmResult = await ShowAppMessageAsync(
-                L.Text("ConfirmReanalysisMessage"),
-                L.Text("ConfirmReanalysisTitle"),
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (confirmResult != MessageBoxResult.Yes)
-                return;
-        }
-
-        // Show the panel immediately so the user sees the loading indicator
-        EnsureBottomPanelVisible();
-        ShowRecommendationsPanel();
-        DebugBreakpoints.Hit("analyze-click");
 
         // If the user has drilled into a folder, scope the analysis to that subtree.
         // At the top level (CurrentRoot == scan root), analyze the whole drive.
@@ -193,42 +173,34 @@ public partial class MainWindow
             focusEntry = _treemapViewModel.CurrentRoot;
         }
 
-        _recommendationsViewModel.SetContext(
-            mainVm.CurrentSession,
-            SpaceMonger.Core.Services.Llm.ModelEndpointConfig.FromSettings(
-                loadedSettings, apiKey!, loadedSettings.AnalysisModelName ?? string.Empty,
-                settingsService.GetProxyPassword(loadedSettings)),
-            loadedSettings.Language,
-            focusEntry);
-        DebugBreakpoints.Hit("analyze-context-ready");
+        // Show the panel immediately so the user sees the recommendations area
+        EnsureBottomPanelVisible();
+        ShowRecommendationsPanel();
+        DebugBreakpoints.Hit("analyze-click");
 
-        var scopeLabel = focusEntry is not null
-            ? L.Format("AnalyzingFolderStatus", focusEntry.Name)
-            : L.Text("AnalyzingScanResultsStatus");
-        mainVm.ScanProgressText = scopeLabel;
-        WriteConsoleLog(scopeLabel);
+        var focusPath = focusEntry?.Path ?? mainVm.CurrentSession.TargetPath;
         WriteConsoleLog(focusEntry is not null
             ? $"Analysis scope: {focusEntry.Path}"
             : $"Analysis scope: {mainVm.CurrentSession.TargetPath}");
-        await _recommendationsViewModel.AnalyzeCommand.ExecuteAsync(null);
-        DebugBreakpoints.Hit("analyze-command-returned");
 
-        if (_recommendationsViewModel.AnalysisError is not null)
+        // 分析统一走对话：应用代发一条显式溯源的消息，证据仍由 AI 通过工具读取；
+        // 覆盖已有建议的知情同意由 publish_recommendations 的聊天内确认卡片承担。
+        var prompt = L.Format("AnalyzeChatPrompt", focusEntry?.Name ?? mainVm.CurrentSession.TargetPath);
+        _recommendationsViewModel.IsAnalyzing = true;
+        DebugBreakpoints.Hit("analyze-context-ready");
+        try
         {
-            mainVm.ScanProgressText = L.Format("AnalysisFailedStatus", _recommendationsViewModel.AnalysisError);
-            WriteConsoleLog(mainVm.ScanProgressText, LogEventLevel.Error);
-            AppendAnalysisDiagnostics(_recommendationsViewModel.LastDiagnostics);
-        }
-        else
-        {
-            var count = _recommendationsViewModel.Recommendations.Count;
-            mainVm.ScanProgressText = L.Format("AnalysisCompleteStatus", count, count == 1 ? "" : "s");
-            WriteConsoleLog(mainVm.ScanProgressText);
-            AppendAnalysisDiagnostics(_recommendationsViewModel.LastDiagnostics);
-            if (count == 0)
+            var runResult = await _chatViewModel.SendAppAnalysisAsync(prompt, focusPath);
+            DebugBreakpoints.Hit("analyze-command-returned");
+            AppendAnalysisDiagnostics(runResult?.Analysis?.Diagnostics);
+            if (runResult is null)
             {
-                WriteConsoleLog("DIAG: zero final recommendations. Inspect parsed_recs/protected_filtered/parse_error above to determine whether this was an empty model result, parse failure, or post-filtering.");
+                WriteConsoleLog("Analysis request was rejected before the run started.", LogEventLevel.Warning);
             }
+        }
+        finally
+        {
+            _recommendationsViewModel.IsAnalyzing = false;
         }
     }
 

@@ -3,8 +3,6 @@ using SpaceMonger.App.Localization;
 using SpaceMonger.App.ViewModels;
 using SpaceMonger.Core.Enums;
 using SpaceMonger.Core.Models;
-using SpaceMonger.Core.Services.Analysis;
-using SpaceMonger.Core.Services.Llm;
 
 namespace SpaceMonger.App.Tests;
 
@@ -17,7 +15,7 @@ public class RecommendationsViewModelTests
         try
         {
             L.SetLanguage("en");
-            var viewModel = new RecommendationsViewModel(new StubRecommendationEngine([]));
+            var viewModel = new RecommendationsViewModel();
 
             viewModel.BeginExternalRecommendationLoad();
             viewModel.EmptyStateTitleText.Should().Be("AI is analyzing. Please wait...");
@@ -33,7 +31,7 @@ public class RecommendationsViewModelTests
     }
 
     [Fact]
-    public async Task AnalyzeCommand_AllFiltersShowAllRecommendationsAndSelectionTotalsUpdate()
+    public void ExternalRecommendations_AllFiltersShowAllRecommendationsAndSelectionTotalsUpdate()
     {
         var recommendations = new List<CleanupRecommendation>
         {
@@ -54,17 +52,8 @@ public class RecommendationsViewModelTests
                 SafetyRating = SafetyRating.ReviewFirst,
             },
         };
-        var viewModel = new RecommendationsViewModel(new StubRecommendationEngine(recommendations));
-        viewModel.SetContext(
-            new ScanSession
-            {
-                TargetPath = @"C:\",
-                RootEntry = new FileEntry { Path = @"C:\", Name = @"C:\", IsDirectory = true }
-            },
-            new ModelEndpointConfig { ApiKey = "api-key", Model = "stub-model" },
-            "zh-CN");
-
-        await viewModel.AnalyzeCommand.ExecuteAsync(null);
+        var viewModel = new RecommendationsViewModel();
+        viewModel.SetExternalRecommendations(recommendations);
 
         viewModel.FilteredRecommendations.Should().HaveCount(2);
 
@@ -80,22 +69,5 @@ public class RecommendationsViewModelTests
 
         viewModel.TotalSelectedCount.Should().Be(1);
         viewModel.TotalRecoverableSpace.Should().Be("1.0 KB");
-    }
-
-    private sealed class StubRecommendationEngine(List<CleanupRecommendation> recommendations) : IRecommendationEngine
-    {
-        public Task<List<CleanupRecommendation>> AnalyzeAsync(
-            ScanSession session,
-            ModelEndpointConfig endpoint,
-            string? responseLanguage,
-            CancellationToken cancellationToken,
-            FileEntry? focusEntry = null) => Task.FromResult(recommendations);
-
-        public Task<AnalysisResult> AnalyzeWithDiagnosticsAsync(
-            ScanSession session,
-            ModelEndpointConfig endpoint,
-            string? responseLanguage,
-            CancellationToken cancellationToken,
-            FileEntry? focusEntry = null) => Task.FromResult(new AnalysisResult { Recommendations = recommendations, Diagnostics = new AnalysisDiagnostics() });
     }
 }

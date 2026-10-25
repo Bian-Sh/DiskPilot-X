@@ -90,7 +90,10 @@ public sealed class ConversationStore(string rootDirectory)
             {
                 var snapshot = Load(Path.GetFileNameWithoutExtension(file));
                 if (snapshot.Messages.Count == 0) continue;
-                var first = snapshot.Messages.FirstOrDefault(message => message.Sender == ChatSender.User)?.Text ?? "";
+                // 对话可能由应用代发消息（如「分析」按钮）开始，取不到用户消息时回退到任意消息。
+                var first = snapshot.Messages.FirstOrDefault(message => message.Sender == ChatSender.User)?.Text
+                    ?? snapshot.Messages.FirstOrDefault()?.Text
+                    ?? "";
                 var title = string.Join(' ', first.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
                 if (title.Length > 40) title = title[..40] + "…";
                 summaries.Add(new(snapshot.Id, title, snapshot.UpdatedAt, snapshot.Messages.Count));

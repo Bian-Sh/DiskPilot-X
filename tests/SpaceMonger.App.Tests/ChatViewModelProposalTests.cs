@@ -3,6 +3,7 @@ using FluentAssertions;
 using TinyHarness;
 using NSubstitute;
 using SpaceMonger.App.ViewModels;
+using SpaceMonger.Core.Enums;
 using SpaceMonger.Core.Models;
 using SpaceMonger.Core.Services.Assistant;
 using SpaceMonger.Core.Services.Llm;
@@ -82,15 +83,32 @@ public class ChatViewModelProposalTests
     {
         public IAsyncEnumerable<ModelStreamEvent> StreamAsync(ModelRequest request,CancellationToken ct)=>throw new ModelClientException("unsafe-provider-body",ModelErrorKind.Authentication);
     }
-    [Fact] public async Task ComposerReturnsToChatModelAfterExternalAnalysis()
+    [Fact] public async Task IsolatedAnalysisRunLeavesComposerModelUnchanged()
     {
         DiskAssistantService? service=null;var vm=Create(_=>new TextClient(),value=>service=value);
-        await service!.RunAsync("手动分析",new(new ModelEndpointConfig { ApiKey = "key", Model = "analysis-model" }, IsAnalysis: true),null,CancellationToken.None);
+        await service!.RunAsync("独立分析",new(new ModelEndpointConfig { ApiKey = "key", Model = "analysis-model" }, IsAnalysis: true),null,CancellationToken.None);
         vm.ModelDisplayName.Should().Be("configured-model");
+    }
+    [Fact] public async Task SendAppAnalysisUsesChatModelWithScopedAnalysisOptionsAndSystemMessage()
+    {
+        AssistantRunOptions? observed=null;
+        var vm=Create(options=>{observed=options;return new TextClient();});
+        var result=await vm.SendAppAnalysisAsync("【应用操作】请求分析当前范围并发布建议。",@"D:\scope");
+        observed.Should().NotBeNull();
+        observed!.Endpoint.Model.Should().Be("configured-model");
+        observed.FocusPath.Should().Be(@"D:\scope");
+        observed.IsAnalysis.Should().BeTrue();
+        observed.InConversationSession.Should().BeTrue();
+        (observed.Skills is { Count: > 0 }).Should().BeFalse();
+        vm.Messages.Should().HaveCount(2);
+        vm.Messages[0].Sender.Should().Be(ChatSender.System);
+        vm.Messages[0].Text.Should().Contain("应用操作");
+        result.Should().NotBeNull();
+        vm.IsOperationRunning.Should().BeFalse();
     }
     private static ChatViewModel Create(Func<AssistantRunOptions,IModelClient> factory,Action<DiskAssistantService>? observe=null)
     {
-        var settings=Substitute.For<ISettingsService>();var saved=new AppSettings{ChatModelName="configured-model"};
+        var settings=Substitute.For<ISettingsService>();var saved=new AppSettings{ChatModelName="configured-model",DiscoveredModels=["configured-model"]};
         settings.LoadSettings().Returns(saved);settings.GetApiKey(saved).Returns("test-key");
         var router=Substitute.For<IAiSkillRouter>();router.GetSkillCatalog().Returns(new[]{new AiSkillCatalogItem("disk-management","磁盘管理","管理磁盘")});
         router.Route(Arg.Any<string>(),Arg.Any<FileEntry?>(),Arg.Any<FileEntry?>(),Arg.Any<bool>(),Arg.Any<string?>()).Returns(new AiSkillRoutingResult([]));

@@ -8,19 +8,13 @@ using SpaceMonger.App.Converters;
 using SpaceMonger.App.Localization;
 using SpaceMonger.Core.Enums;
 using SpaceMonger.Core.Models;
-using SpaceMonger.Core.Services.Analysis;
-using SpaceMonger.Core.Services.Llm;
 
 namespace SpaceMonger.App.ViewModels;
 
+/// <summary>清理建议的展示与选择；分析请求统一走聊天对话，建议由 publish_recommendations 外部写入。</summary>
 public partial class RecommendationsViewModel : ObservableObject
 {
-    private readonly IRecommendationEngine _recommendationEngine;
     private readonly ILogger<RecommendationsViewModel> _logger;
-    private ScanSession? _currentSession;
-    private ModelEndpointConfig? _endpoint;
-    private string? _responseLanguage;
-    private FileEntry? _focusEntry;
 
     [ObservableProperty]
     private ObservableCollection<CleanupRecommendation> _recommendations = new();
@@ -78,9 +72,8 @@ public partial class RecommendationsViewModel : ObservableObject
         ? string.Empty
         : L.Text("RecommendationsEmptyDescription");
 
-    public RecommendationsViewModel(IRecommendationEngine recommendationEngine, ILogger<RecommendationsViewModel>? logger = null)
+    public RecommendationsViewModel(ILogger<RecommendationsViewModel>? logger = null)
     {
-        _recommendationEngine = recommendationEngine;
         _logger = logger ?? NullLogger<RecommendationsViewModel>.Instance;
         _logger.LogInformation("RecommendationsViewModel created");
         L.LanguageChanged += OnLanguageChanged;
@@ -96,15 +89,6 @@ public partial class RecommendationsViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(EmptyStateTitleText));
         OnPropertyChanged(nameof(EmptyStateDescriptionText));
-    }
-
-    public void SetContext(ScanSession session, ModelEndpointConfig endpoint, string? responseLanguage, FileEntry? focusEntry = null)
-    {
-        _currentSession = session;
-        _endpoint = endpoint;
-        _responseLanguage = responseLanguage;
-        _focusEntry = focusEntry;
-        _logger.LogInformation("Recommendation context set: target={TargetPath}, focus={FocusPath}, model={ModelName}", session.TargetPath, focusEntry?.Path, endpoint.Model);
     }
 
     public void SetExternalRecommendations(IEnumerable<CleanupRecommendation> recommendations, AnalysisDiagnostics? diagnostics = null)
@@ -143,58 +127,6 @@ public partial class RecommendationsViewModel : ObservableObject
     {
         _logger.LogInformation("External recommendation load ended");
         IsWaitingForExternalRecommendations = false;
-    }
-
-    [RelayCommand]
-    private async Task AnalyzeAsync()
-    {
-        if (_currentSession is null || _endpoint is null)
-            return;
-
-        _logger.LogInformation("Recommendation analysis started: target={TargetPath}, focus={FocusPath}", _currentSession.TargetPath, _focusEntry?.Path);
-        IsAnalyzing = true;
-        IsWaitingForExternalRecommendations = false;
-        AnalysisError = null;
-
-        // Clear previous recommendations immediately so stale results from a
-        // different scope (e.g. subfolder) don't persist if this call fails.
-        Recommendations = new ObservableCollection<CleanupRecommendation>();
-        ApplyFilters();
-        UpdateTotals();
-
-        try
-        {
-            DebugBreakpoints.Hit("recommendation-engine-before");
-            var session = _currentSession;
-            var endpoint = _endpoint;
-            var responseLanguage = _responseLanguage;
-            var focusEntry = _focusEntry;
-
-            var result = await Task.Run(() => _recommendationEngine.AnalyzeWithDiagnosticsAsync(
-                session, endpoint, responseLanguage, CancellationToken.None, focusEntry));
-            DebugBreakpoints.Hit("recommendation-engine-after");
-
-            LastDiagnostics = result.Diagnostics;
-            Recommendations = new ObservableCollection<CleanupRecommendation>(result.Recommendations);
-            ApplyFilters();
-            UpdateTotals();
-            HasRecommendations = Recommendations.Count > 0;
-            _logger.LogInformation("Recommendation analysis completed: count={Count}", Recommendations.Count);
-            DebugBreakpoints.Hit("recommendations-applied");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Recommendation analysis failed");
-            AnalysisError = ex.Message;
-            LastDiagnostics = null;
-            HasRecommendations = false;
-            DebugBreakpoints.Hit("recommendation-error");
-        }
-        finally
-        {
-            _logger.LogInformation("Recommendation analysis ended");
-            IsAnalyzing = false;
-        }
     }
 
     [RelayCommand]

@@ -1,3 +1,5 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using SpaceMonger.App.Localization;
 using SpaceMonger.Core.Services.Llm;
 
@@ -5,7 +7,24 @@ namespace SpaceMonger.App.ViewModels;
 
 public sealed record ThinkingLevelOption(ThinkingLevel Value, string Label);
 public sealed record ApiFormatOption(LlmApiFormat Value, string Label);
-public sealed record CliIdentityOption(CliIdentityKind Value, string Label);
+public sealed partial class CliIdentityOption(CliIdentityKind value, string label) : ObservableObject
+{
+    public CliIdentityKind Value { get; } = value;
+    public string Label { get; } = label;
+    public string DisplayLabel => Value == CliIdentityKind.None ? Label : $"{Label} · {CliIdentityService.GetVersion(Value)}";
+    public string Fingerprint => string.Join("\n", CliIdentityService.BuildHeaders(Value).Select(header => $"{header.Key}: {header.Value}"));
+    public IAsyncRelayCommand? RefreshCommand { get; set; }
+    public bool CanRefresh => Value != CliIdentityKind.None && !IsRefreshing;
+    public string RefreshToolTip => $"{Status ?? L.Text("SettingsRefreshCliIdentityHint")}\n{Fingerprint}".Trim();
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanRefresh))] private bool _isRefreshing;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(RefreshToolTip))] private string? _status;
+    public void RefreshDisplay()
+    {
+        OnPropertyChanged(nameof(DisplayLabel));
+        OnPropertyChanged(nameof(Fingerprint));
+        OnPropertyChanged(nameof(RefreshToolTip));
+    }
+}
 public sealed record ProxyKindOption(ProxyKind Value, string Label);
 
 /// <summary>AI 设置下拉选项的唯一来源；标签本地化，语言切换后需重新读取。</summary>

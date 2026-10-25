@@ -50,6 +50,8 @@ public partial class ChatViewModel : ObservableObject
     [ObservableProperty] private ChatSkillSuggestion? _selectedSkillMentionSuggestion;
     [ObservableProperty] private ObservableCollection<string> _modelCandidates = [];
     [ObservableProperty] private string? _selectedChatModel;
+    [ObservableProperty] private string? _cliIdentityDisplayName;
+    [ObservableProperty] private string? _cliIdentityToolTip;
     [ObservableProperty] private ThinkingLevel _selectedThinkingLevel = ThinkingLevel.Off;
     public IReadOnlyList<ThinkingLevelOption> ThinkingLevelOptions => AiOptions.ThinkingLevels();
     /// <summary>合并选择器上的思考等级文案，如「最高」。</summary>
@@ -76,6 +78,7 @@ public partial class ChatViewModel : ObservableObject
         L.LanguageChanged += RefreshSlashCommandSuggestions;
         L.LanguageChanged += () => OnPropertyChanged(nameof(ThinkingLevelOptions));
         L.LanguageChanged += () => OnPropertyChanged(nameof(ThinkingPickerLabel));
+        CliIdentityService.VersionChanged += _ => OnUi(() => RefreshCliIdentityDisplay(_settingsService.LoadSettings()));
         RefreshApiKeyStatus();
         RefreshConversationHistory();
     }
@@ -89,7 +92,9 @@ public partial class ChatViewModel : ObservableObject
         try
         {
             ModelCandidates = new ObservableCollection<string>(settings.DiscoveredModels.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase));
-            SelectedChatModel = settings.ChatModelName;
+            CliIdentityService.RestoreVersions(settings.CliIdentityVersions);
+            SelectedChatModel = ModelCandidates.FirstOrDefault(id => string.Equals(id, settings.ChatModelName?.Trim(), StringComparison.OrdinalIgnoreCase));
+            RefreshCliIdentityDisplay(settings);
             SelectedThinkingLevel = ModelEndpointConfig.ResolveThinkingLevel(settings);
             OnPropertyChanged(nameof(ThinkingLevelOptions));
         }
@@ -97,7 +102,16 @@ public partial class ChatViewModel : ObservableObject
         OnPropertyChanged(nameof(ThinkingPickerLabel));
         ModelDisplayName = IsOperationRunning && assistant.ActiveModel is { } active
             ? active
-            : ModelEndpointResolver.ResolveModel(settings.ChatModelName, settings.AnthropicBaseUrl, false);
+            : SelectedChatModel ?? L.Text("CopilotChooseModel");
+    }
+
+    private void RefreshCliIdentityDisplay(AppSettings settings)
+    {
+        var identity = LlmContracts.ParseCliIdentity(settings.CliIdentity);
+        CliIdentityDisplayName = identity == CliIdentityKind.None ? null
+            : $"{AiOptions.CliIdentities().First(option => option.Value == identity).Label} · {CliIdentityService.GetVersion(identity)}";
+        CliIdentityToolTip = identity == CliIdentityKind.None ? null
+            : string.Join("\n", CliIdentityService.BuildHeaders(identity).Select(header => $"{header.Key}: {header.Value}"));
     }
 
     partial void OnSelectedChatModelChanged(string? value)
@@ -106,7 +120,7 @@ public partial class ChatViewModel : ObservableObject
         PersistSetting(settings =>
         {
             settings.ChatModelName = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-            ModelDisplayName = ModelEndpointResolver.ResolveModel(settings.ChatModelName, settings.AnthropicBaseUrl, false);
+            ModelDisplayName = ModelCandidates.Contains(value ?? "") ? value! : L.Text("CopilotChooseModel");
         });
     }
 
@@ -157,16 +171,45 @@ public partial class ChatViewModel : ObservableObject
         RefreshApiKeyStatus();
         if (!IsApiKeyConfigured) { ErrorMessage = "请先在设置中配置模型 API Key。"; return; }
         InputText = null; ErrorMessage = null;
-        Messages.Add(new Message { Sender = ChatSender.User, Text = text, Timestamp = DateTime.Now, LinkedEntry = LinkedEntry, LinkedRecommendation = LinkedRecommendation });
-        SaveCurrentConversation();
         var settings = _settingsService.LoadSettings();
         var routing = _skillRouter.Route(text, LinkedEntry, _currentViewRoot, false);
+        var endpoint = BuildChatEndpoint(settings);
+        await RunAssistantAsync(
+            new Message { Sender = ChatSender.User, Text = text, Timestamp = DateTime.Now, LinkedEntry = LinkedEntry, LinkedRecommendation = LinkedRecommendation },
+            new(endpoint, settings.Language, routing.Skills));
+    }
+
+    /// <summary>应用功能（如「分析」按钮）代发的对话消息：显式溯源展示，走当前聊天模型；
+    /// 分析证据仍由 AI 通过 get_analysis_evidence 工具读取，消息本身不携带扫描数据。</summary>
+    public async Task<AssistantRunResult?> SendAppAnalysisAsync(string text, string? focusPath)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        if (assistant.IsRunning) { ErrorMessage = "已有 Copilot 任务正在运行，请完成或停止后继续。"; return null; }
+        if (HasPendingInteractionCard || PendingAskUser is not null) { ErrorMessage = "请先完成或取消当前选择。"; return null; }
+        RefreshApiKeyStatus();
+        if (!IsApiKeyConfigured) { ErrorMessage = "请先在设置中配置模型 API Key。"; return null; }
+        ErrorMessage = null;
+        var settings = _settingsService.LoadSettings();
+        var endpoint = BuildChatEndpoint(settings);
+        // 不走技能路由：应用代发的文本不参与 @提及与创建者意图匹配，保持请求语义可控。
+        return await RunAssistantAsync(
+            new Message { Sender = ChatSender.System, Text = text, Timestamp = DateTime.Now, LinkedEntry = LinkedEntry, LinkedRecommendation = LinkedRecommendation },
+            new(endpoint, settings.Language, Skills: [], FocusPath: focusPath, IsAnalysis: true, InConversationSession: true));
+    }
+
+    private ModelEndpointConfig BuildChatEndpoint(AppSettings settings) =>
+        ModelEndpointConfig.FromSettings(settings, _settingsService.GetApiKey(settings)!,
+            ModelEndpointResolver.ResolveModel(settings.ChatModelName, settings.AnthropicBaseUrl),
+            _settingsService.GetProxyPassword(settings));
+
+    /// <summary>把一条消息加入对话并驱动一次助手运行；用户输入与应用代发的分析共用该通道。</summary>
+    private async Task<AssistantRunResult?> RunAssistantAsync(Message message, AssistantRunOptions options)
+    {
+        Messages.Add(message);
+        SaveCurrentConversation();
         try
         {
-            var endpoint = ModelEndpointConfig.FromSettings(settings, _settingsService.GetApiKey(settings)!,
-                ModelEndpointResolver.ResolveModel(settings.ChatModelName, settings.AnthropicBaseUrl, false),
-                _settingsService.GetProxyPassword(settings));
-            await assistant.RunAsync(text, new(endpoint, settings.Language, routing.Skills), null, CancellationToken.None);
+            return await assistant.RunAsync(message.Text, options, null, CancellationToken.None);
         }
         catch (OperationCanceledException) { StatusText = L.Text("CopilotStopped"); }
         catch (Exception ex)
@@ -175,6 +218,7 @@ public partial class ChatViewModel : ObservableObject
             ErrorMessage = "当前任务未完成，请检查模型配置或稍后重试。";
         }
         finally { OnUi(() => { IsOperationRunning = false; PendingInteractionCard = null; RefreshSkills(); SaveCurrentConversation(); RefreshConversationHistory(); }); }
+        return null;
     }
     private void ApplyActivity(AgentEvent activity)
     {

@@ -11,8 +11,11 @@ public class AppSettings
     public DeletionMode DeletionMode { get; set; } = DeletionMode.MoveToRecycleBin;
     public string? LastScanPath { get; set; }
     public string? AnthropicBaseUrl { get; set; }
-    public string? AnalysisModelName { get; set; }
     public string? ChatModelName { get; set; }
+    /// <summary>模型目录的完整获取地址；留空时沿用接口格式默认路径。</summary>
+    public string? ModelsUrl { get; set; }
+    /// <summary>按 CLI 身份保存最后成功获取的版本号。</summary>
+    public Dictionary<string, string> CliIdentityVersions { get; set; } = [];
     public bool EnableThinking { get; set; } = false;
     public string Language { get; set; } = "zh-CN";
 

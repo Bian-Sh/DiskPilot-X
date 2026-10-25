@@ -88,11 +88,16 @@ desktop.ini
 /.workbuddy/settings.json
 /.zcode/skills/comet/
 /.zcode/config.json
+# ZCode 会话本地状态整体不入库
+/.zcode/
+
+# 本地构建产物（发布输出与验收脚本，不入库）
+/dist/
 # >>> Comet managed project state >>>
 !/.comet/
 /.comet/*
 !/.comet/config.yaml
 # <<< Comet managed project state <<<
 
-# 本地构建产物（发布输出与验收脚本，不入库）
-/dist/
+# 验收产物中的应用设置转储含加密密钥材料，不入库
+/.planning/**/*settings*.json

@@ -1,0 +1,100 @@
+[
+  {
+    "Name": "SpaceMonger.App.ViewModels.CliIdentityOption",
+    "Type": "ControlType.ListItem",
+    "Offscreen": true,
+    "Enabled": true,
+    "Help": ""
+  },
+  {
+    "Name": "不模拟",
+    "Type": "ControlType.Text",
+    "Offscreen": false,
+    "Enabled": true,
+    "Help": ""
+  },
+  {
+    "Name": "SpaceMonger.App.ViewModels.CliIdentityOption",
+    "Type": "ControlType.ListItem",
+    "Offscreen": false,
+    "Enabled": true,
+    "Help": ""
+  },
+  {
+    "Name": "Claude Code · 2.1.88",
+    "Type": "ControlType.Text",
+    "Offscreen": false,
+    "Enabled": true,
+    "Help": ""
+  },
+  {
+    "Name": "刷新此 CLI 的最新指纹",
+    "Type": "ControlType.Button",
+    "Offscreen": false,
+    "Enabled": true,
+    "Help": "刷新此 CLI 的最新指纹\nUser-Agent: claude-cli/2.1.88 (external, cli)\nanthropic-version: 2023-06-01\nx-stainless-lang: js\nx-stainless-os: Linux\nx-stainless-arch: x64\nx-stainless-runtime: node\nx-stainless-runtime-version: 22.14.0\nx-stainless-package-version: 2.1.88\nx-stainless-timeout: 600000\nx-stainless-retries: 2"
+  },
+  {
+    "Name": "",
+    "Type": "ControlType.Text",
+    "Offscreen": false,
+    "Enabled": true,
+    "Help": ""
+  },
+  {
+    "Name": "SpaceMonger.App.ViewModels.CliIdentityOption",
+    "Type": "ControlType.ListItem",
+    "Offscreen": false,
+    "Enabled": true,
+    "Help": ""
+  },
+  {
+    "Name": "Codex CLI · 0.164.0",
+    "Type": "ControlType.Text",
+    "Offscreen": false,
+    "Enabled": true,
+    "Help": ""
+  },
+  {
+    "Name": "刷新此 CLI 的最新指纹",
+    "Type": "ControlType.Button",
+    "Offscreen": false,
+    "Enabled": true,
+    "Help": "刷新此 CLI 的最新指纹\nUser-Agent: codex_cli_rs/0.164.0\noriginator: codex_cli_rs\nversion: 0.164.0"
+  },
+  {
+    "Name": "",
+    "Type": "ControlType.Text",
+    "Offscreen": false,
+    "Enabled": true,
+    "Help": ""
+  },
+  {
+    "Name": "SpaceMonger.App.ViewModels.CliIdentityOption",
+    "Type": "ControlType.ListItem",
+    "Offscreen": false,
+    "Enabled": true,
+    "Help": ""
+  },
+  {
+    "Name": "Grok CLI · 1.0.6",
+    "Type": "ControlType.Text",
+    "Offscreen": false,
+    "Enabled": true,
+    "Help": ""
+  },
+  {
+    "Name": "刷新此 CLI 的最新指纹",
+    "Type": "ControlType.Button",
+    "Offscreen": false,
+    "Enabled": true,
+    "Help": "刷新此 CLI 的最新指纹\nUser-Agent: grok-cli/1.0.6 (external, cli)\nx-grok-client-identifier: grok-cli\nx-grok-client-mode: cli\nX-XAI-Token-Auth: true\nx-authenticateresponse: true\nx-grok-client-version: 1.0.6"
+  },
+  {
+    "Name": "",
+    "Type": "ControlType.Text",
+    "Offscreen": false,
+    "Enabled": true,
+    "Help": ""
+  }
+]

@@ -10,6 +10,7 @@ public sealed record ModelEndpointConfig
 {
     public required string ApiKey { get; init; }
     public string? BaseUrl { get; init; }
+    public string? ModelsUrl { get; init; }
     public required string Model { get; init; }
     public LlmApiFormat ApiFormat { get; init; } = LlmApiFormat.AnthropicMessages;
     public CliIdentityKind CliIdentity { get; init; } = CliIdentityKind.None;
@@ -25,6 +26,7 @@ public sealed record ModelEndpointConfig
     {
         ApiKey = apiKey,
         BaseUrl = string.IsNullOrWhiteSpace(settings.AnthropicBaseUrl) ? null : settings.AnthropicBaseUrl.Trim(),
+        ModelsUrl = string.IsNullOrWhiteSpace(settings.ModelsUrl) ? null : settings.ModelsUrl.Trim(),
         Model = model,
         ApiFormat = LlmContracts.ParseApiFormat(settings.ApiFormat),
         CliIdentity = LlmContracts.ParseCliIdentity(settings.CliIdentity),
@@ -46,13 +48,12 @@ public sealed record ModelEndpointConfig
 public static class ModelEndpointResolver
 {
     public const string DefaultChatModel = "claude-sonnet-4-20250514";
-    public const string DefaultAnalysisModel = "claude-sonnet-4-20250514";
 
-    public static string ResolveModel(string? configured, string? baseUrl, bool analysis)
+    public static string ResolveModel(string? configured, string? baseUrl)
     {
         if (!string.IsNullOrWhiteSpace(configured)) return configured.Trim();
         return Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) && uri.Host.EndsWith("deepseek.com", StringComparison.OrdinalIgnoreCase)
-            ? analysis ? "deepseek-v4-pro" : "deepseek-v4-flash"
-            : analysis ? DefaultAnalysisModel : DefaultChatModel;
+            ? "deepseek-v4-flash"
+            : DefaultChatModel;
     }
 }

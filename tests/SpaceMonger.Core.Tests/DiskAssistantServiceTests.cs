@@ -97,17 +97,14 @@ public class DiskAssistantServiceTests
     }
 
     [Fact]
-    public async Task ModelFailure_SurfacesDetailThroughAnalysisEngine()
+    public async Task ModelFailure_SurfacesFriendlyDetail()
     {
         var settings = Substitute.For<ISettingsService>(); settings.LoadSettings().Returns(new AppSettings());
         var service = new DiskAssistantService(_ => new FailingClient(), [], new AssistantWorkspace(), settings);
-        var session = new ScanSession { TargetPath = @"D:\sandbox", RootEntry = new FileEntry { Path = @"D:\sandbox", IsDirectory = true } };
-        var engine = new HarnessRecommendationEngine(service);
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            engine.AnalyzeWithDiagnosticsAsync(session, new ModelEndpointConfig { ApiKey = "key", Model = "test" }, "zh-CN", CancellationToken.None));
-        // 失败原因（FormatFailure 的友好摘要）必须出现在分析错误里，而不是只有笼统的"未发布有效结果"。
-        error.Message.Should().Contain("分析未发布有效结果：");
-        error.Message.Should().Contain("模型响应未能完成");
+        var run = await service.RunAsync("分析", new(new ModelEndpointConfig { ApiKey = "key", Model = "test" }), null, CancellationToken.None);
+        // 失败原因（FormatFailure 的友好摘要）必须出现在结果里，而不是只有笼统的"任务失败"。
+        run.State.Should().Be(AgentSessionState.Failed);
+        run.FailureDetail.Should().Contain("模型响应未能完成");
     }
 
     private sealed class FailingClient : IModelClient

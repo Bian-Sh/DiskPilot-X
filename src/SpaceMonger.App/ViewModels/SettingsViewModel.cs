@@ -77,12 +77,11 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    private string? _analysisModelName;
+    private string? _modelsUrl;
 
-    partial void OnAnalysisModelNameChanged(string? value)
+    partial void OnModelsUrlChanged(string? value)
     {
-        PersistAppSettings(settings =>
-            settings.AnalysisModelName = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+        PersistAppSettings(settings => settings.ModelsUrl = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
     }
 
     [ObservableProperty]
@@ -116,6 +115,8 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnSelectedCliIdentityChanged(CliIdentityKind value)
     {
         PersistAppSettings(settings => settings.CliIdentity = LlmContracts.FormatCliIdentity(value));
+        OnPropertyChanged(nameof(CliIdentitySummary));
+        OnPropertyChanged(nameof(CliIdentityFingerprint));
     }
 
     [ObservableProperty]
@@ -171,7 +172,17 @@ public partial class SettingsViewModel : ObservableObject
 
     public IReadOnlyList<ThinkingLevelOption> ThinkingLevelOptions => AiOptions.ThinkingLevels();
     public IReadOnlyList<ApiFormatOption> ApiFormatOptions => AiOptions.ApiFormats();
-    public IReadOnlyList<CliIdentityOption> CliIdentityOptions => AiOptions.CliIdentities();
+    private IReadOnlyList<CliIdentityOption> _cliIdentityOptions = AiOptions.CliIdentities();
+    public IReadOnlyList<CliIdentityOption> CliIdentityOptions
+    {
+        get
+        {
+            foreach (var option in _cliIdentityOptions) option.RefreshCommand = RefreshCliIdentityCommand;
+            return _cliIdentityOptions;
+        }
+    }
+    public string? CliIdentitySummary => CliIdentityService.BuildHeaders(SelectedCliIdentity).GetValueOrDefault("User-Agent");
+    public string CliIdentityFingerprint => string.Join("\n", CliIdentityService.BuildHeaders(SelectedCliIdentity).Select(header => $"{header.Key}: {header.Value}"));
     public IReadOnlyList<ProxyKindOption> ProxyKindOptions => AiOptions.ProxyKinds();
 
     [ObservableProperty]
@@ -291,15 +302,31 @@ public partial class SettingsViewModel : ObservableObject
         _whitelistMatcher = whitelistMatcher ?? new PathWhitelistMatcher();
         L.LanguageChanged += RefreshValidationStatusText;
         L.LanguageChanged += RefreshOptionLabels;
+        CliIdentityService.VersionChanged += RefreshCliIdentityDisplay;
 
         LoadSettings();
+    }
+
+    private void RefreshCliIdentityDisplay(CliIdentityKind identity)
+    {
+        void Refresh()
+        {
+            foreach (var option in CliIdentityOptions.Where(option => option.Value == identity)) option.RefreshDisplay();
+            OnPropertyChanged(nameof(CliIdentitySummary));
+            OnPropertyChanged(nameof(CliIdentityFingerprint));
+        }
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess()) Refresh();
+        else dispatcher.Invoke(Refresh);
     }
 
     private void RefreshOptionLabels()
     {
         OnPropertyChanged(nameof(ThinkingLevelOptions));
         OnPropertyChanged(nameof(ApiFormatOptions));
+        _cliIdentityOptions = AiOptions.CliIdentities();
         OnPropertyChanged(nameof(CliIdentityOptions));
+        OnPropertyChanged(nameof(CliIdentitySummary));
         OnPropertyChanged(nameof(ProxyKindOptions));
     }
 
@@ -409,7 +436,7 @@ public partial class SettingsViewModel : ObservableObject
 
         try
         {
-            var endpoint = BuildEndpoint(analysis: false);
+            var endpoint = BuildEndpoint();
             var isValid = await _llmClient.ValidateAsync(endpoint, CancellationToken.None);
 
             if (isValid)
@@ -434,19 +461,40 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     /// <summary>用当前编辑中的字段构建端点配置；代理口令优先取输入框，未改动时解密存量值。</summary>
-    private ModelEndpointConfig BuildEndpoint(bool analysis)
+    private ModelEndpointConfig BuildEndpoint()
     {
         var settings = _settingsService.LoadSettings();
         var proxyPassword = string.IsNullOrEmpty(ProxyPassword) ? _settingsService.GetProxyPassword(settings) : ProxyPassword;
         return ModelEndpointConfig.FromSettings(settings, ApiKey ?? string.Empty,
-            ModelEndpointResolver.ResolveModel(analysis ? AnalysisModelName : ChatModelName, AnthropicBaseUrl, analysis),
+            ModelEndpointResolver.ResolveModel(ChatModelName, AnthropicBaseUrl),
             proxyPassword) with
         {
+            ModelsUrl = string.IsNullOrWhiteSpace(ModelsUrl) ? null : ModelsUrl.Trim(),
             ApiFormat = SelectedApiFormat,
             CliIdentity = SelectedCliIdentity,
             ThinkingLevel = SelectedThinkingLevel,
             ProxyMode = SelectedProxyKind,
         };
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private async Task RefreshCliIdentityAsync(CliIdentityOption? option)
+    {
+        if (option is null || !option.CanRefresh) return;
+        option.IsRefreshing = true;
+        option.Status = L.Text("SettingsCliIdentityRefreshRunning");
+        try
+        {
+            var refreshed = await CliIdentityService.RefreshVersionAsync(option.Value);
+            option.Status = L.Text(refreshed ? "SettingsCliIdentityRefreshSuccess"
+                : option.Value == CliIdentityKind.Grok ? "SettingsCliIdentityBuiltIn" : "SettingsCliIdentityRefreshFailed");
+            if (refreshed)
+                PersistAppSettings(settings => settings.CliIdentityVersions[LlmContracts.FormatCliIdentity(option.Value)] = CliIdentityService.GetVersion(option.Value));
+            option.RefreshDisplay();
+            OnPropertyChanged(nameof(CliIdentitySummary));
+            OnPropertyChanged(nameof(CliIdentityFingerprint));
+        }
+        finally { option.IsRefreshing = false; }
     }
 
     [RelayCommand]
@@ -463,7 +511,7 @@ public partial class SettingsViewModel : ObservableObject
         ModelRefreshMessage = L.Text("SettingsModelRefreshRunning");
         try
         {
-            var endpoint = BuildEndpoint(analysis: false);
+            var endpoint = BuildEndpoint();
             var models = await Task.Run(() => _modelCatalog.FetchAsync(endpoint, CancellationToken.None));
             var ids = models.Select(model => model.Id).ToList();
             PersistAppSettings(settings => settings.DiscoveredModels = ids);
@@ -471,7 +519,7 @@ public partial class SettingsViewModel : ObservableObject
             foreach (var id in ids) ModelCandidates.Add(id);
             ModelRefreshMessage = L.Format("SettingsModelRefreshSuccessFormat", $"{ids.Count}");
         }
-        catch (Exception ex) when (ex is ModelClientException or InvalidOperationException or HttpRequestException)
+        catch (Exception ex) when (ex is ModelClientException or InvalidOperationException or HttpRequestException or TaskCanceledException or JsonException)
         {
             ModelRefreshMessage = L.Text("SettingsModelRefreshFailed");
         }
@@ -496,9 +544,7 @@ public partial class SettingsViewModel : ObservableObject
         settings.AnthropicBaseUrl = string.IsNullOrWhiteSpace(AnthropicBaseUrl)
             ? null
             : AnthropicBaseUrl.Trim();
-        settings.AnalysisModelName = string.IsNullOrWhiteSpace(AnalysisModelName)
-            ? null
-            : AnalysisModelName.Trim();
+        settings.ModelsUrl = string.IsNullOrWhiteSpace(ModelsUrl) ? null : ModelsUrl.Trim();
         settings.ChatModelName = string.IsNullOrWhiteSpace(ChatModelName)
             ? null
             : ChatModelName.Trim();
@@ -839,7 +885,9 @@ public partial class SettingsViewModel : ObservableObject
             }
 
             AnthropicBaseUrl = settings.AnthropicBaseUrl;
-            AnalysisModelName = settings.AnalysisModelName;
+            ModelsUrl = settings.ModelsUrl;
+            CliIdentityService.RestoreVersions(settings.CliIdentityVersions);
+            foreach (var option in CliIdentityOptions) option.RefreshDisplay();
             ChatModelName = settings.ChatModelName;
             SelectedThinkingLevel = ModelEndpointConfig.ResolveThinkingLevel(settings);
             SelectedApiFormat = LlmContracts.ParseApiFormat(settings.ApiFormat);

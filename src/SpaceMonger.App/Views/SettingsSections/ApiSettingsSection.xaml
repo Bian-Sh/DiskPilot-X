@@ -6,6 +6,7 @@
              xmlns:loc="clr-namespace:SpaceMonger.App.Localization"
              xmlns:vm="clr-namespace:SpaceMonger.App.ViewModels"
              xmlns:c="clr-namespace:SpaceMonger.App.Converters"
+             xmlns:llm="clr-namespace:SpaceMonger.Core.Services.Llm;assembly=SpaceMonger.Core"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel, IsDesignTimeCreatable=False}"
              FontFamily="{DynamicResource VP.FontFamily}">
@@ -144,12 +145,28 @@
                     <TextBlock Text="{loc:Loc SettingsCliIdentityLabel}"
                                Style="{StaticResource SettingsLabelStyle}"
                                ToolTip="{loc:Loc SettingsCliIdentityHint}" />
-                    <ComboBox Grid.Column="1"
-                              Style="{DynamicResource VP.ComboBox}"
-                              ItemsSource="{Binding CliIdentityOptions}"
-                              SelectedValue="{Binding SelectedCliIdentity}"
-                              SelectedValuePath="Value"
-                              DisplayMemberPath="Label" />
+                    <StackPanel Grid.Column="1">
+                        <ComboBox x:Name="CliIdentityPicker" Style="{DynamicResource VP.ComboBox}"
+                                  ItemsSource="{Binding CliIdentityOptions}" SelectedValue="{Binding SelectedCliIdentity}" SelectedValuePath="Value"
+                                  AutomationProperties.Name="{loc:Loc SettingsCliIdentityLabel}">
+                            <ComboBox.ItemContainerStyle><Style TargetType="ComboBoxItem" BasedOn="{StaticResource {x:Type ComboBoxItem}}"><Setter Property="HorizontalContentAlignment" Value="Stretch"/></Style></ComboBox.ItemContainerStyle>
+                            <ComboBox.ItemTemplate><DataTemplate>
+                                <Grid MinWidth="260" ToolTip="{Binding Fingerprint}">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding DisplayLabel}" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="1" Width="26" Height="24" Margin="8,0,0,0"
+                                            Command="{Binding RefreshCommand}" CommandParameter="{Binding}" IsEnabled="{Binding CanRefresh}"
+                                            ToolTip="{Binding RefreshToolTip}" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="{loc:Loc SettingsRefreshCliIdentityHint}"
+                                            PreviewMouseLeftButtonDown="CliIdentityRefresh_PreviewMouseLeftButtonDown">
+                                        <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="13"/>
+                                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource VP.ButtonIcon}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsVisible,RelativeSource={RelativeSource AncestorType=ComboBoxItem},FallbackValue=False}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger><DataTrigger Binding="{Binding Value}" Value="{x:Static llm:CliIdentityKind.None}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Button.Style>
+                                    </Button>
+                                </Grid>
+                            </DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock Text="{Binding CliIdentitySummary}" ToolTip="{Binding CliIdentityFingerprint}" Margin="0,6,0,0" FontSize="11"
+                                   Foreground="{DynamicResource VP.TextTertiaryBrush}" Visibility="{Binding CliIdentitySummary,Converter={StaticResource NullVis}}"/>
+                    </StackPanel>
                 </Grid>
                 <Separator Margin="14,0" />
                 <Grid Margin="14,12">
@@ -161,18 +178,27 @@
                                Style="{StaticResource SettingsLabelStyle}"
                                ToolTip="{loc:Loc SettingsChatModelHint}" />
                     <StackPanel Grid.Column="1">
-                        <StackPanel Orientation="Horizontal">
-                            <ComboBox Style="{DynamicResource VP.ComboBox}"
-                                      Width="240"
-                                      IsEditable="True"
-                                      StaysOpenOnEdit="True"
-                                      Text="{Binding ChatModelName, UpdateSourceTrigger=PropertyChanged}"
-                                      ItemsSource="{Binding ModelCandidates}" />
-                            <Button Content="{loc:Loc SettingsRefreshModelsButton}"
-                                    Style="{DynamicResource VP.Button}"
-                                    Margin="8,0,0,0"
-                                    Command="{Binding RefreshModelsCommand}" />
-                        </StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <Border Padding="8" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource VP.BorderLightBrush}">
+                                <Grid>
+                                    <TextBlock Text="{loc:Loc SettingsModelListEmpty}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource VP.TextTertiaryBrush}">
+                                        <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding ModelCandidates.Count}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                                    </TextBlock>
+                                    <ScrollViewer MaxHeight="132" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                        <ItemsControl ItemsSource="{Binding ModelCandidates}" AutomationProperties.Name="{loc:Loc SettingsChatModelLabel}"><ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" Margin="2,3" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource VP.TextPrimaryBrush}"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Border>
+                            <Button Grid.Column="1" Width="32" Height="32" VerticalAlignment="Top" Style="{DynamicResource VP.ButtonIcon}" Margin="8,0,0,0"
+                                    ToolTip="{loc:Loc SettingsRefreshModelsButton}" AutomationProperties.Name="{loc:Loc SettingsRefreshModelsButton}" Command="{Binding RefreshModelsCommand}">
+                                <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="15"/>
+                            </Button>
+                        </Grid>
+                        <TextBlock Text="{loc:Loc SettingsModelsUrlLabel}" FontSize="11" Foreground="{DynamicResource VP.TextTertiaryBrush}" Margin="0,10,0,5"/>
+                        <TextBox Style="{DynamicResource VP.TextBox}" Text="{Binding ModelsUrl,UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="{loc:Loc SettingsModelsUrlHint}" AutomationProperties.Name="{loc:Loc SettingsModelsUrlLabel}"/>
+                        <TextBlock Text="{loc:Loc SettingsModelsUrlHint}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource VP.TextTertiaryBrush}" Margin="0,4,0,0"/>
                         <TextBlock Text="{Binding ModelRefreshMessage}"
                                    Margin="0,6,0,0"
                                    FontSize="12"
@@ -180,22 +206,6 @@
                                    Foreground="{DynamicResource VP.TextTertiaryBrush}"
                                    Visibility="{Binding ModelRefreshMessage, Converter={StaticResource NullVis}}" />
                     </StackPanel>
-                </Grid>
-                <Separator Margin="14,0" />
-                <Grid Margin="14,12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="170" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="{loc:Loc SettingsAnalysisModelLabel}"
-                               Style="{StaticResource SettingsLabelStyle}"
-                               ToolTip="{loc:Loc SettingsAnalysisModelHint}" />
-                    <ComboBox Grid.Column="1"
-                              Style="{DynamicResource VP.ComboBox}"
-                              IsEditable="True"
-                              StaysOpenOnEdit="True"
-                              Text="{Binding AnalysisModelName, UpdateSourceTrigger=PropertyChanged}"
-                              ItemsSource="{Binding ModelCandidates}" />
                 </Grid>
                 <Separator Margin="14,0" />
                 <Grid Margin="14,12">

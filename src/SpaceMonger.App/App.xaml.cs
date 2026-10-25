@@ -72,7 +72,6 @@ public partial class App : Application
         services.AddSingleton<ModelConnectionTester>();
         services.AddSingleton<IDuplicateDetector, DuplicateDetector>();
         services.AddSingleton<RecommendationEngine>();
-        services.AddSingleton<IRecommendationEngine, HarnessRecommendationEngine>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<RecommendationsViewModel>();
 

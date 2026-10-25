@@ -1,0 +1,12 @@
+{
+  "ChatModelName": "qa-model-alpha",
+  "ModelsUrl": "http://127.0.0.1:39217/custom-models?scope=qa",
+  "DiscoveredModels": [
+    "qa-model-alpha",
+    "qa-model-beta"
+  ],
+  "CliIdentity": "codex",
+  "CliIdentityVersions": {
+    "codex": "0.164.0"
+  }
+}

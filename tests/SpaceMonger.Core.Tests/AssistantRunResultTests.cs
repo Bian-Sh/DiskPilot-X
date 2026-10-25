@@ -23,8 +23,8 @@ public class AssistantRunResultTests
     {
         var (service,scan)=Create(true);using var cts=new CancellationTokenSource();
         service.Activity+=e=>{if(e.Kind==AgentEventKind.TextDelta)cts.Cancel();};
-        var result=await new HarnessRecommendationEngine(service).AnalyzeWithDiagnosticsAsync(scan,new ModelEndpointConfig{ApiKey="key",Model="analysis"},"zh-CN",cts.Token);
-        result.Recommendations.Should().ContainSingle();
+        var result=await service.RunAsync("分析",new(new ModelEndpointConfig{ApiKey="key",Model="analysis"},IsAnalysis:true),null,cts.Token);
+        result.Analysis.Should().NotBeNull();result.Analysis!.Recommendations.Should().ContainSingle();
     }
     private static (DiskAssistantService,ScanSession) Create(bool hold)
     {

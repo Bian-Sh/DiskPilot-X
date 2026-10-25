@@ -1,0 +1,24 @@
+{
+  "app_name": "SpaceMonger.App.exe",
+  "element_count": 84,
+  "elements_complete": false,
+  "invalidated_snapshot_ids": [
+    "s00000086"
+  ],
+  "pid": 41700,
+  "returned_element_count": 8,
+  "snapshot_id": "s00000087",
+  "timeout_ms": 1000,
+  "total_element_count": 84,
+  "tree_format": "markdown",
+  "tree_markdown": "- Window \"SpaceMonger Copilot\"\n  - Text \"v1.0.0\"\n    - [39] Pane [id=SettingsScrollViewer actions=[scroll]]\n      - Text \"免责声明\"\n        - Text \"客户端指纹\"\n        - [44] ComboBox \"客户端指纹\" [id=CliIdentityPicker actions=[expand,scroll]]\n          - [46] ListItem \"SpaceMonger.App.ViewModels.CliIdentityOption\" [actions=[select]]\n            - [47] Button \"刷新此 CLI 的最新指纹\" [help=\"刷新此 CLI 的最新指纹\nx-stainless-retries: 2\" actions=[invoke]]\n  - Text \"v1.0.0\"\n    - [39] Pane [id=SettingsScrollViewer actions=[scroll]]\n      - Text \"免责声明\"\n        - [44] ComboBox \"客户端指纹\" [id=CliIdentityPicker actions=[expand,scroll]]\n          - [48] ListItem \"SpaceMonger.App.ViewModels.CliIdentityOption\" [actions=[select]]\n            - [49] Button \"刷新此 CLI 的最新指纹\" [help=\"已更新为最新指纹\nversion: 0.164.0\" actions=[invoke]]\n  - Text \"v1.0.0\"\n    - [39] Pane [id=SettingsScrollViewer actions=[scroll]]\n      - Text \"免责声明\"\n        - [44] ComboBox \"客户端指纹\" [id=CliIdentityPicker actions=[expand,scroll]]\n          - [50] ListItem \"SpaceMonger.App.ViewModels.CliIdentityOption\" [actions=[select]]\n            - [51] Button \"刷新此 CLI 的最新指纹\" [help=\"刷新此 CLI 的最新指纹\n",
+  "truncated": false,
+  "window_bounds": {
+    "height": 800,
+    "width": 1200,
+    "x": 1120,
+    "y": 296
+  },
+  "window_id": 9703566,
+  "window_title": "SpaceMonger Copilot"
+}

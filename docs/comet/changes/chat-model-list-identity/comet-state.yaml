@@ -1,0 +1,236 @@
+schema: comet.native.v4
+name: chat-model-list-identity
+language: zh-CN
+phase: build
+status: active
+state_version: 14
+brief: brief.md
+document_constraints_version: 3
+shape_confirmation_hash: 6684513f19cbd3f6b7612b9e1f6afceb45ec9af9391306fd953dccbdea51dcc5
+spec_changes:
+  - capability: model-list-identity
+    operation: create
+    source: specs/model-list-identity/spec.md
+workspace:
+  isolation: current
+  change_branch: main
+  target_branch: main
+  finish: null
+loop:
+  stage: repairing
+  goal_cycle: 1
+  iteration: 5
+  attempt: 0
+  retry_epoch: 0
+  failed_iteration_count: 2
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids:
+    - A6
+  next_action: submit-builder-candidate
+acceptance:
+  - id: A1
+    source: brief.md
+    text: AC1：空态问题默认有紧凑胶囊背景，悬停可辨，两端半圆。
+    result: pending
+    reason: null
+  - id: A2
+    source: brief.md
+    text: AC2：模型缓存为空或已选模型不在缓存时，chat 显示选择模型提示；真实候选可选并持久化。
+    result: pending
+    reason: null
+  - id: A3
+    source: brief.md
+    text: AC3：模型列表使用刷新图标和 ToolTip；可保存完整 HTTP(S) 获取 URL，留空沿用协议默认路径，复用凭据和代理。
+    result: pending
+    reason: null
+  - id: A4
+    source: brief.md
+    text: AC4：AI 设置显示模型列表，不再提供独立对话模型输入框。
+    result: pending
+    reason: null
+  - id: A5
+    source: brief.md
+    text: AC5：CLI 下拉项右侧有刷新入口，Claude/Codex 手动刷新可重复执行，失败保留旧值；Grok 明确使用内置指纹，与 Loom-X 一致。
+    result: pending
+    reason: null
+  - id: A6
+    source: brief.md
+    text: AC6：CLI 菜单和当前选择展示身份与版本，chat 仅在启用身份时展示，刷新后请求头与展示一致。
+    result: pending
+    reason: null
+  - id: A7
+    source: brief.md
+    text: AC7：针对状态、请求地址、指纹刷新做回归，cua-driver 验收应用窗口，outputs 生成上海时间命名自包含包。
+    result: pending
+    reason: null
+builder_handoff:
+  candidate_id: 8b378878-acf5-4fff-9dbc-263d19778d29
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:07f259f0-bfb6-492d-9b47-2309f34304c9
+  iteration: 4
+  summary:
+    text: 六项改进完成，后台与手动指纹更新通知均已修复；上轮独立只读核对A1-A7全通过，因其他会话写入导致候选绑定失效，现重新绑定稳定源码。最新App全量89/89、Core342/342均已通过，历史恢复失败已解除。
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+    - A4
+    - A5
+    - A6
+    - A7
+  acceptance_review:
+    - id: A1
+      status: implemented-with-evidence
+      evidence:
+        - .planning/chat-model-list-identity-20261026
+        - 空态专用按钮默认背景与半圆样式；01-chat-empty.png
+      note: 空态专用按钮默认背景与半圆样式；01-chat-empty.png
+    - id: A2
+      status: implemented-with-evidence
+      evidence:
+        - .planning/chat-model-list-identity-20261026
+        - 空缓存不推断模型，候选选择持久化；ChatDiscoveryTests、final-settings.json
+      note: 空缓存不推断模型，候选选择持久化；ChatDiscoveryTests、final-settings.json
+    - id: A3
+      status: implemented-with-evidence
+      evidence:
+        - .planning/chat-model-list-identity-20261026
+        - 完整 URL 与默认路径、请求认证与身份头；ModelCatalogEndpointTests、SettingsModelListTests
+      note: 完整 URL 与默认路径、请求认证与身份头；ModelCatalogEndpointTests、SettingsModelListTests
+    - id: A4
+      status: implemented-with-evidence
+      evidence:
+        - .planning/chat-model-list-identity-20261026
+        - 设置页改为只读模型列表与图标刷新；03-settings.png、05-models-fetched.png
+      note: 设置页改为只读模型列表与图标刷新；03-settings.png、05-models-fetched.png
+    - id: A5
+      status: implemented-with-evidence
+      evidence:
+        - .planning/chat-model-list-identity-20261026
+        - 逐项可重复刷新，失败保留指纹；ModelCatalogEndpointTests、cli-refresh-uia.json
+      note: 逐项可重复刷新，失败保留指纹；ModelCatalogEndpointTests、cli-refresh-uia.json
+    - id: A6
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.Core/Services/Llm/CliIdentityService.cs
+        - src/SpaceMonger.App/ViewModels/ChatViewModel.cs
+        - src/SpaceMonger.App/ViewModels/SettingsViewModel.cs
+        - tests/SpaceMonger.App.Tests/ChatDiscoveryTests.cs
+        - tests/SpaceMonger.App.Tests/SettingsModelListTests.cs
+        - .planning/chat-model-list-identity-20261026/background-refresh-green.log
+      note: VersionChanged 覆盖后台与手动刷新；变更立即同步 chat 标签/头提示及设置选项
+        DisplayLabel/摘要；模拟远端版本的两项回归先红后绿。
+    - id: A7
+      status: implemented-with-evidence
+      evidence:
+        - .planning/chat-model-list-identity-20261026/latest-full-app.log
+        - .planning/chat-model-list-identity-20261026/15-repaired-release-chat.png
+        - .planning/chat-model-list-identity-20261026/16-repaired-release-settings.png
+        - D:\AppData\Visual
+          Studio\Projects\SpaceMonger-Copilot\outputs\SpaceMonger-Copilot_2026-10-26_07-41-38
+      note: 本轮重新执行App/Core完整回归。UI改进与修复包已GUI验收；历史恢复失败已被并行会话修复，最新全量89项通过。
+  checks:
+    - name:
+        text: 模型与身份专项
+        truncated: false
+      result: passed
+      note:
+        text: 21项；新增后台指纹通知两项先红后绿
+        truncated: false
+    - name:
+        text: App完整回归
+        truncated: false
+      result: passed
+      note:
+        text: 89/89，上次历史恢复失败已解除
+        truncated: false
+    - name:
+        text: Core完整回归
+        truncated: false
+      result: passed
+      note:
+        text: 342/342
+        truncated: false
+    - name:
+        text: 发布
+        truncated: false
+      result: passed
+      note:
+        text: D:\AppData\Visual
+          Studio\Projects\SpaceMonger-Copilot\outputs\SpaceMonger-Copilot_2026-10-26_07-41-38
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: Grok 与 Loom-X 相同，仅内置指纹，无远程版本源；界面明确提示。
+      truncated: false
+    - text: 上游版本查询失败时保留当前指纹；使用受控HttpClient验证变化通知。
+      truncated: false
+    - text: 工作区其他会话改动已保留。既有NU1701及编译器警告未扩展治理。
+      truncated: false
+  known_limits_truncated: false
+  review:
+    status: passed
+    summary:
+      text: 独立核对A1-A7通过；真实WPF Dispatcher通知与并发版本不回退均验证通过。未对失效候选提交结果，现按稳定源码重新绑定。
+      truncated: false
+    reviewer_execution_ref: agent:01a17567-8f32-7932-9181-7a0e7ad7133e
+  submitted_at: 2026-10-25T23:41:44.412Z
+blockers: []
+verification: null
+history:
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: fail
+    unresolved_ids:
+      - A6
+    summary:
+      text: 独立只读核对 A1-A7 完成：6 项通过，A6 失败，整体 fail。最终包模型 Popup、选择持久化、模型 URL、图标及 CLI
+        菜单均已核对；后台指纹刷新成功后 UI 未同步由 Runtime 隔离专项复现。App/Core 正式全量回归复用且均通过；最后对照
+        builderSummary 后仍保留此缺陷结论。未修改实现、需求、设计或其他会话文件，未接受结果或归档。
+      truncated: false
+    completed_at: 2026-10-25T23:12:49.041Z
+  - goal_cycle: 1
+    iteration: 2
+    attempt: 0
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: "Builder handoff Runtime checks failed: app-tests-repair"
+      truncated: false
+    completed_at: 2026-10-25T23:26:40.301Z
+  - goal_cycle: 1
+    iteration: 3
+    attempt: 1
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: Observed implementation write before
+        src/SpaceMonger.App/MainWindow.Console.cs
+      truncated: false
+    completed_at: 2026-10-25T23:32:30.574Z
+  - goal_cycle: 1
+    iteration: 4
+    attempt: 1
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: Observed implementation write before .gitignore
+      truncated: false
+    completed_at: 2026-10-25T23:42:09.484Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pending
+verification_report: null
+archived: false
+created_at: 2026-10-25T22:30:49.428Z

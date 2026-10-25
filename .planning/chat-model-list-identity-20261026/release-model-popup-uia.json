@@ -1,0 +1,62 @@
+[
+  {
+    "Name": "模型",
+    "Type": "ControlType.Text",
+    "Offscreen": false
+  },
+  {
+    "Name": "",
+    "Type": "ControlType.List",
+    "Offscreen": false
+  },
+  {
+    "Name": "qa-model-alpha",
+    "Type": "ControlType.ListItem",
+    "Offscreen": false
+  },
+  {
+    "Name": "qa-model-alpha",
+    "Type": "ControlType.Text",
+    "Offscreen": false
+  },
+  {
+    "Name": "qa-model-beta",
+    "Type": "ControlType.ListItem",
+    "Offscreen": false
+  },
+  {
+    "Name": "qa-model-beta",
+    "Type": "ControlType.Text",
+    "Offscreen": false
+  },
+  {
+    "Name": "思考等级",
+    "Type": "ControlType.Text",
+    "Offscreen": false
+  },
+  {
+    "Name": "关闭",
+    "Type": "ControlType.Text",
+    "Offscreen": false
+  },
+  {
+    "Name": "",
+    "Type": "ControlType.Slider",
+    "Offscreen": false
+  },
+  {
+    "Name": "",
+    "Type": "ControlType.Button",
+    "Offscreen": false
+  },
+  {
+    "Name": "",
+    "Type": "ControlType.Button",
+    "Offscreen": false
+  },
+  {
+    "Name": "",
+    "Type": "ControlType.Thumb",
+    "Offscreen": false
+  }
+]

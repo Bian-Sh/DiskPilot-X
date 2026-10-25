@@ -1,0 +1,29 @@
+{
+  "app_name": "SpaceMonger.App.exe",
+  "capture_id": "capture_4b87660a082e4cbabea350b1d532ec44_0000000000000075",
+  "element_count": 31,
+  "elements_complete": false,
+  "invalidated_snapshot_ids": [
+    "s0000009e"
+  ],
+  "pid": 40000,
+  "returned_element_count": 31,
+  "screenshot_file_path": "\\\\?\\D:\\AppData\\Visual Studio\\Projects\\SpaceMonger-Copilot\\.planning\\chat-model-list-identity-20261026\\14-background-after.png",
+  "screenshot_height": 798,
+  "screenshot_mime_type": "image/png",
+  "screenshot_width": 1198,
+  "snapshot_id": "s0000009f",
+  "timeout_ms": 1000,
+  "total_element_count": 31,
+  "tree_format": "markdown",
+  "tree_markdown": "- Window \"SpaceMonger Copilot\"\n    - Text \"\"\n    - Text \"SpaceMonger Copilot\"\n    - [0] Button \"\" [id=SettingsButton help=\"设置\" actions=[invoke]]\n      - Text \"\"\n    - [1] Button [id=CollapseChatButton help=\"收起聊天面板\" actions=[invoke]]\n    - [2] Button \"\" [id=MinimizeButton help=\"最小化\" actions=[invoke]]\n      - Text \"\"\n    - [3] Button \"\" [id=MaximizeButton help=\"最大化\" actions=[invoke]]\n      - Text \"\"\n    - [4] Button \"\" [id=CloseButton help=\"关闭\" actions=[invoke]]\n      - Text \"\"\n  - [5] Button \"\" [id=BackButton help=\"后退\" actions=[invoke]]\n    - Text \"\"\n  - Button \"\"\n    - Text \"\"\n  - Button \"\"\n    - Text \"\"\n  - [6] Button \"扫描\" [id=ScanButton help=\"开始扫描选中的磁盘或文件夹\" actions=[invoke]]\n    - Text \"扫描\"\n  - [7] Button \"此电脑\" [actions=[invoke]]\n    - Text \"此电脑\"\n  - [8] Button \"›\" [actions=[invoke]]\n    - Text \"›\"\n  - [9] Button \"C:\" [actions=[invoke]]\n    - Text \"C:\"\n  - [10] Button \"›\" [actions=[invoke]]\n    - Text \"›\"\n  - [11] Button [id=BrowseButton help=\"选择要扫描的文件夹\" actions=[invoke]]\n  - [12] RadioButton \"树状图\" [id=TreemapTabBtn actions=[select]]\n    - Text \"树状图\"\n  - [13] RadioButton \"树形列表\" [id=TreeViewTabBtn actions=[select]]\n    - Text \"树形列表\"\n  - [14] RadioButton \"关于\" [id=AboutTabBtn actions=[select]]\n    - Text \"关于\"\n    - Text \"\"\n    - Text \"待扫描\"\n  - [15] RadioButton \"推荐清理\" [id=RecommendationsTabBtn actions=[select]]\n    - Text \"推荐清理\"\n  - [16] RadioButton \"控制台\" [id=ConsoleTabBtn actions=[select]]\n    - Text \"控制台\"\n    - [17] List [id=RecommendationsList actions=[scroll]]\n    - [18] Button \"清理\" [help=\"执行选中推荐的清理操作\" actions=[invoke]]\n      - Text \"清理\"\n    - [19] Button \"分析\" [help=\"使用 AI 分析当前视图，并推荐可安全移除以释放磁盘空间的文件和文件夹。这里只显示可删除项，被认为重要的文件不会列出。\" actions=[invoke]]\n      - Text \"分析\"\n    - Text \"已选： 0 / 0  项\"\n    - Text \"可释放： 0 bytes\"\n    - Text \"暂时没有可推荐的清理项\"\n    - Text \"可以切换到控制台查看分析过程，或调整筛选条件后重试。\"\n    - Text \"Copilot\"\n    - Text \"已完成\"\n    - [20] Button \"新建会话\" [id=NewConversationButton help=\"新建会话\" actions=[invoke]]\n    - [21] Button \"历史对话\" [id=HistoryToggleButton help=\"历史对话\" actions=[invoke]]\n    - [22] Pane [id=MessagesScrollViewer actions=[scroll]]\n        - DataItem \"SpaceMonger.Core.Models.ChatMessage\"\n          - Text \"指纹同步验收\"\n          - [23] Button \"复制\" [help=\"复制消息\" actions=[invoke]]\n            - Text \"复制\"\n        - DataItem \"SpaceMonger.Core.Models.ChatMessage\"\n            - DataItem \"SpaceMonger.Core.Models.ChatSegment\"\n              - [24] Document [actions=[text,scroll]]\n                - [25] Document [actions=[text]]\n          - Text \"07:23\"\n          - [26] Button \"复制\" [help=\"复制消息\" actions=[invoke]]\n            - Text \"复制\"\n    - [27] Edit \"Copilot 输入\" [id=InputTextBox actions=[set_value,text,scroll]]\n    - Text \"描述任务，或输入 @ 选择技能\"\n    - [28] Button \"@\" [help=\"选择技能\" actions=[invoke]]\n      - Text \"@\"\n    - [29] Button \"聊天模型\" [id=ModelPickerToggle help=\"聊天模型\" actions=[toggle]]\n      - Text \"qa-model-alpha\"\n      - Text \"高\"\n      - Text \"Codex CLI · 0.151.0\"\n      - Text \"▾\"\n    - [30] Button \"发送\" [help=\"发送\" actions=[invoke]]\n  - Text \"容量： --\"\n  - Text \"已用： --\"\n  - Text \"可用： --\"\n  - Text \"文件： --\"\n  - Text \"文件夹： --\"\n  - Text \"v1.0.0\"\n",
+  "truncated": false,
+  "window_bounds": {
+    "height": 800,
+    "width": 1200,
+    "x": 1223,
+    "y": 26
+  },
+  "window_id": 1709310,
+  "window_title": "SpaceMonger Copilot"
+}

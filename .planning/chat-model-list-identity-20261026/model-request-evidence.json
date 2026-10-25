@@ -1,0 +1,7 @@
+[
+  {
+    "url": "/custom-models?scope=qa",
+    "testCredentialMatched": true,
+    "identity": "codex_cli_rs/0.164.0"
+  }
+]

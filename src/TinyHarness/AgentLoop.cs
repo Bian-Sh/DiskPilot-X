@@ -420,7 +420,7 @@ public sealed class AgentLoop
 
     private static bool IsCancelledAskUserResult(string toolName, string content)
     {
-        if (!string.Equals(toolName, "assistant.ask_user", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(toolName, "ask_user", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }

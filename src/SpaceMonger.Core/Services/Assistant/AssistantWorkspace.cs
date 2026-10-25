@@ -7,7 +7,8 @@ using TinyHarness;
 namespace SpaceMonger.Core.Services.Assistant;
 
 public sealed record AssistantRunOptions(ModelEndpointConfig Endpoint,
-    string Language = "zh-CN", IReadOnlyList<AiSkill>? Skills = null, string? FocusPath = null, bool IsAnalysis = false);
+    string Language = "zh-CN", IReadOnlyList<AiSkill>? Skills = null, string? FocusPath = null, bool IsAnalysis = false,
+    bool InConversationSession = false);
 
 /// <summary>FailureDetail 携带 Harness 的失败摘要（已脱敏），供分析入口直接展示失败原因。</summary>
 public sealed record AssistantRunResult(string Text, AgentSessionState State,

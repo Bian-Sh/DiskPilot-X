@@ -7,6 +7,7 @@ using SpaceMonger.App.Converters;
 using SpaceMonger.App.Diagnostics;
 using SpaceMonger.App.Localization;
 using SpaceMonger.Core.Models;
+using SpaceMonger.Core.Services.Assistant;
 using SpaceMonger.Core.Services.Scanning;
 
 namespace SpaceMonger.App.ViewModels;
@@ -17,6 +18,7 @@ public partial class MainViewModel : ObservableObject
     private readonly ILogger<MainViewModel> _logger;
     private CancellationTokenSource? _scanCts;
     private Action? _externalScanCancellation;
+    private bool _lastScanCancelled;
     private string? _scanTitleResourceKey;
     private object?[] _scanTitleResourceArgs = [];
 
@@ -116,6 +118,7 @@ public partial class MainViewModel : ObservableObject
 
         _logger.LogInformation("Scan command started for {ScanTarget}", scanTarget);
         IsScanning = true;
+        _lastScanCancelled = false;
         SetLocalizedScanTitle("ScanningStatus");
         ScanProgressText = string.Empty;
         _scanCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -133,6 +136,7 @@ public partial class MainViewModel : ObservableObject
             if (session.IsCancelled || _scanCts.IsCancellationRequested)
             {
                 _logger.LogWarning("Scan cancelled for {ScanTarget}; hasRoot={HasRoot}, files={Files}, folders={Folders}", scanTarget, session.RootEntry is not null, session.TotalFiles, session.TotalFolders);
+                _lastScanCancelled = true;
                 ScanProgressText = L.Text("ScanCancelledStatus");
                 return;
             }
@@ -147,6 +151,7 @@ public partial class MainViewModel : ObservableObject
         catch (OperationCanceledException)
         {
             _logger.LogWarning("Scan cancelled by exception for {ScanTarget}", scanTarget);
+            _lastScanCancelled = true;
             ScanProgressText = L.Text("ScanCancelledStatus");
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("whitelist", StringComparison.OrdinalIgnoreCase))
@@ -171,7 +176,10 @@ public partial class MainViewModel : ObservableObject
         SelectedPath = path;
         await ScanAsync(ct);
         ct.ThrowIfCancellationRequested();
-        if (CurrentSession is null || CurrentSession.Id == previous || CurrentSession.IsCancelled)
+        // 用户主动中断要作为独立的取消信号反馈给模型，不能与真实失败混为同一种异常。
+        if (_lastScanCancelled || CurrentSession?.IsCancelled == true)
+            throw new OperationCancelledByUserException("用户中断了扫描。");
+        if (CurrentSession is null || CurrentSession.Id == previous)
             throw new InvalidOperationException("本次扫描没有产生完整结果。");
         return CurrentSession;
     }

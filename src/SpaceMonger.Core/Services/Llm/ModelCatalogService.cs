@@ -12,7 +12,7 @@ public sealed class ModelCatalogService(ModelHttpClientFactory httpClients)
     public async Task<IReadOnlyList<DiscoveredModel>> FetchAsync(ModelEndpointConfig config, CancellationToken cancellationToken)
     {
         var isAnthropic = config.ApiFormat == LlmApiFormat.AnthropicMessages;
-        var uri = isAnthropic ? AnthropicOptions.GetModelsUri(config.BaseUrl) : OpenAiOptions.GetEndpointUri("/models", config.BaseUrl);
+        var uri = GetModelsUri(config);
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", config.ApiKey);
         if (isAnthropic)
@@ -31,6 +31,19 @@ public sealed class ModelCatalogService(ModelHttpClientFactory httpClients)
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
         return Extract(document.RootElement);
+    }
+
+    /// <summary>自定义地址只影响目录请求，必须是完整 HTTP(S) URL。</summary>
+    public static Uri GetModelsUri(ModelEndpointConfig config)
+    {
+        if (string.IsNullOrWhiteSpace(config.ModelsUrl))
+            return config.ApiFormat == LlmApiFormat.AnthropicMessages
+                ? AnthropicOptions.GetModelsUri(config.BaseUrl)
+                : OpenAiOptions.GetEndpointUri("/models", config.BaseUrl);
+        if (!Uri.TryCreate(config.ModelsUrl.Trim(), UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            throw new InvalidOperationException("模型列表地址需要完整的 HTTP(S) URL。");
+        return uri;
     }
 
     /// <summary>兼容根数组、data 数组（OpenAI）与 models 数组（部分中转）三种响应形状。</summary>
