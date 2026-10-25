@@ -276,7 +276,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
     {
         var border = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(40, 44, 52)),
+            Background = (Brush)Application.Current.FindResource("VP.SurfaceHoverBrush"),
             CornerRadius = new CornerRadius(3),
             Padding = new Thickness(4, 2, 4, 2),
             Child = new TextBlock
@@ -284,7 +284,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
                 Text = code.Content,
                 FontFamily = new FontFamily("Cascadia Code, SF Mono, Menlo, Consolas, monospace"),
                 FontSize = 12,
-                Foreground = new SolidColorBrush(Color.FromRgb(229, 192, 123)),
+                Foreground = (Brush)Application.Current.FindResource("VP.TextPrimaryBrush"),
             }
         };
 
@@ -302,7 +302,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
 
         var container = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(40, 44, 52)),
+            Background = (Brush)Application.Current.FindResource("VP.SurfaceBrush"),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(12, 8, 12, 8),
             BorderBrush = (Brush)Application.Current.FindResource("VP.BorderSubtleBrush"),
@@ -314,7 +314,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
             Text = code,
             FontFamily = new FontFamily("Cascadia Code, SF Mono, Menlo, Consolas, monospace"),
             FontSize = 12.5,
-            Foreground = new SolidColorBrush(Color.FromRgb(169, 220, 118)),
+            Foreground = (Brush)Application.Current.FindResource("VP.TextPrimaryBrush"),
             TextWrapping = TextWrapping.Wrap,
         };
 

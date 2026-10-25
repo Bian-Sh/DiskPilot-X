@@ -7,7 +7,7 @@
              mc:Ignorable="d"
              d:DesignHeight="120" d:DesignWidth="500">
 
-    <Border Background="#1A1A1E"
+    <Border Background="{DynamicResource VP.SurfaceBrush}"
             CornerRadius="10"
             Padding="0"
             BorderBrush="{DynamicResource VP.BorderLightBrush}"
