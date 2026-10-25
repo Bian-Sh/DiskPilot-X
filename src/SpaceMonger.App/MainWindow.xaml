@@ -116,7 +116,7 @@
                             Background="{DynamicResource VP.SurfaceBrush}"
                             BorderBrush="{DynamicResource VP.BorderLightBrush}"
                             BorderThickness="0.5"
-                            CornerRadius="6"
+                            CornerRadius="{DynamicResource VP.ControlCornerRadius}"
                             Padding="0"
                             Margin="0,0,4,0"
                             MinWidth="120"
@@ -201,7 +201,7 @@
                     <!-- View mode tab bar (Treemap / TreeView) -->
                     <Border Grid.Row="0"
                             Background="{DynamicResource VP.SurfaceBrush}"
-                            CornerRadius="10,10,0,0"
+                            CornerRadius="{DynamicResource VP.CardTopCornerRadius}"
                             Margin="0,0,0,-0.5">
                         <StackPanel Orientation="Horizontal">
                             <RadioButton x:Name="TreemapTabBtn"
@@ -249,7 +249,7 @@
                         <!-- Tab bar (outside container border, Chrome-style) -->
                         <Border Grid.Row="0"
                                 Background="{DynamicResource VP.SurfaceBrush}"
-                                CornerRadius="10,10,0,0"
+                                CornerRadius="{DynamicResource VP.CardTopCornerRadius}"
                                 Margin="0,0,0,-0.5">
                         <DockPanel>
 
@@ -270,7 +270,7 @@
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border x:Name="Bd" Background="Transparent"
-                                                CornerRadius="6" Padding="0">
+                                                CornerRadius="{DynamicResource VP.ControlCornerRadius}" Padding="0">
                                             <ContentPresenter HorizontalAlignment="Center"
                                                               VerticalAlignment="Center" />
                                         </Border>
@@ -322,7 +322,7 @@
                                 Background="{DynamicResource VP.SurfaceBrush}"
                                 BorderBrush="{DynamicResource VP.BorderLightBrush}"
                                 BorderThickness="0.5,0,0.5,0.5"
-                                CornerRadius="0,0,10,10"
+                                CornerRadius="{DynamicResource VP.CardBottomCornerRadius}"
                                 Margin="0,0,0,0">
                             <Border.Effect>
                                 <DropShadowEffect Color="Black"
@@ -340,7 +340,7 @@
                                 <Border x:Name="ConsoleFrame"
                                         Margin="4,0,4,4"
                                         Background="#1A1B26"
-                                        CornerRadius="0,0,10,10"
+                                        CornerRadius="{DynamicResource VP.CardBottomCornerRadius}"
                                         ClipToBounds="True"
                                         Visibility="Collapsed">
                                     <ScrollViewer x:Name="ConsoleScrollViewer"

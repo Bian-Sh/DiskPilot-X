@@ -6,6 +6,14 @@
          ═══════════════════════════════════════════════════════════════ -->
 
     <!-- ── Colors ──────────────────────────────────────────────────── -->
+    <!-- 全部窗口和动态面板共用的形状资源。 -->
+    <CornerRadius x:Key="VP.WindowCornerRadius">10</CornerRadius>
+    <CornerRadius x:Key="VP.CardCornerRadius">10</CornerRadius>
+    <CornerRadius x:Key="VP.CardTopCornerRadius">10,10,0,0</CornerRadius>
+    <CornerRadius x:Key="VP.CardBottomCornerRadius">0,0,10,10</CornerRadius>
+    <CornerRadius x:Key="VP.ControlCornerRadius">6</CornerRadius>
+    <CornerRadius x:Key="VP.SmallCornerRadius">4</CornerRadius>
+
     <Color x:Key="VP.Background">#0D121A</Color>
     <Color x:Key="VP.BackgroundAlt">#18202D</Color>
     <Color x:Key="VP.Surface">#1AFFFFFF</Color>          <!-- 10% white over slate background -->
@@ -59,7 +67,7 @@
         <Setter Property="Background" Value="{DynamicResource VP.SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderLightBrush}" />
         <Setter Property="BorderThickness" Value="0.5" />
-        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="CornerRadius" Value="{DynamicResource VP.CardCornerRadius}" />
         <Setter Property="Padding" Value="12" />
     </Style>
 
@@ -81,7 +89,7 @@
                     <Border x:Name="Bd"
                             Background="{TemplateBinding Background}"
                             Padding="{TemplateBinding Padding}"
-                            CornerRadius="6"
+                            CornerRadius="{DynamicResource VP.ControlCornerRadius}"
                             SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center" />
@@ -109,29 +117,17 @@
         <Setter Property="Background" Value="{DynamicResource VP.SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderLightBrush}" />
         <Setter Property="BorderThickness" Value="0.5" />
-        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="CornerRadius" Value="{DynamicResource VP.CardCornerRadius}" />
         <Setter Property="Padding" Value="16" />
     </Style>
 
     <!-- ── Button (Default) ────────────────────────────────────────── -->
-    <Style x:Key="VP.Button" TargetType="Button">
-        <Setter Property="FontFamily" Value="{DynamicResource VP.FontFamily}" />
-        <Setter Property="FontSize" Value="13" />
-        <Setter Property="FontWeight" Value="Medium" />
-        <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
-        <Setter Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderLightBrush}" />
-        <Setter Property="BorderThickness" Value="0.5" />
-        <Setter Property="Padding" Value="14,7" />
-        <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="Button">
+    <ControlTemplate x:Key="VP.ButtonTemplate" TargetType="Button">
                     <Border x:Name="Bd"
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="6"
+                            CornerRadius="{DynamicResource VP.ControlCornerRadius}"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Center"
@@ -151,8 +147,17 @@
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
-            </Setter.Value>
-        </Setter>
+    <Style x:Key="VP.Button" TargetType="Button">
+        <Setter Property="FontFamily" Value="{DynamicResource VP.FontFamily}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderLightBrush}" />
+        <Setter Property="BorderThickness" Value="0.5" />
+        <Setter Property="Padding" Value="14,7" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template" Value="{DynamicResource VP.ButtonTemplate}" />
     </Style>
 
     <!-- ── Button (Accent / Primary) ───────────────────────────────── -->
@@ -167,7 +172,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="6"
+                            CornerRadius="{DynamicResource VP.ControlCornerRadius}"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Center"
@@ -207,7 +212,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Bd" Background="Transparent"
-                            CornerRadius="6" Padding="0"
+                            CornerRadius="{DynamicResource VP.ControlCornerRadius}" Padding="0"
                             SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center" />
@@ -270,7 +275,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Bd" Background="Transparent"
-                            CornerRadius="0,0,0,8" Padding="0">
+                            CornerRadius="0,8,0,0" Padding="0">
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center" />
                     </Border>
@@ -287,24 +292,12 @@
     </Style>
 
     <!-- ── TextBox ─────────────────────────────────────────────────── -->
-    <Style x:Key="VP.TextBox" TargetType="TextBox">
-        <Setter Property="FontFamily" Value="{DynamicResource VP.FontFamily}" />
-        <Setter Property="FontSize" Value="13" />
-        <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
-        <Setter Property="CaretBrush" Value="{DynamicResource VP.TextPrimaryBrush}" />
-        <Setter Property="Background" Value="{DynamicResource VP.SurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderLightBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="10,8" />
-        <Setter Property="SelectionBrush" Value="{DynamicResource VP.AccentBrush}" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="TextBox">
+    <ControlTemplate x:Key="VP.TextBoxTemplate" TargetType="TextBox">
                     <Border x:Name="Bd"
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="0.5"
-                            CornerRadius="6"
+                            CornerRadius="{DynamicResource VP.ControlCornerRadius}"
                             SnapsToDevicePixels="True">
                         <ScrollViewer x:Name="PART_ContentHost" Margin="0" />
                     </Border>
@@ -319,8 +312,17 @@
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
-            </Setter.Value>
-        </Setter>
+    <Style x:Key="VP.TextBox" TargetType="TextBox">
+        <Setter Property="FontFamily" Value="{DynamicResource VP.FontFamily}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource VP.TextPrimaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource VP.SurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderLightBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource VP.AccentBrush}" />
+        <Setter Property="Template" Value="{DynamicResource VP.TextBoxTemplate}" />
     </Style>
 
     <!-- ── ComboBox ────────────────────────────────────────────────── -->
@@ -341,7 +343,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6">
+                                CornerRadius="{DynamicResource VP.ControlCornerRadius}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -410,7 +412,7 @@
                                 Background="{DynamicResource VP.BackgroundAltBrush}"
                                 BorderBrush="{DynamicResource VP.BorderLightBrush}"
                                 BorderThickness="1"
-                                CornerRadius="6"
+                                CornerRadius="{DynamicResource VP.ControlCornerRadius}"
                                 Padding="4"
                                 Margin="0,2,0,0">
                                 <ScrollViewer SnapsToDevicePixels="True">
@@ -449,7 +451,7 @@
                     <Border x:Name="Bd"
                             Background="{TemplateBinding Background}"
                             Padding="{TemplateBinding Padding}"
-                            CornerRadius="6"
+                            CornerRadius="{DynamicResource VP.ControlCornerRadius}"
                             SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalAlignment="Center" />
@@ -482,7 +484,7 @@
                                     Background="{DynamicResource VP.SurfaceBrush}"
                                     BorderBrush="{DynamicResource VP.BorderLightBrush}"
                                     BorderThickness="1.5"
-                                    CornerRadius="4" />
+                                    CornerRadius="{DynamicResource VP.SmallCornerRadius}" />
                             <Path x:Name="CheckMark"
                                   Data="M 3,9 L 7,13 L 15,4"
                                   Stroke="{DynamicResource VP.AccentBrush}"
@@ -545,7 +547,7 @@
                             Background="Transparent"
                             BorderBrush="Transparent"
                             BorderThickness="0.5,0.5,0.5,0"
-                            CornerRadius="10,10,0,0"
+                            CornerRadius="{DynamicResource VP.CardTopCornerRadius}"
                             Padding="{TemplateBinding Padding}"
                             Margin="0,0,-0.5,0"
                             SnapsToDevicePixels="True">
@@ -616,7 +618,7 @@
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
                                             <Border Background="{DynamicResource VP.BorderLightBrush}"
-                                                    CornerRadius="4"
+                                                    CornerRadius="{DynamicResource VP.SmallCornerRadius}"
                                                     Margin="1,0" />
                                         </ControlTemplate>
                                     </Thumb.Template>
@@ -659,7 +661,7 @@
                                             <Thumb.Template>
                                                 <ControlTemplate TargetType="Thumb">
                                                     <Border Background="{DynamicResource VP.BorderLightBrush}"
-                                                            CornerRadius="4"
+                                                            CornerRadius="{DynamicResource VP.SmallCornerRadius}"
                                                             Margin="0,1" />
                                                 </ControlTemplate>
                                             </Thumb.Template>
@@ -864,4 +866,67 @@
         </Setter>
     </Style>
 
+    <SolidColorBrush x:Key="VP.WarningSurfaceBrush" Color="{DynamicResource VP.Warning}" Opacity="0.12" />
+
+    <!-- 动态任务表格复用同一组画刷，表头和选中态也随主题更新。 -->
+    <Style x:Key="VP.DataGridText" TargetType="TextBlock">
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style x:Key="VP.DataGridColumnHeader" TargetType="DataGridColumnHeader">
+        <Setter Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderSubtleBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,1,1" />
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style x:Key="VP.DataGridRow" TargetType="DataGridRow">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{DynamicResource VP.SurfaceActiveBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="VP.DataGridCell" TargetType="DataGridCell">
+        <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DataGridCell">
+                    <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="Background" Value="{DynamicResource VP.SurfaceActiveBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="VP.DataGrid" TargetType="DataGrid">
+        <Setter Property="FontFamily" Value="{DynamicResource VP.FontFamily}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Background" Value="{DynamicResource VP.SurfaceBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderLightBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource VP.BorderSubtleBrush}" />
+        <Setter Property="GridLinesVisibility" Value="Horizontal" />
+        <Setter Property="HeadersVisibility" Value="Column" />
+        <Setter Property="RowBackground" Value="Transparent" />
+        <Setter Property="AlternatingRowBackground" Value="Transparent" />
+        <Setter Property="ColumnHeaderStyle" Value="{StaticResource VP.DataGridColumnHeader}" />
+        <Setter Property="RowStyle" Value="{StaticResource VP.DataGridRow}" />
+        <Setter Property="CellStyle" Value="{StaticResource VP.DataGridCell}" />
+    </Style>
 </ResourceDictionary>

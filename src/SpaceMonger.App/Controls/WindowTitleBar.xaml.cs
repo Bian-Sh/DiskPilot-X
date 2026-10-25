@@ -7,6 +7,16 @@ namespace SpaceMonger.App.Controls;
 
 public partial class WindowTitleBar : UserControl
 {
+    /// <summary>任务窗隐藏应用级入口，窗口按钮和拖动行为继续共用。</summary>
+    public static readonly DependencyProperty ApplicationToolsVisibilityProperty = DependencyProperty.Register(
+        nameof(ApplicationToolsVisibility), typeof(Visibility), typeof(WindowTitleBar), new PropertyMetadata(Visibility.Visible));
+
+    public Visibility ApplicationToolsVisibility
+    {
+        get => (Visibility)GetValue(ApplicationToolsVisibilityProperty);
+        set => SetValue(ApplicationToolsVisibilityProperty, value);
+    }
+
     public event RoutedEventHandler? SettingsRequested;
     public event RoutedEventHandler? CollapseChatRequested;
     public event RoutedEventHandler? CloseRequested;

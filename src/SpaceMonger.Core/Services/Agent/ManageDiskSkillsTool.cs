@@ -8,6 +8,7 @@ public sealed class ManageDiskSkillsTool(ISkillPromptProvider skillPromptProvide
     private static readonly HashSet<string> ProtectedSkillIds = new(StringComparer.OrdinalIgnoreCase)
     {
         "app-guide",
+        "skill-creator",
         "disk-management",
         "path-cleanup-recommendation",
         "unity-project-cleanup"

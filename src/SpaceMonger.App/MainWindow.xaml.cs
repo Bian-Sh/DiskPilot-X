@@ -66,6 +66,9 @@ public partial class MainWindow : Window
         Closed += (_, _) =>
         {
             Log.Information("MainWindow closed");
+            _chatViewModel?.CancelPendingInteractions();
+            App.Services?.GetService<SpaceMonger.Core.Services.Assistant.DiskAssistantService>()?.CancelCurrentRun();
+            foreach(var panel in skillPanels.Values) if(panel.Window is { } taskWindow) { taskWindow.Owner=null; taskWindow.Close(); }
             AppLog.UiSink.EntryAdded -= ScrollLogToEnd;
             _acceptanceAutomationServer?.Dispose();
         };

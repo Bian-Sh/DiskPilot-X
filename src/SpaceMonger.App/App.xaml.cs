@@ -52,7 +52,9 @@ public partial class App : Application
         services.AddSingleton<ThemeManager>();
 
         services.AddSingleton<IPathWhitelistMatcher, PathWhitelistMatcher>();
-        services.AddSingleton<ISkillPromptProvider, FileSkillPromptProvider>();
+        services.AddSingleton<ISkillPromptProvider>(provider => AcceptanceAutomationServer.IsEnabled()
+            ? new FileSkillPromptProvider([System.IO.Path.Combine(AppContext.BaseDirectory,"skills")],provider.GetRequiredService<SpaceMonger.Core.Services.Skills.CleanupSkillStore>().UserRoot)
+            : new FileSkillPromptProvider());
         services.AddSingleton<IAiSkillRouter, AiSkillRouter>();
 
         // US1 services
@@ -85,6 +87,10 @@ public partial class App : Application
         services.AddSingleton<IAgentTool, ResolvePathTool>();
         services.AddSingleton<IAgentTool, ReadUnityRegistryContextTool>();
         services.AddSingleton<IAgentTool, ManageDiskSkillsTool>();
+        services.AddSingleton(_ => new SpaceMonger.Core.Services.Skills.CleanupSkillStore(AcceptanceAutomationServer.IsEnabled() && Environment.GetEnvironmentVariable("SPACEMONGER_ACCEPTANCE_SETTINGS") is { Length: > 0 } acceptanceSettings
+            ? System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(acceptanceSettings))!,"skills") : null));
+        services.AddSingleton<SpaceMonger.Core.Services.Skills.CleanupSkillSourceService>();
+        services.AddSingleton<IAgentTool, CleanupSkillTool>();
         services.AddSingleton<AssistantWorkspace>();
         services.AddSingleton<DiskAssistantService>(provider => new DiskAssistantService(
             options => new AnthropicModelClient(provider.GetRequiredService<IHttpClientFactory>().CreateClient("Anthropic"),

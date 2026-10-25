@@ -39,7 +39,7 @@ public partial class ChatPanel : UserControl
     {
         if(viewModel is not null) viewModel.Messages.CollectionChanged -= MessagesChanged;
         foreach(var message in observedMessages.ToArray()) Detach(message);
-        viewModel=vm; DataContext=vm; vm.Messages.CollectionChanged += MessagesChanged;
+        viewModel=vm; DataContext=vm; vm.RefreshSkills(); vm.Messages.CollectionChanged += MessagesChanged;
         foreach(var message in vm.Messages) Attach(message);
         QueueScroll();
     }
@@ -87,6 +87,7 @@ public partial class ChatPanel : UserControl
     private void Submit_Click(object sender,RoutedEventArgs e) { if(viewModel?.IsOperationRunning!=true){holdReading=false;followTail=true;QueueScroll();} }
     private void Jump_Click(object sender,RoutedEventArgs e) { holdReading=false; followTail=true; MessagesScrollViewer.ScrollToEnd(); JumpButton.Visibility=Visibility.Collapsed; }
     private void Settings_Click(object sender,RoutedEventArgs e) => OpenSettingsRequested?.Invoke();
+    private void OpenSkillTask_Click(object sender,RoutedEventArgs e) { if(sender is FrameworkElement { DataContext: SkillTaskCard card }) viewModel?.OpenSkillTask(card); }
     private void Skills_Click(object sender,RoutedEventArgs e) { if(viewModel is null)return; viewModel.InputText="@"; FocusInput(); }
     private void Skill_Click(object sender,MouseButtonEventArgs e) { if(SkillList.SelectedItem is ChatSkillSuggestion skill) viewModel?.SelectSkillMentionCommand.Execute(skill); FocusInput(); }
     private void Slash_Click(object sender,MouseButtonEventArgs e) { if(SlashList.SelectedItem is ChatCommandSuggestion command) viewModel?.SelectSlashCommandCommand.Execute(command); FocusInput(); }

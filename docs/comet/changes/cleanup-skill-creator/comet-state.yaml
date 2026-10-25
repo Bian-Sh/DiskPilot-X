@@ -1,0 +1,365 @@
+schema: comet.native.v4
+name: cleanup-skill-creator
+language: zh-CN
+phase: verify
+status: await-user
+state_version: 10
+brief: brief.md
+document_constraints_version: 3
+shape_confirmation_hash: 7e3cb7fd88e11b53bb2eb8a2f3514f56133d66e1405200f1134c9032874a8f55
+spec_changes:
+  - capability: cleanup-skills
+    operation: create
+    source: specs/cleanup-skills/spec.md
+workspace:
+  isolation: worktree
+  change_branch: codex/cleanup-skill-creator
+  target_branch: main
+  finish: null
+loop:
+  stage: await-user
+  goal_cycle: 1
+  iteration: 2
+  attempt: 1
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: confirm-skill-coordinated-pass
+acceptance:
+  - id: A1
+    source: brief.md
+    text: AC1：聊天空态出现创建规则与查看规则入口；已有规则可滚动并可一键发起对话，正常消息出现后隐藏空态。
+    result: passed
+    reason:
+      text: 独立核对 ChatPanel.xaml 的空态 HasMessages 触发器、创建/查看规则入口、MaxHeight=190 的滚动规则目录和
+        ExplorePromptCommand；ChatViewModel.Skills.cs 将入口送入同一对话。原受控协议与窗口证据相互印证，当前
+        Runtime App55/Core264 通过。
+      truncated: false
+  - id: A2
+    source: brief.md
+    text: AC2：Creator 可创建/更新用户技能并立即在 @ 和规则入口看到，内置技能不可修改或遮盖。
+    result: passed
+    reason:
+      text: 独立核对 CleanupSkillStore.Save 的内置 ID 保护、显式 overwrite
+        与原子版本指针，FileSkillPromptProvider 内置优先且禁止覆盖；保存后 RefreshSkills 同时刷新 @
+        与规则入口。原 protocol-evidence.json 含创建包和实时目录返回，当前完整回归通过。
+      truncated: false
+  - id: A3
+    source: brief.md
+    text: AC3：文本和公开网址可成为有来源的参考资料；无效、过大或受限输入明确失败。
+    result: passed
+    reason:
+      text: 独立核对 ReferenceImporter 的来源/摘要保存、txt/md/json 与公开
+        HTTP(S)、1MiB/10秒限制、拒绝私网/凭据/重解析点和自动跳转；原协议有真实资料导入返回，Core
+        测试覆盖无效和受限输入。PDF/DOCX/扫描图片不在支持范围。
+      truncated: false
+  - id: A4
+    source: brief.md
+    text: AC4：结构化清理规则可验证、只读试扫和展示本机候选；不把资料或猜测当成真实扫描结果。
+    result: passed
+    reason:
+      text: 独立核对规则校验与 CleanupSkillPreviewer 的实际文件枚举、保护项/重解析点过滤和真实 FileInfo
+        尺寸；原协议返回真实128bytes日志，本轮最终截图和 UIA 记录返回实际36bytes日志。独立读取样本确认
+        old.log=36、keep.jpg=12 且均保留，资料未当作扫描结果。
+      truncated: false
+  - id: A5
+    source: brief.md
+    text: AC5：受约束 XAML 可打开面板、交互和重开；拒绝任意 CLR 类型、事件代码和不允许的绑定；仅提交候选，不直接删除。
+    result: passed
+    reason:
+      text: 独立核对 SkillUiDocument
+        的类型/属性/简单绑定/命令白名单，拒绝扩展类型、事件和可执行标记；任务窗手动构造控件，preview/continue
+        不直接删除。WindowTitleBar、WindowChromeHelper、共享 VP
+        样式与动态表格资源符合本轮范围；深浅截图、同窗句柄15992706、最大化3440x1392后收起重开780x700且保留结果的记录相互一致。已确认
+        WM_GETMINMAXINFO 不吞 WPF 最小尺寸、CornerRadius 监听同步 Clip、隐藏恢复 Normal
+        三修复及对应回归。
+      truncated: false
+  - id: A6
+    source: brief.md
+    text: AC6：可选 C# 可在无 SDK/Python 环境下编译执行并返回诊断；执行前确认可信源码，明确不构成安全沙箱。
+    result: passed
+    reason:
+      text: 独立核对 Roslyn 内置编译、带位置诊断、包摘要授权及执行前展示可信源码和非沙箱警告；原 runtime-source-result.json
+        在 PATH=C:\windows\System32 下从自包含 runtime-smoke 成功编译/执行并读取73bytes。最终包含
+        coreclr、System.Private.CoreLib 和 Microsoft.CodeAnalysis.CSharp.dll，无
+        SDK/Python 运行依赖。
+      truncated: false
+  - id: A7
+    source: brief.md
+    text: AC7：askuser 支持结构化单选、多选、文本、数字、必填校验、其他答案与取消，答案回到同一模型任务，停止时释放等待。
+    result: passed
+    reason:
+      text: 独立核对四类 AskUser 字段、必填/数字/其他答案/取消验证与 ChatViewModel.AskUser 的同任务
+        Completion.WaitAsync(ct) 和 finally 释放；原受控协议包含 logs/photos/路径/30 四类型返回，当前
+        App55/Core264 通过。AskUserCard 和 ChatPanel 复用共享输入/按钮模板与圆角，已查看
+        final-main-askuser-dark.png；追加 GUI 第6项回传 values.path=主题验收样本。
+      truncated: false
+  - id: A8
+    source: brief.md
+    text: AC8：清理仍经过宿主当前清单版本、保护范围与最终确认；取消不执行。
+    result: passed
+    reason:
+      text: 独立核对 MainWindow.Cleanup.ExecuteSharedCleanupAsync
+        的当前清单版本、扫描/选择/删除方式与保护范围校验，确认前后和每项执行前重检；未确认直接
+        cancelled，动态任务只读候选仍回到宿主确认链路。复用当前 Core 全套安全回归，样本文件实际仍在。
+      truncated: false
+  - id: A9
+    source: brief.md
+    text: AC9：相关自动化测试通过，应用窗口验收有记录，并生成 outputs/上海时间命名的自包含发布包。
+    result: passed
+    reason:
+      text: 当前 candidateId 与 verifierExecutionRef 原值绑定，Runtime core-tests/app-tests 均
+        passed、exit_code=0，原始日志264/55通过，无需重复全套。独立查看三张最终截图、6项GUI记录、发布日志、process-path/runtime-path，核对上海时间
+        outputs/2026-10-25_22-11-31_动态UI主题统一
+        的自包含文件和正常配置启动脚本。源码/主题测试早于本次候选检查与发布；测试进程已关闭，复用历史证据且未重启。
+      truncated: false
+builder_handoff:
+  candidate_id: ef62ba1a-4df7-48ce-8e55-970bd9368828
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:1428b93f-5f55-4c02-83de-a02fe9fefa20
+  iteration: 2
+  summary:
+    text: 按用户继续修改要求统一动态任务
+      UI：复用自绘标题栏、共享圆角与输入/按钮模板、实时主题资源、表格长路径换行，并修复原生最小尺寸与最大化隐藏重开；App55/Core264通过，最终自包含发布包完成后台GUI验收。
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+    - A4
+    - A5
+    - A6
+    - A7
+    - A8
+    - A9
+  acceptance_review:
+    - id: A1
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.App/Views/ChatPanel.xaml
+        - tests/SpaceMonger.App.Tests/ChatDiscoveryTests.cs
+        - docs/cleanup-skill-creator/验收记录.md
+      note: 空态可点击引导和滚动真实规则，正常对话隐藏空态。
+    - id: A2
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.Core/Services/Copilot/FileSkillPromptProvider.cs
+        - tests/SpaceMonger.Core.Tests/CleanupSkillProviderTests.cs
+      note: 用户包与内置来源分离，目录即时刷新，内置不可覆盖。
+    - id: A3
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.Core/Services/Skills/CleanupSkillReferenceImporter.cs
+        - tests/SpaceMonger.Core.Tests/CleanupSkillStoreTests.cs
+      note: 带来源、摘要、大小/超时/地址限制的文本资料导入。
+    - id: A4
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.Core/Services/Skills/CleanupSkillPreviewer.cs
+        - work/skill-creator-acceptance/protocol-evidence.json
+      note: 草稿和已保存包只读试扫，真实文件大小与保留项核验。
+    - id: A5
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.Core/Models/SkillUiDocument.cs
+        - src/SpaceMonger.App/MainWindow.Skills.cs
+        - work/skill-creator-acceptance/release-panel.png
+        - docs/cleanup-skill-creator/动态UI主题验收.md
+        - tests/SpaceMonger.App.Tests/SkillTaskThemeTests.cs
+        - work/ui-theme-2026-10-25/gui-results.json
+      note: 受约束 XAML、结构化聊天卡片和可重开面板，无直接删除入口。；共享标题栏/圆角/控件模板及运行中换肤，原生最小尺寸与最大化后重开有回归。
+    - id: A6
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.Core/Services/Skills/CleanupSkillSourceService.cs
+        - tests/SpaceMonger.Core.Tests/CleanupSkillSourceTests.cs
+        - docs/cleanup-skill-creator/验收记录.md
+      note: 随包 Roslyn、固定检测契约、明确源码确认与摘要授权，已实现可信执行并清楚注明非沙箱。
+    - id: A7
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.Core/Models/UserDecisionModels.cs
+        - src/SpaceMonger.App/ViewModels/ChatViewModel.AskUser.cs
+        - work/skill-creator-acceptance/protocol-evidence.json
+        - docs/cleanup-skill-creator/动态UI主题验收.md
+      note: 移植四类问题、校验、其他答案、提交取消，同一助手等待并在停止时释放。
+    - id: A8
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.Core/Services/Assistant/DiskAssistantService.cs
+        - src/SpaceMonger.App/MainWindow.Copilot.cs
+        - tests/SpaceMonger.Core.Tests/AssistantDeclineTests.cs
+      note: 保存和源码需要独立确认，清理继续走既有 ID/版本/保护范围/最终确认。
+    - id: A9
+      status: implemented-with-evidence
+      evidence:
+        - docs/cleanup-skill-creator/验收记录.md
+        - work/skill-creator-acceptance/publish.log
+        - work/skill-creator-acceptance/publish-path.txt
+        - docs/cleanup-skill-creator/动态UI主题验收.md
+        - work/ui-theme-2026-10-25/publish.log
+        - work/ui-theme-2026-10-25/publish-path.txt
+        - work/ui-theme-2026-10-25/process-path.json
+        - work/ui-theme-2026-10-25/runtime-path.json
+      note: 开发回归、后台应用验收及自包含 Release 发布已完成。
+  checks:
+    - name:
+        text: WPF完整回归
+        truncated: false
+      result: passed
+      note:
+        text: 55项，含两项主题与原生窗口边界回归。
+        truncated: false
+    - name:
+        text: 核心完整回归
+        truncated: false
+      result: passed
+      note:
+        text: 264项。
+        truncated: false
+    - name:
+        text: 后台应用GUI与自包含发布
+        truncated: false
+      result: passed
+      note:
+        text: 深浅主题、真实预览、最大化收起再重开、发布进程与coreclr路径均已核对。
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: 资料导入暂不支持 PDF/DOCX/扫描图片；支持 txt/md/json/公开文本网页。
+      truncated: false
+    - text: 源码为明确授权的可信执行，不是安全沙箱；非合作代码无法保证强制取消。
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-10-25T14:19:04.083Z
+blockers:
+  - owner: user
+    reason:
+      text: The generic Skill bridge cannot prove an independent Verifier execution;
+        user confirmation is required before Archive.
+      truncated: false
+    acceptance_ids: []
+    resolution_action: await-user
+verification:
+  candidate_id: ef62ba1a-4df7-48ce-8e55-970bd9368828
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:bb49cfee-f5fa-44d5-af62-fb346f76aa74
+  iteration: 2
+  attempt: 1
+  assurance: skill-coordinated
+  verdict: pass
+  checks:
+    - id: core-tests
+      name:
+        text: 核心完整回归
+        truncated: false
+      argv_display:
+        - text: test
+          truncated: false
+        - text: tests/SpaceMonger.Core.Tests/SpaceMonger.Core.Tests.csproj
+          truncated: false
+        - text: --no-restore
+          truncated: false
+        - text: --no-build
+          truncated: false
+        - text: --nologo
+          truncated: false
+        - text: -v
+          truncated: false
+        - text: quiet
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 8000
+    - id: app-tests
+      name:
+        text: WPF 完整回归
+        truncated: false
+      argv_display:
+        - text: test
+          truncated: false
+        - text: tests/SpaceMonger.App.Tests/SpaceMonger.App.Tests.csproj
+          truncated: false
+        - text: --no-restore
+          truncated: false
+        - text: --no-build
+          truncated: false
+        - text: --nologo
+          truncated: false
+        - text: -v
+          truncated: false
+        - text: quiet
+          truncated: false
+        - text: -p:NoWarn=NU1701
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 2094
+  summary:
+    text: 全新独立只读 Verifier 对当前 cleanup-skill-creator 候选 A1-A9 全部独立判定 passed，总体
+      pass。复用且核对当前 Runtime Core264/App55
+      通过记录，独立检查源码、原受控协议/73bytes源码执行证据、最终三张截图、6项后台GUI记录、真实36bytes样本、发布/运行时路径和自包含文件。动态UI共享标题栏、圆角、输入/按钮/表格主题、同窗换肤及最大化收起重开符合本轮范围，三处窗口修复确认在当前源码及回归中。未修改实现/需求、重跑全套测试、重启测试进程、触发清理、接受用户结果、归档或提交。
+    truncated: false
+  risks:
+    - text: 资料导入仅支持 txt/md/json 和公开文本 HTTP(S)，不支持 PDF/DOCX/扫描图片；上限1MiB且不自动跳转。
+      truncated: false
+    - text: 可选 C# 以当前用户权限执行，属于明确授权的可信源码而非安全沙箱；取消依赖检测器配合。
+      truncated: false
+    - text: 发布日志保留既有 NU1701、CS8604、CS0168、CS0414 警告；未发现本轮新增阻塞。
+      truncated: false
+    - text: 本轮复用已完成的最终发布包 GUI 证据，未重新启动已关闭的独立测试实例；没有将用户补充或 Builder 摘要直接作为通过结论。
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-10-25T14:29:45.474Z
+history:
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 独立只读逐项审查当前候选，A1-A9 全部 passed，总体 pass，未发现明确阻塞。复用并验证 Runtime
+        已绑定的264项Core和53项App通过结果；独立核对源码、固定契约与确认链路、真实窗口UIA、受控协议、截图、样本文件和自包含发布/源码运行证据。完整保留Builder限制；没有改产品代码、重复完整测试、触发清理、接受用户结果、归档或执行提交/合并/推送。
+      truncated: false
+    completed_at: 2026-10-25T07:08:48.107Z
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: 用户要求继续修改动态任务 UI：复用应用标题栏、统一圆角和控件样式，支持运行中主题切换。沿用已确认的动态 UI 范围。
+      truncated: false
+    completed_at: 2026-10-25T13:42:58.148Z
+  - goal_cycle: 1
+    iteration: 2
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 全新独立只读 Verifier 对当前 cleanup-skill-creator 候选 A1-A9 全部独立判定 passed，总体
+        pass。复用且核对当前 Runtime Core264/App55
+        通过记录，独立检查源码、原受控协议/73bytes源码执行证据、最终三张截图、6项后台GUI记录、真实36bytes样本、发布/运行时路径和自包含文件。动态UI共享标题栏、圆角、输入/按钮/表格主题、同窗换肤及最大化收起重开符合本轮范围，三处窗口修复确认在当前源码及回归中。未修改实现/需求、重跑全套测试、重启测试进程、触发清理、接受用户结果、归档或提交。
+      truncated: false
+    completed_at: 2026-10-25T14:29:45.474Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pass
+verification_report: verification.md
+archived: false
+created_at: 2026-10-25T05:48:18.417Z

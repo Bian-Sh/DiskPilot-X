@@ -31,6 +31,7 @@ public partial class MainWindow
                 _recommendationsViewModel?.HasAnyRecommendations == true);
         }).Task;
         workspace.Execute = (operation, args, ct) => Dispatcher.InvokeAsync(() => ExecuteAssistantOperationAsync(operation,args,ct)).Task.Unwrap();
+        if (_chatViewModel is not null) _chatViewModel.SkillTaskRequested += OpenSkillTask;
         if (_chatViewModel is not null && DataContext is MainViewModel vm)
             _chatViewModel.PropertyChanged += (_, e) => { if(e.PropertyName == nameof(ChatViewModel.IsOperationRunning)) vm.IsCopilotBusy=_chatViewModel.IsOperationRunning||_cleanupRunning; };
     }
@@ -102,15 +103,20 @@ public partial class MainWindow
             case "confirm_skill_change":
             {
                 if(_chatViewModel is null)return AssistantError("无法显示技能变更确认。");
-                var confirmed=await _chatViewModel.ConfirmAsync("确认修改磁盘技能",$"操作：{args?["operation"]}；技能：{args?["id"]}","仅允许修改用户技能，内置技能受保护。",ct);
+                var package=args?["package"];
+                var description=package is null ? $"操作：{args?["operation"]}；技能：{args?["id"]}\n\n{args?["body_markdown"]}" : $"规则：{package["title"]}\n说明：{package["description"]}\n\n规则明细：\n{package["rules"]?.ToJsonString(new(){WriteIndented=true})}\n\n{package["skill_markdown"]}";
+                var confirmed=await _chatViewModel.ConfirmAsync("保存这份清理规则？",description,"保存后可从对话空态和 @ 菜单使用。保存不会清理文件；自定义源码执行还需单独授权。",ct);
                 return new JsonObject{["ok"]=confirmed,["cancelled"]=!confirmed};
             }
             case "ask_user":
-            {
                 if(_chatViewModel is null)return AssistantError("无法显示输入请求。");
-                var accepted=await _chatViewModel.ConfirmAsync("需要你的输入",args?["question"]?.GetValue<string>()??"请补充任务信息。","可在备注中填写你的回答。",ct,true);
-                return new JsonObject{["ok"]=accepted,["cancelled"]=!accepted,["answer"]=accepted?_chatViewModel.LastUserNotes:null};
-            }
+                return await _chatViewModel.AskUserAsync(args,ct);
+            case "run_skill_source":
+                return await ExecuteSkillSourceAsync(args,ct);
+            case "refresh_skill_catalog":
+                _chatViewModel?.RefreshSkills(); return new JsonObject { ["ok"]=true };
+            case "show_skill_panel":
+                return ShowSkillPanel(args);
             default:return AssistantError("未知磁盘操作。");
         }
     }

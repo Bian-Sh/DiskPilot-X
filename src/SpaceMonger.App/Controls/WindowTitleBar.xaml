@@ -1,6 +1,7 @@
 ﻿<UserControl x:Class="SpaceMonger.App.Controls.WindowTitleBar"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:SpaceMonger.App.Controls"
              xmlns:loc="clr-namespace:SpaceMonger.App.Localization"
              Height="36"
              Background="Transparent">
@@ -21,10 +22,10 @@
             <TextBlock Text="&#xE74E;"
                        FontFamily="Segoe MDL2 Assets"
                        FontSize="14"
-                       Foreground="White"
+                       Foreground="{DynamicResource VP.AccentBrush}"
                        VerticalAlignment="Center"
                        Margin="0,0,8,0" />
-            <TextBlock Text="SpaceMonger Copilot"
+            <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
                        Foreground="{DynamicResource VP.TextPrimaryBrush}"
                        FontFamily="{DynamicResource VP.FontFamily}"
                        FontSize="13"
@@ -37,12 +38,14 @@
                     Orientation="Horizontal"
                     WindowChrome.IsHitTestVisibleInChrome="True">
             <Button x:Name="SettingsButton"
+                    Visibility="{Binding ApplicationToolsVisibility, RelativeSource={RelativeSource AncestorType={x:Type controls:WindowTitleBar}}}"
                     Content="&#xE713;"
                     FontSize="18"
                     Style="{DynamicResource VP.TitleBarButton}"
                     Click="SettingsButton_Click"
                     ToolTip="{loc:Loc SettingsButtonToolTip}" />
             <Button x:Name="CollapseChatButton"
+                    Visibility="{Binding ApplicationToolsVisibility, RelativeSource={RelativeSource AncestorType={x:Type controls:WindowTitleBar}}}"
                     Style="{DynamicResource VP.TitleBarButton}"
                     Click="CollapseChatButton_Click"
                     ToolTip="{loc:Loc CollapseChatPanelToolTip}">

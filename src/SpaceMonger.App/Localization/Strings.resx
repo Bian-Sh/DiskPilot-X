@@ -900,4 +900,7 @@
   <data name="CopilotTool_ask_user" xml:space="preserve"><value>Ask for input</value></data>
   <data name="CopilotTool_manage_disk_skills" xml:space="preserve"><value>Manage skills</value></data>
   <data name="CopilotTool_read_unity_registry_context" xml:space="preserve"><value>Inspect Unity environment</value></data>
+  <data name="CopilotTool_manage_cleanup_skill" xml:space="preserve"><value>Manage cleanup rules</value></data>
+  <data name="CopilotTool_show_skill_panel" xml:space="preserve"><value>Prepare task panel</value></data>
+  <data name="CopilotTool_run_skill_source" xml:space="preserve"><value>Run custom detector</value></data>
 </root>

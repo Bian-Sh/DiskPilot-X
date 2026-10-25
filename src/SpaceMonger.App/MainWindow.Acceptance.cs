@@ -53,6 +53,21 @@ public partial class MainWindow
         };
     }
 
+    private System.Text.Json.Nodes.JsonNode? acceptanceDecision;
+    internal object AcceptanceAskUser(string? json)
+    {
+        if(_chatViewModel is null || !AcceptanceAutomationServer.IsEnabled()) throw new InvalidOperationException("验收入口未启用。");
+        var args=System.Text.Json.Nodes.JsonNode.Parse(json??"{}");
+        acceptanceDecision=null;
+        _ = Observe();
+        async Task Observe() { try { acceptanceDecision=await _chatViewModel.AskUserAsync(args,CancellationToken.None); } catch(Exception ex) { acceptanceDecision=new System.Text.Json.Nodes.JsonObject { ["error"]=ex.Message }; } }
+        return new { Started=true };
+    }
+    internal object AcceptanceShowSkill(string? id)
+    {
+        if(!AcceptanceAutomationServer.IsEnabled()) throw new InvalidOperationException("验收入口未启用。");
+        return ShowSkillPanel(new System.Text.Json.Nodes.JsonObject { ["id"]=id });
+    }
     internal object GetAcceptanceState()
     {
         var mainVm = DataContext as MainViewModel;
@@ -71,6 +86,7 @@ public partial class MainWindow
             CanGoUp = _treemapViewModel?.CanGoUp ?? false,
             BreadcrumbText = string.Join("", BreadcrumbBar.Children.OfType<ContentControl>().Select(c => c.Content?.ToString()).Where(s => !string.IsNullOrEmpty(s))),
             TreeView = TreeViewControl.GetAcceptanceState(),
+            SkillInteraction = new { AskUser = _chatViewModel?.PendingAskUser?.Title, Field = _chatViewModel?.PendingAskUser?.CurrentFieldIndex, Answer = acceptanceDecision, Rules = _chatViewModel?.CleanupRules.Select(r=>r.Title).ToArray() },
             RecommendationsVisible = RecommendationsPanel.Visibility == Visibility.Visible,
             ConsoleVisible = ConsoleFrame.Visibility == Visibility.Visible,
             Copilot = new { Busy = _chatViewModel?.IsOperationRunning, Status = _chatViewModel?.StatusText, Model = _chatViewModel?.ModelDisplayName, Width = ChatPanelColumn.ActualWidth, Pending = _chatViewModel?.PendingInteractionCard?.Title, MessageCount = _chatViewModel?.Messages.Count, LastMessage = _chatViewModel?.Messages.LastOrDefault()?.Text, SegmentCount = _chatViewModel?.Messages.LastOrDefault()?.Segments.Count },
@@ -80,14 +96,14 @@ public partial class MainWindow
         };
     }
 
-    internal object AcceptanceCapture(string? outputPath)
+    internal object AcceptanceCapture(string? outputPath,string? captureTarget=null)
     {
         var settingsPath = Environment.GetEnvironmentVariable("SPACEMONGER_ACCEPTANCE_SETTINGS");
         if (string.IsNullOrWhiteSpace(settingsPath) || string.IsNullOrWhiteSpace(outputPath)) throw new InvalidOperationException("验收截图需要独立设置目录。");
         var allowedRoot = Path.GetFullPath(Path.GetDirectoryName(settingsPath)!).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         var target = Path.GetFullPath(outputPath);
         if (!target.StartsWith(allowedRoot, StringComparison.OrdinalIgnoreCase) || !target.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("截图只能写入本次验收目录。");
-        UpdateLayout(); var visual = (FrameworkElement)Content;
+        UpdateLayout(); var sourceWindow = captureTarget=="task" ? skillPanels.Values.Select(p=>p.Window).FirstOrDefault(w=>w?.IsVisible==true) ?? throw new InvalidOperationException("没有可见任务面板。") : (Window)this; sourceWindow.UpdateLayout(); var visual = (FrameworkElement)sourceWindow.Content;
         var image = new System.Windows.Media.Imaging.RenderTargetBitmap(Math.Max(1, (int)Math.Ceiling(visual.ActualWidth)), Math.Max(1, (int)Math.Ceiling(visual.ActualHeight)), 96, 96, PixelFormats.Pbgra32);
         image.Render(visual); var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder(); encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(image));
         using var file = File.Create(target); encoder.Save(file); return new { Path = target, Width = image.PixelWidth, Height = image.PixelHeight };

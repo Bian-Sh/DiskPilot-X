@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using SpaceMonger.Core.Services.Skills;
 using System.Text.RegularExpressions;
 
 namespace SpaceMonger.Core.Services.Copilot;
@@ -7,6 +8,9 @@ public sealed class FileSkillPromptProvider : ISkillPromptProvider
 {
     private static readonly Regex SkillIdRegex = new("^[a-z0-9][a-z0-9-]{0,63}$", RegexOptions.Compiled);
     private readonly IReadOnlyList<string>? _skillDirectories;
+    private readonly bool _legacyWritableRoot;
+    private readonly string _userRoot = CleanupSkillStore.DefaultUserRoot;
+    private readonly IReadOnlyList<string> _builtInRoots = CleanupSkillStore.DefaultBuiltInRoots().ToArray();
 
     public FileSkillPromptProvider()
     {
@@ -15,13 +19,24 @@ public sealed class FileSkillPromptProvider : ISkillPromptProvider
     public FileSkillPromptProvider(IEnumerable<string> skillDirectories)
     {
         _skillDirectories = skillDirectories.ToArray();
+        _legacyWritableRoot = true;
+        // 兼容旧的隔离目录构造器：第一个目录是用户目录，额外目录是只读来源。
+        _userRoot = Path.GetFullPath(_skillDirectories.FirstOrDefault() ?? CleanupSkillStore.DefaultUserRoot);
+        _builtInRoots = _skillDirectories.Skip(1).ToArray();
     }
 
-    public IReadOnlyList<AiSkillCatalogItem> GetSkillCatalog() => LoadSkills(_skillDirectories).Catalog;
+    public FileSkillPromptProvider(IEnumerable<string> builtInRoots, string userSkillRoot)
+    {
+        _builtInRoots = builtInRoots.Select(Path.GetFullPath).ToArray();
+        _skillDirectories = _builtInRoots;
+        _userRoot = Path.GetFullPath(userSkillRoot);
+    }
+
+    public IReadOnlyList<AiSkillCatalogItem> GetSkillCatalog() => LoadSkills().Catalog;
 
     public string GetPrompt(string skillId, string fallback)
     {
-        if (LoadSkills(_skillDirectories).Prompts.TryGetValue(skillId, out var value) && !string.IsNullOrWhiteSpace(value))
+        if (LoadSkills().Prompts.TryGetValue(skillId, out var value) && !string.IsNullOrWhiteSpace(value))
         {
             return value;
         }
@@ -31,7 +46,7 @@ public sealed class FileSkillPromptProvider : ISkillPromptProvider
 
     public string? GetRawContent(string skillId)
     {
-        return LoadSkills(_skillDirectories).Prompts.TryGetValue(skillId, out var value) ? value : null;
+        return LoadSkills().Prompts.TryGetValue(skillId, out var value) ? value : null;
     }
 
     public AiSkillStoreResult CreateOrUpdateSkill(string skillId, string title, string description, string bodyMarkdown, bool overwrite)
@@ -41,6 +56,9 @@ public sealed class FileSkillPromptProvider : ISkillPromptProvider
         {
             return new AiSkillStoreResult(false, "Skill id must use lowercase letters, digits, and hyphens only.", skillId, ErrorCode: "invalid_skill_id");
         }
+
+        if (IsProtected(skillId)) return new(false, "内置技能不可修改。", skillId, ErrorCode: "protected_skill");
+        if (File.Exists(Path.Combine(GetSafeSkillDirectory(skillId), "current.json"))) return new(false, "结构化清理包请通过 manage_cleanup_skill 更新。", skillId, ErrorCode: "structured_package");
 
         if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(description) || string.IsNullOrWhiteSpace(bodyMarkdown))
         {
@@ -57,7 +75,13 @@ public sealed class FileSkillPromptProvider : ISkillPromptProvider
 
         Directory.CreateDirectory(skillDirectory);
         var content = BuildSkillMarkdown(skillId, title, description, bodyMarkdown);
-        File.WriteAllText(skillFile, content, Encoding.UTF8);
+        var temporary = Path.Combine(skillDirectory, ".skill-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            File.WriteAllText(temporary, content, Encoding.UTF8);
+            File.Move(temporary, skillFile, overwrite: true);
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
         return new AiSkillStoreResult(true, existed ? "Skill updated." : "Skill created.", skillId, content);
     }
 
@@ -69,7 +93,9 @@ public sealed class FileSkillPromptProvider : ISkillPromptProvider
             return new AiSkillStoreResult(false, "Skill id must use lowercase letters, digits, and hyphens only.", skillId, ErrorCode: "invalid_skill_id");
         }
 
+        if (IsProtected(skillId)) return new(false, "内置技能不可删除。", skillId, ErrorCode: "protected_skill");
         var skillDirectory = GetSafeSkillDirectory(skillId);
+        if (File.Exists(Path.Combine(skillDirectory, "current.json"))) return new(false, "此工具不能删除结构化清理包。", skillId, ErrorCode: "structured_package");
         var skillFile = Path.Combine(skillDirectory, "SKILL.md");
         if (!File.Exists(skillFile))
         {
@@ -80,26 +106,38 @@ public sealed class FileSkillPromptProvider : ISkillPromptProvider
         return new AiSkillStoreResult(true, "Skill deleted.", skillId);
     }
 
-    private static LoadedSkills LoadSkills(IReadOnlyList<string>? configuredDirectories)
+    private bool IsProtected(string id) => new CleanupSkillStore(_userRoot, _builtInRoots).IsProtected(id);
+
+    private LoadedSkills LoadSkills()
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var directory in GetSkillDirectories(configuredDirectories).Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var directory in _builtInRoots.Concat(GetSkillDirectories(_skillDirectories)).Append(_userRoot).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            if (!Directory.Exists(directory))
+            if (!Directory.Exists(directory)) continue;
+            try
             {
-                continue;
-            }
-
-            foreach (var file in Directory.EnumerateFiles(directory, "SKILL.md", SearchOption.AllDirectories).OrderBy(Path.GetDirectoryName, StringComparer.OrdinalIgnoreCase))
-            {
-                var id = new DirectoryInfo(Path.GetDirectoryName(file)!).Name;
-                if (result.ContainsKey(id))
+                CleanupSkillSafety.EnsureNoReparsePoints(directory);
+                foreach (var child in Directory.EnumerateDirectories(directory).Order(StringComparer.OrdinalIgnoreCase))
                 {
-                    continue;
+                    var id = Path.GetFileName(child);
+                    if (id.StartsWith('.') || result.ContainsKey(id)) continue;
+                    var file = Path.Combine(child, "SKILL.md");
+                    if (!File.Exists(file) || File.Exists(Path.Combine(child, "current.json"))) continue;
+                    // 默认用户目录不能遮盖保留的内置 ID。旧隔离构造器仍可读取测试用内置目录。
+                    if (directory.Equals(_userRoot, StringComparison.OrdinalIgnoreCase) && !_legacyWritableRoot && IsProtected(id)) continue;
+                    try
+                    {
+                        CleanupSkillSafety.EnsureNoReparsePoints(file);
+                        if (new FileInfo(file).Length <= 1024 * 1024) result[id] = File.ReadAllText(file, Encoding.UTF8);
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
                 }
-
-                result[id] = File.ReadAllText(file, Encoding.UTF8);
             }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
+        foreach (var package in new CleanupSkillStore(_userRoot, _builtInRoots).List())
+        {
+            if (!result.ContainsKey(package.Id)) result[package.Id] = $"# {package.Title}\n\n## Purpose\n{package.Description}\n\n{package.SkillMarkdown}";
         }
 
         var catalog = result
@@ -224,18 +262,7 @@ public sealed class FileSkillPromptProvider : ISkillPromptProvider
         return null;
     }
 
-    private string GetWritableSkillRoot()
-    {
-        var configured = _skillDirectories?.FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(configured))
-        {
-            return Path.GetFullPath(configured);
-        }
-
-        var baseDirectory = AppContext.BaseDirectory;
-        var solutionRoot = LocateSolutionRoot(baseDirectory);
-        return Path.Combine(solutionRoot ?? baseDirectory, "skills");
-    }
+    private string GetWritableSkillRoot() => _userRoot;
 
     private string GetSafeSkillDirectory(string skillId)
     {
@@ -247,10 +274,15 @@ public sealed class FileSkillPromptProvider : ISkillPromptProvider
             throw new InvalidOperationException("Skill path escaped the configured skills directory.");
         }
 
+        CleanupSkillSafety.EnsureNoReparsePoints(skillDirectory);
         return skillDirectory;
     }
 
-    private static bool IsValidSkillId(string skillId) => SkillIdRegex.IsMatch(skillId);
+    private static bool IsValidSkillId(string skillId)
+    {
+        try { CleanupSkillSafety.ValidateId(skillId); return SkillIdRegex.IsMatch(skillId); }
+        catch (ArgumentException) { return false; }
+    }
 
     private static string BuildSkillMarkdown(string skillId, string title, string description, string bodyMarkdown)
     {

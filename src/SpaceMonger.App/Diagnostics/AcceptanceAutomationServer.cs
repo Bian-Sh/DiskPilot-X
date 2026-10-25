@@ -124,7 +124,9 @@ internal sealed class AcceptanceAutomationServer : IDisposable
         {
             "state" => _window.GetAcceptanceState(),
             "treemap_pointer" => _window.AcceptanceTreemapPointer(request.X, request.Y, request.Text),
-            "capture" => _window.AcceptanceCapture(request.Path),
+            "ask_user" => _window.AcceptanceAskUser(request.Text),
+            "show_skill" => _window.AcceptanceShowSkill(request.Text),
+            "capture" => _window.AcceptanceCapture(request.Path,request.Text),
             "copilot_width" => _window.AcceptanceSetCopilotWidth(request.X ?? 360),
             "theme" => _window.AcceptanceSetTheme(request.Text),
             "scan" => ExecuteScan(),

@@ -57,7 +57,7 @@ public partial class ChatViewModel : ObservableObject
     {
         this.assistant = assistant; _settingsService = settingsService; _skillRouter = skillRouter;
         _logger = logger ?? NullLogger<ChatViewModel>.Instance;
-        SkillMentionSuggestions = new(_skillRouter.GetSkillCatalog().Select(s => new ChatSkillSuggestion("@" + s.Id, s.DisplayName, s.Description)));
+        RefreshSkills();
         FilteredSkillMentionSuggestions = new(SkillMentionSuggestions);
         Messages.CollectionChanged += (_, _) => HasMessages = Messages.Count > 0;
         assistant.Activity += activity => OnUi(() => ApplyActivity(activity));
@@ -95,6 +95,7 @@ public partial class ChatViewModel : ObservableObject
     private async Task SubmitOrStopAsync()
     {
         if (assistant.IsRunning) { assistant.CancelCurrentRun(); return; }
+        if (HasPendingInteractionCard || PendingAskUser is not null) { ErrorMessage="请先完成或取消当前选择。"; return; }
         if (string.IsNullOrWhiteSpace(InputText)) return;
         var text = InputText.Trim();
         if (TryExecuteSlashCommand(text)) { InputText = null; return; }
@@ -115,7 +116,7 @@ public partial class ChatViewModel : ObservableObject
             _logger.LogWarning("Copilot 运行未完成 {ExceptionType}", ex.GetType().Name);
             ErrorMessage = "当前任务未完成，请检查模型配置或稍后重试。";
         }
-        finally { OnUi(() => { IsOperationRunning = false; PendingInteractionCard = null; }); }
+        finally { OnUi(() => { IsOperationRunning = false; PendingInteractionCard = null; RefreshSkills(); }); }
     }
     private void ApplyActivity(AgentEvent activity)
     {

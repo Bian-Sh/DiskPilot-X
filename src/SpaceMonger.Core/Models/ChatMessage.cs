@@ -24,6 +24,7 @@ public class ChatMessage : INotifyPropertyChanged
     private bool _isThinkingExpanded;
 
     public ObservableCollection<ChatSegment> Segments { get; } = new();
+    public ObservableCollection<SkillTaskCard> SkillTasks { get; } = new();
 
     private ChatSegment? _activeSegment;
     private bool _hasStepDeltas;

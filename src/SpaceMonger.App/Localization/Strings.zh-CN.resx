@@ -897,4 +897,7 @@
   <data name="CopilotTool_ask_user" xml:space="preserve"><value>请求必要输入</value></data>
   <data name="CopilotTool_manage_disk_skills" xml:space="preserve"><value>管理磁盘技能</value></data>
   <data name="CopilotTool_read_unity_registry_context" xml:space="preserve"><value>核对 Unity 环境</value></data>
+  <data name="CopilotTool_manage_cleanup_skill" xml:space="preserve"><value>管理清理规则</value></data>
+  <data name="CopilotTool_show_skill_panel" xml:space="preserve"><value>准备任务面板</value></data>
+  <data name="CopilotTool_run_skill_source" xml:space="preserve"><value>运行自定义识别</value></data>
 </root>
