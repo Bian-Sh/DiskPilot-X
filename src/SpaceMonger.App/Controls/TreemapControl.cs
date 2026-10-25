@@ -1,5 +1,7 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Threading;
 using System.Windows.Media;
 using SkiaSharp;
 using SpaceMonger.App.Localization;
@@ -28,6 +30,9 @@ public class TreemapControl : SKElement
     private List<TreemapNode>? _nodes;
     private readonly ToolTip _toolTip;
     private TreemapNode? _lastHoveredNode;
+    private TreemapNode? _selectedNode;
+    private Point _hoverPosition;
+    private readonly DispatcherTimer _toolTipTimer;
 
 
     public List<TreemapNode>? Nodes
@@ -36,12 +41,26 @@ public class TreemapControl : SKElement
         set
         {
             _nodes = value;
+            SelectedNode = null;
+            ClearHover();
+            InvalidateVisual();
+        }
+    }
+
+    public TreemapNode? SelectedNode
+    {
+        get => _selectedNode;
+        set
+        {
+            if (_selectedNode == value) return;
+            _selectedNode = value;
             InvalidateVisual();
         }
     }
 
     public event EventHandler<TreemapNode>? NodeClicked;
-    public event EventHandler<TreemapNode>? NodeHovered;
+    public event EventHandler<TreemapNode>? NodeActivated;
+    public event EventHandler<TreemapNode?>? NodeHovered;
     public event EventHandler<TreemapNode>? NodeRightClicked;
 
     public TreemapControl()
@@ -51,19 +70,37 @@ public class TreemapControl : SKElement
         _toolTip = new ToolTip
         {
             Placement = System.Windows.Controls.Primitives.PlacementMode.Mouse,
+            PlacementTarget = this,
+            IsHitTestVisible = false,
+            Background = Brushes.LightYellow,
+            Foreground = Brushes.Black,
+            BorderBrush = Brushes.Gray,
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(5),
         };
-        ToolTip = _toolTip;
+        _toolTipTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
+        _toolTipTimer.Tick += (_, _) =>
+        {
+            _toolTipTimer.Stop();
+            if (_lastHoveredNode is not null && IsMouseOver)
+                _toolTip.IsOpen = true;
+        };
+        Unloaded += (_, _) => ClearHover();
     }
 
     private void OnPaintSurface(object? sender, SKPaintSurfaceEventArgs e)
     {
         SKCanvas canvas = e.Surface.Canvas;
-        canvas.Clear(SKColor.Parse("#1E1E1E"));
+        canvas.Clear(SKColor.Parse("#202020"));
+        if (ActualWidth <= 0 || ActualHeight <= 0) return;
+
+        // 布局和命中使用逻辑坐标，绘制时统一映射到当前 DPI。
+        canvas.Scale(e.Info.Width / (float)ActualWidth, e.Info.Height / (float)ActualHeight);
 
         // Clip to rounded corners — only bottom-left and bottom-right (matching container Border CornerRadius="0,0,10,10")
         const float r = 10f;
-        float w = e.Info.Width;
-        float h = e.Info.Height;
+        float w = (float)ActualWidth;
+        float h = (float)ActualHeight;
         using var clipPath = new SKPath();
         clipPath.MoveTo(0, 0);
         clipPath.LineTo(w, 0);
@@ -92,15 +129,11 @@ public class TreemapControl : SKElement
 
         using var textPaint = new SKPaint
         {
-            Color = SKColors.Black,
-            IsAntialias = true,
-        };
-
-        using var fileTextPaint = new SKPaint
-        {
             Color = SKColors.White,
             IsAntialias = true,
         };
+
+        using var labelFont = CreateTreemapFont(11f);
 
         // Render in depth order: shallow first, deep on top.
         // Directories first at each depth, then files on top.
@@ -114,100 +147,123 @@ public class TreemapControl : SKElement
         {
             if (node.Entry.IsDirectory)
             {
-                DrawDirectoryNode(canvas, node, fillPaint, borderPaint, textPaint);
+                DrawDirectoryNode(canvas, node, fillPaint, borderPaint, textPaint, labelFont);
             }
             else
             {
-                DrawFileNode(canvas, node, fillPaint, borderPaint, fileTextPaint);
+                DrawFileNode(canvas, node, fillPaint, borderPaint, textPaint, labelFont);
             }
         }
+
+        DrawPointerLight(canvas);
+
+        // 最后叠加白框，目录选择框不会被子块覆盖。
+        if (_lastHoveredNode != SelectedNode) DrawOutline(canvas, _lastHoveredNode, 1f);
+        DrawOutline(canvas, SelectedNode, 2f);
     }
 
     private static void DrawDirectoryNode(
         SKCanvas canvas, TreemapNode node,
-        SKPaint fillPaint, SKPaint borderPaint, SKPaint textPaint)
+        SKPaint fillPaint, SKPaint borderPaint, SKPaint textPaint, SKFont font)
     {
-        var fullRect = new SKRect(node.X, node.Y, node.X + node.Width, node.Y + node.Height);
+        var rect = NodeRect(node);
+        fillPaint.Color = SKColor.Parse("#303030");
+        canvas.DrawRect(rect, fillPaint);
+        borderPaint.Color = SKColor.Parse("#454545");
+        borderPaint.StrokeWidth = 1f;
+        var frame = rect;
+        frame.Inflate(-0.5f, -0.5f);
+        canvas.DrawRect(frame, borderPaint);
 
-        // Fill the entire directory rect with its assigned palette color.
-        // This color shows through as the header bar and the border/frame around children.
-        SKColor dirColor = SKColor.Parse(node.ColorHex);
-        fillPaint.Color = dirColor;
-        canvas.DrawRect(fullRect, fillPaint);
-
-        // Darker border for definition.
-        borderPaint.Color = DarkenColor(dirColor, 0.38f);
-        borderPaint.StrokeWidth = node.Depth <= 1 ? 1.5f : 0.75f;
-        canvas.DrawRect(fullRect, borderPaint);
-
-        // Label in the header area — always black text like SpaceMonger.
-        if (node.Label is not null)
-        {
-            float headerHeight = GetHeaderHeight(node.Depth, node.Height);
-            const float fontSize = 11f;
-
-            using var headerFont = CreateTreemapFont(fontSize);
-            var label = TruncateLabel(node.Label, headerFont, node.Width - 6f);
-            if (label is not null)
-            {
-                float textX = node.X + 3f;
-                float textY = node.Y + headerHeight / 2f + fontSize / 2f - 1f;
-
-                textPaint.Color = SKColors.Black;
-                canvas.DrawText(label, textX, textY, SKTextAlign.Left, headerFont, textPaint);
-            }
-        }
+        float headerHeight = GetHeaderHeight(node.Depth, node.Height);
+        if (node.Label is not null && headerHeight >= 14f)
+            DrawLabel(canvas, node.Label, node.X + 3f, node.Y + headerHeight / 2f + 3.5f,
+                node.Width - 6f, textPaint, font);
 
         if (node.Entry.IsAccessDenied)
-        {
-            DrawAccessDeniedOverlay(canvas, fullRect);
-        }
+            DrawAccessDeniedOverlay(canvas, rect);
     }
 
     private static void DrawFileNode(
         SKCanvas canvas, TreemapNode node,
-        SKPaint fillPaint, SKPaint borderPaint, SKPaint textPaint)
+        SKPaint fillPaint, SKPaint borderPaint, SKPaint textPaint, SKFont font)
     {
-        float pad = 0.5f;
-        var rect = new SKRect(
-            node.X + pad,
-            node.Y + pad,
-            node.X + node.Width - pad,
-            node.Y + node.Height - pad);
-
-        if (rect.Width <= 0 || rect.Height <= 0)
-            return;
-
-        SKColor nodeColor = SKColor.Parse(node.ColorHex);
-        fillPaint.Color = nodeColor;
+        var rect = NodeRect(node);
+        var color = SKColor.Parse(node.ColorHex);
+        fillPaint.Color = color;
         canvas.DrawRect(rect, fillPaint);
 
-        borderPaint.Color = DarkenColor(nodeColor, 0.30f);
-        borderPaint.StrokeWidth = 0.75f;
-        canvas.DrawRect(rect, borderPaint);
+        borderPaint.Color = DarkenColor(color, 0.65f);
+        borderPaint.StrokeWidth = 0.5f;
+        var frame = rect;
+        frame.Inflate(-0.25f, -0.25f);
+        canvas.DrawRect(frame, borderPaint);
 
-        if (node.Label is not null)
-        {
-            const float fontSize = 11f;
-            if (rect.Width > 20 && rect.Height > fontSize + 2)
-            {
-                using var font = CreateTreemapFont(fontSize);
-                var label = TruncateLabel(node.Label, font, rect.Width - 6f);
-                if (label is not null)
-                {
-                    float textWidth = font.MeasureText(label);
-                    float textX = rect.MidX - textWidth / 2f;
-                    float textY = rect.MidY + fontSize / 2f - 1f;
-                    textPaint.Color = SKColors.Black;
-                    canvas.DrawText(label, textX, textY, SKTextAlign.Left, font, textPaint);
-                }
-            }
-        }
+        if (node.Label is not null && rect.Height >= 14f)
+            DrawLabel(canvas, node.Label, rect.Left + 3f, rect.Top + 11f,
+                rect.Width - 6f, textPaint, font);
 
         if (node.Entry.IsAccessDenied)
-        {
             DrawAccessDeniedOverlay(canvas, rect);
+    }
+
+    private static SKRect NodeRect(TreemapNode node) =>
+        new(node.X, node.Y, node.X + node.Width, node.Y + node.Height);
+
+    private void DrawPointerLight(SKCanvas canvas)
+    {
+        if (_lastHoveredNode is null
+            || _hoverPosition.Y < _lastHoveredNode.Y + GetDirectoryTitleHeight(_lastHoveredNode)) return;
+        var center = new SKPoint((float)_hoverPosition.X, (float)_hoverPosition.Y);
+        using var light = SKShader.CreateRadialGradient(center, 150f,
+            [new SKColor(255, 255, 255, 42), new SKColor(255, 255, 255, 0)],
+            [0f, 1f], SKShaderTileMode.Clamp);
+        using var paint = new SKPaint { Shader = light, IsAntialias = true };
+        using var titleAreas = new SKPath();
+        foreach (var node in _nodes!)
+        {
+            float titleHeight = GetDirectoryTitleHeight(node);
+            if (node.IsVisible && titleHeight > 0)
+                titleAreas.AddRect(new SKRect(node.X, node.Y, node.X + node.Width, node.Y + titleHeight));
         }
+        canvas.Save();
+        canvas.ClipPath(titleAreas, SKClipOperation.Difference, false);
+        canvas.DrawCircle(center, 150f, paint);
+        canvas.Restore();
+    }
+
+    private static float GetDirectoryTitleHeight(TreemapNode node)
+    {
+        if (!node.Entry.IsDirectory || node.Label is null) return 0f;
+        float height = GetHeaderHeight(node.Depth, node.Height);
+        return height >= 14f && node.Height >= height ? height : 0f;
+    }
+
+    private static void DrawOutline(SKCanvas canvas, TreemapNode? node, float width)
+    {
+        if (node is null || !node.IsVisible) return;
+        using var paint = new SKPaint
+        {
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = width,
+            Color = SKColors.White,
+            IsAntialias = false,
+        };
+        var rect = NodeRect(node);
+        float outset = width > 1f ? width / 2f : -width / 2f;
+        rect.Inflate(outset, outset);
+        canvas.DrawRect(rect, paint);
+    }
+
+    private static void DrawLabel(SKCanvas canvas, string text, float x, float y,
+        float maxWidth, SKPaint paint, SKFont font)
+    {
+        var label = TruncateLabel(text, font, maxWidth);
+        if (label is null) return;
+        paint.Color = new SKColor(0, 0, 0, 180);
+        canvas.DrawText(label, x + 0.5f, y + 0.5f, SKTextAlign.Left, font, paint);
+        paint.Color = SKColors.White;
+        canvas.DrawText(label, x, y, SKTextAlign.Left, font, paint);
     }
 
     private static float GetHeaderHeight(int depth, float availableHeight)
@@ -261,8 +317,8 @@ public class TreemapControl : SKElement
             if (!node.IsVisible)
                 continue;
 
-            if (x >= node.X && x <= node.X + node.Width &&
-                y >= node.Y && y <= node.Y + node.Height)
+            if (x >= node.X && x < node.X + node.Width &&
+                y >= node.Y && y < node.Y + node.Height)
             {
                 if (deepest is null || node.Depth > deepest.Depth)
                 {
@@ -274,48 +330,73 @@ public class TreemapControl : SKElement
         return deepest;
     }
 
-    protected override void OnMouseLeftButtonUp(System.Windows.Input.MouseButtonEventArgs e)
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
-        base.OnMouseLeftButtonUp(e);
-        var position = e.GetPosition(this);
+        base.OnMouseLeftButtonDown(e);
+        HandleClick(e.GetPosition(this), e.ClickCount);
+        e.Handled = true;
+    }
+
+    internal void HandleClick(Point position, int clickCount)
+    {
+        _toolTipTimer.Stop();
+        _toolTip.IsOpen = false;
         var node = HitTest(position.X, position.Y);
-        if (node is not null)
+        if (node is null) return;
+
+        SelectedNode = node;
+        NodeClicked?.Invoke(this, node);
+        float headerHeight = GetHeaderHeight(node.Depth, node.Height);
+        if (clickCount == 2 && node.Entry.IsDirectory && node.Label is not null
+            && headerHeight >= 14f && position.Y < node.Y + headerHeight)
         {
-            NodeClicked?.Invoke(this, node);
+            // 在按下时导航，第二次抬起不会选中新布局的其他块。
+            ClearHover();
+            NodeActivated?.Invoke(this, node);
         }
     }
 
-    protected override void OnMouseMove(System.Windows.Input.MouseEventArgs e)
+    protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        var position = e.GetPosition(this);
-        var node = HitTest(position.X, position.Y);
-
-        if (node is not null)
-        {
-            NodeHovered?.Invoke(this, node);
-
-            if (node != _lastHoveredNode)
-            {
-                // Close first so WPF recalculates position at the new mouse location.
-                _toolTip.IsOpen = false;
-                _lastHoveredNode = node;
-                UpdateToolTipContent(node);
-                _toolTip.IsOpen = true;
-            }
-        }
-        else
-        {
-            _toolTip.IsOpen = false;
-            _lastHoveredNode = null;
-        }
+        HandleHover(e.GetPosition(this));
     }
 
-    protected override void OnMouseLeave(System.Windows.Input.MouseEventArgs e)
+    internal void HandleHover(Point position)
+    {
+        _hoverPosition = position;
+        var node = HitTest(position.X, position.Y);
+        if (node == _lastHoveredNode)
+        {
+            if (node is not null) InvalidateVisual();
+            return;
+        }
+
+        ClearHover();
+        _lastHoveredNode = node;
+        if (node is not null)
+        {
+            UpdateToolTipContent(node);
+            _toolTipTimer.Start();
+            NodeHovered?.Invoke(this, node);
+        }
+        InvalidateVisual();
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
     {
         base.OnMouseLeave(e);
+        ClearHover();
+    }
+
+    private void ClearHover()
+    {
+        _toolTipTimer.Stop();
         _toolTip.IsOpen = false;
+        if (_lastHoveredNode is null) return;
         _lastHoveredNode = null;
+        NodeHovered?.Invoke(this, null);
+        InvalidateVisual();
     }
 
     private void UpdateToolTipContent(TreemapNode node)
@@ -374,6 +455,10 @@ public class TreemapControl : SKElement
         var node = HitTest(position.X, position.Y);
         if (node is not null)
         {
+            _toolTipTimer.Stop();
+            _toolTip.IsOpen = false;
+            SelectedNode = node;
+            NodeClicked?.Invoke(this, node);
             NodeRightClicked?.Invoke(this, node);
         }
     }

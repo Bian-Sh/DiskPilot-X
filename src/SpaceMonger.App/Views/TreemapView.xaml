@@ -27,6 +27,7 @@
             <Grid>
                 <controls:TreemapControl x:Name="Treemap"
                                          NodeClicked="Treemap_NodeClicked"
+                                         NodeActivated="Treemap_NodeActivated"
                                          NodeHovered="Treemap_NodeHovered"
                                          NodeRightClicked="Treemap_NodeRightClicked"
                                          SizeChanged="Treemap_SizeChanged" />

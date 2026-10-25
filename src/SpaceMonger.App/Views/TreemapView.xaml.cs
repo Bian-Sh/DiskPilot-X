@@ -45,6 +45,7 @@ public partial class TreemapView : UserControl
 
         // Sync initial state
         Treemap.Nodes = _viewModel.Nodes;
+        Treemap.SelectedNode = _viewModel.SelectedNode;
         UpdateEmptyState();
     }
 
@@ -52,6 +53,9 @@ public partial class TreemapView : UserControl
     {
         switch (e.PropertyName)
         {
+            case nameof(TreemapViewModel.SelectedNode):
+                Treemap.SelectedNode = _viewModel?.SelectedNode;
+                break;
             case nameof(TreemapViewModel.Nodes):
                 Treemap.Nodes = _viewModel?.Nodes;
                 UpdateEmptyState();
@@ -115,13 +119,18 @@ public partial class TreemapView : UserControl
 
     private void Treemap_NodeClicked(object? sender, TreemapNode node)
     {
+        if (_viewModel is not null) _viewModel.SelectedNode = node;
+    }
+
+    private void Treemap_NodeActivated(object? sender, TreemapNode node)
+    {
         if (node.Entry.IsDirectory)
         {
             _viewModel?.DrillDown(node.Entry);
         }
     }
 
-    private void Treemap_NodeHovered(object? sender, TreemapNode node)
+    private void Treemap_NodeHovered(object? sender, TreemapNode? node)
     {
         if (_viewModel is not null)
         {

@@ -387,6 +387,12 @@ public partial class TreemapViewModel : ObservableObject
         }
     }
 
+    partial void OnNodesChanged(List<TreemapNode>? value)
+    {
+        SelectedNode = null;
+        HoveredNode = null;
+    }
+
     private void RecomputeLayout()
     {
         if (CurrentRoot is not null && !IsInCurrentScan(CurrentRoot))

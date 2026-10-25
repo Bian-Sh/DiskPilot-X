@@ -123,6 +123,7 @@ internal sealed class AcceptanceAutomationServer : IDisposable
         return request.Command.Trim().ToLowerInvariant() switch
         {
             "state" => _window.GetAcceptanceState(),
+            "treemap_pointer" => _window.AcceptanceTreemapPointer(request.X, request.Y, request.Text),
             "capture" => _window.AcceptanceCapture(request.Path),
             "copilot_width" => _window.AcceptanceSetCopilotWidth(request.X ?? 360),
             "theme" => _window.AcceptanceSetTheme(request.Text),

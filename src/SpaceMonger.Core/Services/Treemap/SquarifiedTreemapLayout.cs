@@ -6,8 +6,8 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
 {
     private const float HeaderBaseHeight = 18f;
     private const float HeaderMinHeight = 14f;
-    private const float BorderBasePadding = 8f;
-    private const float BorderMinPadding = 3f;
+    private const float BorderBasePadding = 1f;
+    private const float BorderMinPadding = 1f;
     private const float MinNodeDimension = 14f;
 
     // A directory only expands its children if the content area (after header
@@ -23,21 +23,39 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
     // each have many visible descendants.
     private const int MaxVisibleNodes = 2000;
 
-    // Drive root (depth 0) gets a neutral off-white. Everything below it
-    // cycles through 8 colors matching the original SpaceMonger palette.
-    private const string DriveColor = "#F0F0E8";
+    private const string DirectoryColor = "#303030";
 
-    private static readonly string[] Palette =
+    private static readonly string[] FilePalette =
     [
-        "#FF7F7F", // salmon / light red
-        "#FFBF7F", // peach / light orange
-        "#FFFF00", // yellow
-        "#7FFF7F", // light green
-        "#7FFFFF", // cyan
-        "#BFBFFF", // lavender / light blue
-        "#BFBFBF", // light gray
-        "#FF7FFF", // pink / magenta
+        "#7137A0", "#B2762B", "#87912F", "#246EAA",
+        "#26834B", "#A53A3A", "#258D8B", "#66666D",
     ];
+
+    private static string GetFileColor(FileEntry entry)
+    {
+        string extension = (entry.Extension ?? System.IO.Path.GetExtension(entry.Name)).ToLowerInvariant();
+        return extension switch
+        {
+            ".nvph" or ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif" => FilePalette[0],
+            ".dll" or ".node" or ".lib" => FilePalette[1],
+            ".exe" or ".pak" or ".pack" => FilePalette[2],
+            ".js" or ".ts" or ".cs" or ".py" or ".css" or ".html" => FilePalette[3],
+            ".asar" or ".vpk" or ".msi" => FilePalette[4],
+            ".sys" or ".pdf" => FilePalette[5],
+            ".zip" or ".7z" or ".rar" or ".mp4" or ".mp3" or ".wav" => FilePalette[6],
+            "" or ".json" or ".log" or ".txt" or ".vhdx" or ".bin" => FilePalette[7],
+            _ => FilePalette[GetExtensionColorIndex(extension)],
+        };
+    }
+
+    private static int GetExtensionColorIndex(string extension)
+    {
+        // 使用固定散列，未知扩展名在不同进程、目录和扫描中保持同色。
+        uint hash = 2166136261;
+        foreach (char character in extension)
+            hash = unchecked((hash ^ character) * 16777619);
+        return (int)(hash % (uint)FilePalette.Length);
+    }
 
     private struct Rect
     {
@@ -56,10 +74,11 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
     {
         var result = new List<TreemapNode>();
 
-        if (root.Size <= 0 || width <= 0 || height <= 0)
+        if (root.Size <= 0 || width <= 4 || height <= 4)
             return result;
 
-        var rootRect = new Rect(0, 0, width, height);
+        // 固定预留外描边空间，选中时无需缩小或重排任何 cell。
+        var rootRect = new Rect(2, 2, width - 4, height - 4);
         EmitDirectoryNode(root, rootRect, 0, maxDepth, result);
 
         return result;
@@ -75,10 +94,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
             ? $"{dir.Name} ({FormatSize(dir.Size)})"
             : null;
 
-        // Depth 0 (drive root) is off-white; everything below cycles the palette.
-        string color = depth == 0
-            ? DriveColor
-            : Palette[(depth - 1) % Palette.Length];
+        string color = DirectoryColor;
 
         var node = new TreemapNode
         {
@@ -253,11 +269,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         }
         else
         {
-            // Files sit at the same depth as sibling directories inside
-            // the parent's content area, so they use the same depth color.
-            string fileColor = depth == 0
-                ? DriveColor
-                : Palette[(depth - 1) % Palette.Length];
+            string fileColor = GetFileColor(entry);
 
             // Always provide a label if the rectangle has any visible area.
             // The renderer handles truncation and fitting.

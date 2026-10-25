@@ -43,6 +43,22 @@ public class TreemapViewModelTests
         viewModel.CurrentRoot!.Parent!.Path.Should().Be(Path.Combine(rootPath!, "Users"));
     }
 
+    [Fact]
+    public void RecomputingLayout_ClearsStaleSelectionAndHover()
+    {
+        var root = Directory(@"C:\", "根");
+        var viewModel = new TreemapViewModel(new SquarifiedTreemapLayout());
+        viewModel.UpdateSize(800, 600);
+        viewModel.SetRoot(root);
+        viewModel.SelectedNode = viewModel.Nodes![0];
+        viewModel.HoveredNode = viewModel.Nodes[0];
+
+        viewModel.UpdateSize(900, 600);
+
+        viewModel.SelectedNode.Should().BeNull();
+        viewModel.HoveredNode.Should().BeNull();
+    }
+
     private static FileEntry Directory(string path, string name) => new()
     {
         Path = path,

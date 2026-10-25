@@ -1,0 +1,305 @@
+schema: comet.native.v4
+name: treemap-wiztree
+language: zh-CN
+phase: verify
+status: await-user
+state_version: 22
+brief: brief.md
+document_constraints_version: 3
+shape_confirmation_hash: 385fefc4502b5524e8745c05aa2650fdbc85bb63cb56705e9bf4a4e852c2f1ca
+spec_changes:
+  - capability: treemap
+    operation: create
+    source: specs/treemap/spec.md
+workspace:
+  isolation: current
+  change_branch: codex/treemap-wiztree
+  target_branch: codex/treemap-wiztree
+  finish: null
+loop:
+  stage: await-user
+  goal_cycle: 6
+  iteration: 1
+  attempt: 1
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: confirm-skill-coordinated-pass
+acceptance:
+  - id: A1
+    source: brief.md
+    text: 单击标题或内容块：出现选中轮廓，根路径与布局不变。
+    result: passed
+    reason:
+      text: 独立核对 HandleClick 与 View 事件绑定，单击仅选择而不导航；当前候选接口证据覆盖目录和文件单击，根路径不变。2
+        像素选中框向外绘制，像素测试验证内部首列不变；布局固定两像素边距，后台只读节点实测根矩形 (2,2,807,290.5)，画布
+        811×294.5。
+      truncated: false
+  - id: A2
+    source: brief.md
+    text: 双击文件夹标题：当前根切换到该文件夹；双击文件与内容区域不进入。
+    result: passed
+    reason:
+      text: 仅 clickCount==2 且命中带可见标题的目录才触发
+        NodeActivated；文件、目录非标题和无标题目录不激活。控件回归及当前候选原子接口记录确认双击进入
+        DXCache、非标题/文件不进入并能返回。
+      truncated: false
+  - id: A3
+    source: brief.md
+    text: 鼠标跨块移动：细亮轮廓跟随，离开清除；选中轮廓继续保留。
+    result: passed
+    reason:
+      text: 独立核对同块移动重绘、全画布径向光照、目录标题排除区域、文件标题参与光照；像素回归覆盖纯色恢复、同块跟随、跨
+        cell、目录标题避光和外描边。悬停细框与选中粗框独立，移出清悬停保选择，450ms 提示定时器与布局重置清理均符合完整 spec。
+      truncated: false
+  - id: A4
+    source: brief.md
+    text: 相同扩展名颜色一致，不同常见类型可区分，文件夹边界紧凑。
+    result: passed
+    reason:
+      text: 文件按大小写归一化扩展名映射固定色组，未知扩展名使用确定性散列，跨深度及导航同色；目录一像素间距、深灰标题，常态填充无渐变。Core
+        颜色/布局回归、四状态渲染及最终包窗口截图相互印证。
+      truncated: false
+  - id: A5
+    source: brief.md
+    text: 回归测试通过，输出带可读时间的独立发布包，cua-driver 截图与交互验证。
+    result: passed
+    reason:
+      text: 当前 Runtime 同一候选和输入绑定的 App 45/45、Core 179/179 回执均 passed，退出码 0；复用 15
+        项针对性回归与 10 项当前候选本地接口记录。带时间 win-x64 自包含包存在，PID36540 路径指向该包，App/Core 发布
+        DLL 与 Release SHA256 一致；另用 cua-driver 仅采集目标窗口截图。未重复全量或发送系统鼠标输入。
+      truncated: false
+builder_handoff:
+  candidate_id: 5271fbf3-bc35-49db-b7f0-381cb7980465
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:95ee122b-9676-460e-9b5d-f9ce81f7886a
+  iteration: 1
+  summary:
+    text: 最终实现：单击选择、仅文件夹标题双击进入；向外加粗的选中框与固定画布余量；扩展名纯色和跨 cell
+      光斑；仅文件夹标题避光，文件标题与内容响应光照。最终包通过无系统鼠标输入的接口验收、像素回归与 cua-driver 窗口截图。
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+    - A4
+    - A5
+  acceptance_review:
+    - id: A1
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.App/Controls/TreemapControl.cs
+        - tests/SpaceMonger.App.Tests/TreemapControlTests.cs
+        - work/treemap-wiztree-2026-10-25/ui-evidence.json
+        - work/treemap-wiztree-2026-10-25/treemap-four-states.png
+      note: 点击只选择，白框向 cell 外侧加粗，不缩小内容、不重排布局；像素测试和最终包接口及截图核对。
+    - id: A2
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.App/Controls/TreemapControl.cs
+        - tests/SpaceMonger.App.Tests/TreemapControlTests.cs
+        - work/treemap-wiztree-2026-10-25/ui-evidence.json
+        - work/treemap-wiztree-2026-10-25/treemap-four-states.png
+      note: 标题双击独立触发 NodeActivated，非标题与文件双击不导航；实际窗口已进入 DXCache 并验证返回。
+    - id: A3
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.App/Controls/TreemapControl.cs
+        - tests/SpaceMonger.App.Tests/TreemapControlTests.cs
+        - work/treemap-wiztree-2026-10-25/ui-evidence.json
+        - work/treemap-wiztree-2026-10-25/treemap-four-states.png
+      note: 光照跨 cell，排除文件夹标题但包含文件标题；目录标题悬停不激活光斑，文件标题悬停会激活。向外粗框、细悬停框及移出保留选择均由像素回归覆盖。
+    - id: A4
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.App/Controls/TreemapControl.cs
+        - tests/SpaceMonger.App.Tests/TreemapControlTests.cs
+        - work/treemap-wiztree-2026-10-25/ui-evidence.json
+        - work/treemap-wiztree-2026-10-25/treemap-four-states.png
+        - src/SpaceMonger.Core/Services/Treemap/SquarifiedTreemapLayout.cs
+        - tests/SpaceMonger.Core.Tests/TreemapLayoutTests.cs
+      note: 目录间距为一像素，扩展名颜色大小写不敏感、跨深度稳定；四状态控件渲染已确认纯色与紧凑边界。
+    - id: A5
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.App/Controls/TreemapControl.cs
+        - tests/SpaceMonger.App.Tests/TreemapControlTests.cs
+        - work/treemap-wiztree-2026-10-25/ui-evidence.json
+        - work/treemap-wiztree-2026-10-25/treemap-four-states.png
+      note: 15 项针对性回归通过，最终发布包
+        C:\Users\BianShanghai\.codex\worktrees\treemap-wiztree\SpaceMonger-Copilot\outputs\SpaceMonger-2026-10-26_01-29-51，10
+        项接口交互证据在 ui-evidence.json，实际窗口由 cua-driver 只读截图；正式全量测试交由 Runtime。
+  checks:
+    - name:
+        text: 交互与渲染针对性回归
+        truncated: false
+      result: passed
+      note:
+        text: 15 项针对性交互与像素渲染回归通过，含外描边不覆盖内部、标题排除光照、跨 cell 光照、同块光照跟随及布局清理。
+        truncated: false
+    - name:
+        text: Windows x64 自包含发布
+        truncated: false
+      result: passed
+      note:
+        text: C:\Users\BianShanghai\.codex\worktrees\treemap-wiztree\SpaceMonger-Copilot\outputs\SpaceMonger-2026-10-26_01-29-51，自包含
+          win-x64 发布退出码 0。
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: cua-driver 的 WPF 后台 hover/drag 不可投递；未再使用
+        global_input。最终通过本地验收接口调用相同交互处理逻辑，cua-driver 负责应用截图；不把接口测试声称为系统鼠标端到端测试。
+      truncated: false
+    - text: 保留既有布局节点数量与最小块限制，未改动扫描引擎。
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-10-25T17:37:59.982Z
+blockers:
+  - owner: user
+    reason:
+      text: The generic Skill bridge cannot prove an independent Verifier execution;
+        user confirmation is required before Archive.
+      truncated: false
+    acceptance_ids: []
+    resolution_action: await-user
+verification:
+  candidate_id: 5271fbf3-bc35-49db-b7f0-381cb7980465
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:503abea4-d0a0-4bc1-a38f-b5b7ab7cc931
+  iteration: 1
+  attempt: 1
+  assurance: skill-coordinated
+  verdict: pass
+  checks:
+    - id: app-tests
+      name:
+        text: App 全量回归
+        truncated: false
+      argv_display:
+        - text: test
+          truncated: false
+        - text: tests/SpaceMonger.App.Tests/SpaceMonger.App.Tests.csproj
+          truncated: false
+        - text: --no-restore
+          truncated: false
+        - text: --verbosity
+          truncated: false
+        - text: quiet
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 3920
+    - id: core-tests
+      name:
+        text: Core 全量回归
+        truncated: false
+      argv_display:
+        - text: test
+          truncated: false
+        - text: tests/SpaceMonger.Core.Tests/SpaceMonger.Core.Tests.csproj
+          truncated: false
+        - text: --no-restore
+          truncated: false
+        - text: --verbosity
+          truncated: false
+        - text: quiet
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 9720
+  summary:
+    text: 独立只读验收 A1-A5 全部通过，未发现真实缺陷。复用当前候选 Runtime 全量回归 224 项（App45、Core179），15
+      项针对性回归为已有子集、10 项本地接口检查单独计数；核对完整 spec、实现、最终包和窗口截图。证据详见
+      work/treemap-wiztree-2026-10-25/verifier-final-report.md 与
+      verifier-final-evidence.json；未发送系统鼠标输入，未重跑全量。
+    truncated: false
+  risks:
+    - text: 交互证据来自验收模式本地接口对同一控件处理逻辑的调用，不是实际系统鼠标端到端测试；本 Verifier 仅后台读取 nodes，未重放十项交互。
+      truncated: false
+    - text: 用户可并发操作窗口，截图与接口断言分别解释；不以不同时间截图推断目录或选择状态。01:29:51 以前的 final*.png
+        不作为最终发布包行为断言依据。
+      truncated: false
+    - text: 真实鼠标提示弹出与多 DPI 连续交互未另作端到端验证；提示延迟、坐标缩放通过实现核对。日志存在 NU1701
+        与既有编译告警，未导致测试或发布失败。
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-10-25T17:47:38.369Z
+history:
+  - goal_cycle: 1
+    iteration: 0
+    attempt: 0
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: Native Shape artifacts changed
+      truncated: false
+    completed_at: 2026-10-25T15:01:47.548Z
+  - goal_cycle: 2
+    iteration: 1
+    attempt: 0
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: Native Shape artifacts changed
+      truncated: false
+    completed_at: 2026-10-25T16:13:30.433Z
+  - goal_cycle: 3
+    iteration: 1
+    attempt: 0
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: Native Shape artifacts changed
+      truncated: false
+    completed_at: 2026-10-25T17:00:04.696Z
+  - goal_cycle: 4
+    iteration: 1
+    attempt: 1
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: 用户追加：选中粗白框向外扩展保留内部面积；目录标题排除光照，内容区光照继续跨 cell。
+      truncated: false
+    completed_at: 2026-10-25T17:12:28.190Z
+  - goal_cycle: 5
+    iteration: 1
+    attempt: 0
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: Native Shape artifacts changed
+      truncated: false
+    completed_at: 2026-10-25T17:28:46.618Z
+  - goal_cycle: 6
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 独立只读验收 A1-A5 全部通过，未发现真实缺陷。复用当前候选 Runtime 全量回归 224 项（App45、Core179），15
+        项针对性回归为已有子集、10 项本地接口检查单独计数；核对完整 spec、实现、最终包和窗口截图。证据详见
+        work/treemap-wiztree-2026-10-25/verifier-final-report.md 与
+        verifier-final-evidence.json；未发送系统鼠标输入，未重跑全量。
+      truncated: false
+    completed_at: 2026-10-25T17:47:38.369Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pass
+verification_report: verification.md
+archived: false
+created_at: 2026-10-25T14:39:24.884Z

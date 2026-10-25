@@ -24,6 +24,35 @@ namespace SpaceMonger.App;
 
 public partial class MainWindow
 {
+    internal object AcceptanceTreemapPointer(int? x, int? y, string? action)
+    {
+        var control = (Controls.TreemapControl)TreemapView.FindName("Treemap");
+        var position = new Point(x ?? -1, y ?? -1);
+        switch (action)
+        {
+            case "move": control.HandleHover(position); break;
+            case "leave": control.HandleHover(new Point(-1, -1)); break;
+            case "click": control.HandleClick(position, 1); break;
+            case "double_click": control.HandleClick(position, 2); break;
+            case "nodes": break;
+            default: throw new InvalidOperationException("不支持的树状图验收动作。");
+        }
+        return new
+        {
+            ProcessId = Environment.ProcessId,
+            CurrentRootPath = _treemapViewModel?.CurrentRoot?.Path,
+            SelectedPath = _treemapViewModel?.SelectedNode?.Entry.Path,
+            HoveredPath = _treemapViewModel?.HoveredNode?.Entry.Path,
+            Width = control.ActualWidth,
+            Height = control.ActualHeight,
+            Nodes = action == "nodes" ? control.Nodes?.Select(n => new
+            {
+                n.Entry.Name, n.Entry.Path, n.Entry.IsDirectory,
+                n.X, n.Y, n.Width, n.Height, n.Depth, n.Label
+            }).ToArray() : null,
+        };
+    }
+
     internal object GetAcceptanceState()
     {
         var mainVm = DataContext as MainViewModel;
