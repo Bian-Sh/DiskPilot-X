@@ -28,14 +28,100 @@ public class ChatMessage : INotifyPropertyChanged
 
     private ChatSegment? _activeSegment;
     private bool _hasStepDeltas;
+    private int _stepStartIndex;
+    private bool _isProcessExpanded = true;
+    private DateTime _timestamp = DateTime.Now;
+    private TimeSpan _elapsed;
+
+    public ChatMessage() => Segments.CollectionChanged += (_, _) => RefreshSegmentBindings();
+
+    public IEnumerable<ChatSegment> ProcessSegments => Segments.Where(segment => !segment.IsFinal);
+    public IEnumerable<ChatSegment> FinalSegments => Segments.Where(segment => segment.IsFinal);
+    public bool HasProcess => ProcessSegments.Any() || IsStreaming;
+    public bool HasFinalContent => FinalSegments.Any();
+    public string CopyText => HasFinalContent ? string.Concat(FinalSegments.Select(segment => segment.Text)) : Text;
+    public DateTime? CompletedAt { get; private set; }
+    public ChatSegmentStatus ProcessStatus { get; private set; } = ChatSegmentStatus.Running;
+    public TimeSpan Elapsed => _elapsed;
+    public bool HasDuration => Sender == ChatSender.Assistant && (IsStreaming || CompletedAt.HasValue);
+    public string DisplayTime => Timestamp.ToString("HH:mm", CultureInfo.CurrentCulture);
+    public string FullTime => Timestamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.CurrentCulture);
+    public string DurationText => _elapsed.TotalHours >= 1 ? $"{(int)_elapsed.TotalHours}h{_elapsed.Minutes:00}m"
+        : _elapsed.TotalMinutes >= 1 ? $"{(int)_elapsed.TotalMinutes}m{_elapsed.Seconds:00}s"
+        : $"{(int)_elapsed.TotalSeconds}s";
+    public bool IsProcessExpanded
+    {
+        get => _isProcessExpanded;
+        set { if (_isProcessExpanded == value) return; _isProcessExpanded = value; OnPropertyChanged(); }
+    }
+
+    private void RefreshSegmentBindings()
+    {
+        OnPropertyChanged(nameof(ProcessSegments));
+        OnPropertyChanged(nameof(FinalSegments));
+        OnPropertyChanged(nameof(HasProcess));
+        OnPropertyChanged(nameof(HasFinalContent));
+        OnPropertyChanged(nameof(CopyText));
+    }
+
+    public void RefreshElapsed(DateTime? now = null)
+    {
+        var duration = (CompletedAt ?? now ?? DateTime.Now) - Timestamp;
+        _elapsed = duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
+        OnPropertyChanged(nameof(Elapsed));
+        OnPropertyChanged(nameof(DurationText));
+    }
+
+    private void MarkFinalContent()
+    {
+        var lastTool = Segments.ToList().FindLastIndex(segment => segment.IsTool);
+        foreach (var segment in Segments.Skip(Math.Max(_stepStartIndex, lastTool + 1)).Where(segment => segment.IsText))
+            segment.IsFinal = true;
+        RefreshSegmentBindings();
+    }
+
+    public void RestoreCompletion(DateTime? completedAt, ChatSegmentStatus status)
+    {
+        ProcessStatus = status;
+        if (completedAt.HasValue) MarkCompletedAt(completedAt.Value);
+        if (status == ChatSegmentStatus.Completed && !HasFinalContent)
+        {
+            if (Segments.Count == 0 && HasText && Sender == ChatSender.Assistant)
+                Segments.Add(new ChatSegment(ChatSegmentKind.Text) { Text = Text, Status = status });
+            MarkFinalContent();
+        }
+        IsProcessExpanded = false;
+        OnPropertyChanged(nameof(ProcessStatus));
+        RefreshSegmentBindings();
+    }
+
+    private void FinishProcess(ChatSegmentStatus status, DateTime completedAt)
+    {
+        ProcessStatus = status;
+        OnPropertyChanged(nameof(ProcessStatus));
+        if (CompletedAt.HasValue) return;
+        IsStreaming = false;
+        MarkCompletedAt(completedAt);
+        if (status == ChatSegmentStatus.Completed && HasFinalContent)
+        {
+            IsProcessExpanded = false;
+            foreach (var segment in Segments) segment.IsExpanded = false;
+        }
+    }
 
     /// <summary>将真实 Agent 事件投影为有序内容；工具结果仅回填对应调用。</summary>
     public void ApplyActivity(AgentEvent activity)
     {
         switch (activity.Kind)
         {
+            case AgentEventKind.SessionStarted:
+                Timestamp = activity.Timestamp.LocalDateTime;
+                IsStreaming = true;
+                RefreshElapsed(Timestamp);
+                break;
             case AgentEventKind.StepStarted:
                 CompleteActiveSegment();
+                _stepStartIndex = Segments.Count;
                 _hasStepDeltas = false;
                 break;
             case AgentEventKind.TextDelta:
@@ -83,8 +169,14 @@ public class ChatMessage : INotifyPropertyChanged
                     _hasStepDeltas = true;
                 }
                 foreach(var call in activity.Message!.ToolCalls)
-                    GetToolSegment(call.Id, call.Name).Detail = "参数：" + ToolCallProjection.EnsureSafe(call).ArgumentsJson;
+                    GetToolSegment(call.Id, call.Name).Detail = "参数：\n" + ChatSegment.FormatJson(ToolCallProjection.EnsureSafe(call).ArgumentsJson);
                 CompleteActiveSegment();
+                if (activity.Message.ToolCalls.Count == 0 && !activity.Message.Blocks.Any(block => block.Kind == ChatContentKind.ToolCall)
+                    && Segments.Skip(_stepStartIndex).Any(segment => segment.IsText && segment.HasText))
+                {
+                    MarkFinalContent();
+                    FinishProcess(ChatSegmentStatus.Completed, activity.Timestamp.LocalDateTime);
+                }
                 break;
             case AgentEventKind.ToolApprovalRequested:
                 GetToolSegment(activity.ToolCallId, activity.ToolName).Status = ChatSegmentStatus.WaitingForUser;
@@ -110,10 +202,10 @@ public class ChatMessage : INotifyPropertyChanged
                     if (segment.IsTool && !string.IsNullOrEmpty(activity.Detail)) segment.Detail = activity.Detail;
                 }
                 _activeSegment = null;
-                IsStreaming = false;
+                if (status == ChatSegmentStatus.Completed && !HasFinalContent) MarkFinalContent();
                 IsError = activity.Kind == AgentEventKind.TaskFailed;
                 if (IsError) OperationResultText = activity.Detail ?? string.Empty;
-                MarkCompletedAt(activity.Timestamp.LocalDateTime);
+                FinishProcess(status, activity.Timestamp.LocalDateTime);
                 break;
         }
     }
@@ -123,7 +215,7 @@ public class ChatMessage : INotifyPropertyChanged
         if (_activeSegment is null || _activeSegment.Kind != kind || _activeSegment.IsSummary != isSummary)
         {
             CompleteActiveSegment();
-            _activeSegment = new ChatSegment(kind) { IsSummary = isSummary };
+            _activeSegment = new ChatSegment(kind) { IsSummary = isSummary, IsExpanded = kind == ChatSegmentKind.Thinking };
             Segments.Add(_activeSegment);
         }
         _activeSegment.Text += text;
@@ -185,7 +277,11 @@ public class ChatMessage : INotifyPropertyChanged
         }
     }
 
-    public DateTime Timestamp { get; set; }
+    public DateTime Timestamp
+    {
+        get => _timestamp;
+        set { _timestamp = value; OnPropertyChanged(); OnPropertyChanged(nameof(DisplayTime)); OnPropertyChanged(nameof(FullTime)); }
+    }
 
     public string OperationStatusText
     {
@@ -224,6 +320,8 @@ public class ChatMessage : INotifyPropertyChanged
             _isStreaming = value;
             IsThinkingExpanded = value && HasThinking;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(HasDuration));
+            OnPropertyChanged(nameof(HasProcess));
         }
     }
 
@@ -258,8 +356,12 @@ public class ChatMessage : INotifyPropertyChanged
 
     public void MarkCompletedAt(DateTime completedAt)
     {
-        Timestamp = completedAt;
+        if (CompletedAt.HasValue) return;
+        CompletedAt = completedAt;
         CompletedAtText = completedAt.ToString("HH:mm", CultureInfo.CurrentCulture);
+        RefreshElapsed();
+        OnPropertyChanged(nameof(CompletedAt));
+        OnPropertyChanged(nameof(HasDuration));
     }
     private void OnPropertyChanged([CallerMemberName] string? name = null)
     {

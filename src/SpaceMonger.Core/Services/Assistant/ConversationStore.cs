@@ -14,26 +14,33 @@ public sealed record ConversationSummary(string Id, string Title, DateTimeOffset
 }
 
 public sealed record SavedChatSegment(ChatSegmentKind Kind, string Text, string? Detail, string? ToolName,
-    string? ToolCallId, ChatSegmentStatus Status, bool IsSummary);
+    string? ToolCallId, ChatSegmentStatus Status, bool IsSummary, bool IsFinal = false);
 
 /// <summary>只保存展示数据，不序列化磁盘对象、交互确认或凭据配置。</summary>
 public sealed record SavedChatMessage(Guid Id, ChatSender Sender, string Text, string Thinking, DateTime Timestamp,
-    string CompletedAtText, bool IsError, IReadOnlyList<SavedChatSegment> Segments)
+    string CompletedAtText, bool IsError, IReadOnlyList<SavedChatSegment> Segments,
+    DateTime? CompletedAt = null, ChatSegmentStatus? ProcessStatus = null)
 {
     public static SavedChatMessage Capture(Message message) => new(message.Id, message.Sender, message.Text,
         message.Thinking, message.Timestamp, message.CompletedAtText, message.IsError,
         message.Segments.Select(segment => new SavedChatSegment(segment.Kind, segment.Text, segment.Detail,
-            segment.ToolName, segment.ToolCallId, segment.Status, segment.IsSummary)).ToArray());
+            segment.ToolName, segment.ToolCallId, segment.Status, segment.IsSummary, segment.IsFinal)).ToArray(),
+        message.CompletedAt, message.ProcessStatus);
 
-    public Message Restore()
+    public Message Restore(ChatSegmentStatus? sessionStatus = null)
     {
         var message = new Message { Id = Id, Sender = Sender, Text = Text, Thinking = Thinking,
             Timestamp = Timestamp, CompletedAtText = CompletedAtText, IsError = IsError };
         foreach (var segment in Segments)
             message.Segments.Add(new ChatSegment(segment.Kind) { Text = segment.Text, Detail = segment.Detail,
-                ToolName = segment.ToolName, ToolCallId = segment.ToolCallId, IsSummary = segment.IsSummary,
+                ToolName = segment.ToolName, ToolCallId = segment.ToolCallId, IsSummary = segment.IsSummary, IsFinal = segment.IsFinal,
                 Status = segment.Status is ChatSegmentStatus.Running or ChatSegmentStatus.WaitingForUser
                     ? ChatSegmentStatus.Cancelled : segment.Status });
+        var status = ProcessStatus ?? (IsError ? ChatSegmentStatus.Failed
+            : sessionStatus ?? (message.Segments.Any(segment => segment.Status == ChatSegmentStatus.Cancelled)
+                ? ChatSegmentStatus.Cancelled : ChatSegmentStatus.Completed));
+        message.RestoreCompletion(CompletedAt, status is ChatSegmentStatus.Running or ChatSegmentStatus.WaitingForUser
+            ? ChatSegmentStatus.Cancelled : status);
         return message;
     }
 }

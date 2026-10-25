@@ -2,8 +2,6 @@ using SpaceMonger.App.Localization;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -24,8 +22,12 @@ public partial class ChatPanel : UserControl
     private bool followTail = true;
     private bool holdReading;
     private bool scrollQueued;
+    private readonly DispatcherTimer elapsedTimer = new(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
     public event Action? OpenSettingsRequested;
-    public ChatPanel() { InitializeComponent(); if(App.Services?.GetService(typeof(SpaceMonger.App.Services.ThemeManager)) is SpaceMonger.App.Services.ThemeManager manager) manager.ThemeChanged += RefreshMarkdownViews; L.LanguageChanged += ()=> { _=Dispatcher.InvokeAsync(()=> { var offset=MessagesScrollViewer.VerticalOffset; MessagesItemsControl.Items.Refresh(); if(!followTail)MessagesScrollViewer.ScrollToVerticalOffset(offset); }); }; }
+    public ChatPanel() { InitializeComponent();
+        elapsedTimer.Tick += (_, _) => { foreach (var message in observedMessages.Where(message => message.IsStreaming)) message.RefreshElapsed(); };
+        Loaded += (_, _) => { if (viewModel is not null) { viewModel.Messages.CollectionChanged -= MessagesChanged; viewModel.Messages.CollectionChanged += MessagesChanged; foreach (var message in viewModel.Messages) Attach(message); } elapsedTimer.Start(); QueueScroll(); };
+        Unloaded += (_, _) => { elapsedTimer.Stop(); if (viewModel is not null) viewModel.Messages.CollectionChanged -= MessagesChanged; foreach (var message in observedMessages.ToArray()) Detach(message); }; if(App.Services?.GetService(typeof(SpaceMonger.App.Services.ThemeManager)) is SpaceMonger.App.Services.ThemeManager manager) manager.ThemeChanged += RefreshMarkdownViews; L.LanguageChanged += ()=> { _=Dispatcher.InvokeAsync(()=> { var offset=MessagesScrollViewer.VerticalOffset; MessagesItemsControl.Items.Refresh(); if(!followTail)MessagesScrollViewer.ScrollToVerticalOffset(offset); }); }; }
     private void RefreshMarkdownViews()
     {
         var pending=new Stack<DependencyObject>();pending.Push(this);
@@ -76,16 +78,28 @@ public partial class ChatPanel : UserControl
     private void MessageChanged(object? sender, PropertyChangedEventArgs e) => QueueScroll();
     private void QueueScroll()
     {
-        if(scrollQueued) return; scrollQueued=true;
-        _=Dispatcher.InvokeAsync(()=> { scrollQueued=false; if(followTail) MessagesScrollViewer.ScrollToEnd(); JumpButton.Visibility=!followTail && viewModel?.HasMessages==true?Visibility.Visible:Visibility.Collapsed; }, DispatcherPriority.Background);
+        if(scrollQueued || !IsLoaded) return; scrollQueued=true;
+        _=Dispatcher.InvokeAsync(()=> { scrollQueued=false; if(followTail) MessagesScrollViewer.ScrollToEnd(); JumpButton.Visibility=!followTail && MessagesScrollViewer.ScrollableHeight > 24 && viewModel?.HasMessages==true?Visibility.Visible:Visibility.Collapsed; }, DispatcherPriority.Background);
     }
     private void Messages_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
+        if (!ReferenceEquals(e.OriginalSource, MessagesScrollViewer)) return;
         if(e.ExtentHeightChange==0 && e.ViewportHeightChange==0) followTail=MessagesScrollViewer.ScrollableHeight-MessagesScrollViewer.VerticalOffset<24;
         else if(followTail) QueueScroll();
-        JumpButton.Visibility=!followTail && viewModel?.HasMessages==true?Visibility.Visible:Visibility.Collapsed;
+        JumpButton.Visibility=!followTail && MessagesScrollViewer.ScrollableHeight > 24 && viewModel?.HasMessages==true?Visibility.Visible:Visibility.Collapsed;
     }
-    private void Process_ExpansionChanged(object sender,RoutedEventArgs e) { var offset=MessagesScrollViewer.VerticalOffset;holdReading=true;followTail=false;QueueScroll();_=Dispatcher.InvokeAsync(()=>MessagesScrollViewer.ScrollToVerticalOffset(offset),DispatcherPriority.Loaded); }
+    private void ProcessHeader_PreviewMouseDown(object sender, MouseButtonEventArgs e) { holdReading = true; followTail = false; }
+    private void ProcessHeader_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Space or Key.Return) { holdReading = true; followTail = false; }
+    }
+    private void Process_ExpansionChanged(object sender, RoutedEventArgs e)
+    {
+        if (!ReferenceEquals(sender, e.OriginalSource)) return;
+        if (!holdReading) { QueueScroll(); return; }
+        var offset = MessagesScrollViewer.VerticalOffset;
+        _ = Dispatcher.InvokeAsync(() => MessagesScrollViewer.ScrollToVerticalOffset(offset), DispatcherPriority.Loaded);
+    }
     private void Messages_PreviewMouseDown(object sender,MouseButtonEventArgs e)=>holdReading=false;
     private void Messages_PreviewMouseWheel(object sender,MouseWheelEventArgs e)=>holdReading=false;
     private void Submit_Click(object sender,RoutedEventArgs e) { if(viewModel?.IsOperationRunning!=true){holdReading=false;followTail=true;QueueScroll();} }
@@ -105,8 +119,8 @@ public partial class ChatPanel : UserControl
     }
     private void Copy_Click(object sender,RoutedEventArgs e)
     {
-        if(sender is FrameworkElement {DataContext:ChatMessage message} && !string.IsNullOrWhiteSpace(message.Text))
-            try { Clipboard.SetText(message.Text); } catch(System.Runtime.InteropServices.ExternalException) { }
+        if(sender is FrameworkElement {DataContext:ChatMessage message} && !string.IsNullOrWhiteSpace(message.CopyText))
+            try { Clipboard.SetText(message.CopyText); } catch(System.Runtime.InteropServices.ExternalException) { }
     }
     // 输入卡聚焦：整卡唯一描边换品牌色相（LoomX AccentBorderSoft 配方），不加重不放大。
     private void Input_GotFocus(object sender,RoutedEventArgs e) => InputCard.BorderBrush=TryFindResource("VP.BorderAccentSoftBrush") as Brush ?? InputCard.BorderBrush;
@@ -158,6 +172,15 @@ public sealed class ProcessLabelConverter : IValueConverter
     public object Convert(object value,Type targetType,object parameter,CultureInfo culture)
     {
         var key = value is ChatSegmentStatus status ? "CopilotStatus_" + status : "CopilotTool_" + value;
+        if (parameter is "process" && value is ChatSegmentStatus processStatus)
+            key = processStatus switch
+            {
+                ChatSegmentStatus.Running => "CopilotWorking",
+                ChatSegmentStatus.Completed => "CopilotCompleted",
+                ChatSegmentStatus.Failed => "CopilotFailed",
+                ChatSegmentStatus.Cancelled => "CopilotStopped",
+                _ => "CopilotWaiting"
+            };
         var label=L.Text(key); return label==key?value?.ToString()??"":label;
     }
     public object ConvertBack(object value,Type targetType,object parameter,CultureInfo culture)=>throw new NotSupportedException();
@@ -167,7 +190,47 @@ public sealed class JsonDetailConverter : IValueConverter
 {
     public object Convert(object value,Type targetType,object parameter,CultureInfo culture)
     {
-        var text=value as string??"";try {using var json=JsonDocument.Parse(text);return JsonSerializer.Serialize(json.RootElement,new JsonSerializerOptions{WriteIndented=true,Encoder=JavaScriptEncoder.UnsafeRelaxedJsonEscaping});}catch(JsonException){return text;}
+        return ChatSegment.FormatJson(value as string ?? "");
     }
     public object ConvertBack(object value,Type targetType,object parameter,CultureInfo culture)=>throw new NotSupportedException();
+}
+
+
+/// <summary>底部跟随新增思考；上翻阅读时保留位置，到达边界后将滚轮交给外层消息区。</summary>
+public sealed class ThinkingScrollViewer : ScrollViewer
+{
+    private bool followTail = true;
+
+    public ThinkingScrollViewer() => Loaded += (_, _) => { if (followTail) ScrollToEnd(); };
+
+    protected override void OnScrollChanged(ScrollChangedEventArgs e)
+    {
+        base.OnScrollChanged(e);
+        if (!ReferenceEquals(e.OriginalSource, this)) return;
+        if (e.ExtentHeightChange != 0 || e.ViewportHeightChange != 0)
+        {
+            if (followTail) _ = Dispatcher.InvokeAsync(() => ScrollToEnd(), DispatcherPriority.Loaded);
+        }
+        else if (e.VerticalChange != 0)
+            followTail = ScrollableHeight - VerticalOffset < 16;
+    }
+
+    protected override void OnPreviewMouseWheel(MouseWheelEventArgs e)
+    {
+        if (e.Delta > 0 ? VerticalOffset > 0 : VerticalOffset < ScrollableHeight)
+        {
+            followTail = e.Delta < 0 && ScrollableHeight - (VerticalOffset - e.Delta) < 16;
+            ScrollToVerticalOffset(VerticalOffset - e.Delta);
+            e.Handled = true;
+            return;
+        }
+        for (var parent = VisualTreeHelper.GetParent(this); parent is not null; parent = VisualTreeHelper.GetParent(parent))
+            if (parent is ScrollViewer scroll)
+            {
+                scroll.ScrollToVerticalOffset(scroll.VerticalOffset - e.Delta);
+                e.Handled = true;
+                return;
+            }
+        base.OnPreviewMouseWheel(e);
+    }
 }

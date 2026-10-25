@@ -180,7 +180,7 @@ public partial class ChatViewModel : ObservableObject
     {
         if (activity.Kind == AgentEventKind.SessionStarted)
         {
-            displayMessage = new Message { Sender = ChatSender.Assistant, IsStreaming = true, Timestamp = DateTime.Now };
+            displayMessage = new Message { Sender = ChatSender.Assistant, IsStreaming = true, Timestamp = activity.Timestamp.LocalDateTime };
             Messages.Add(displayMessage); ModelDisplayName = assistant.ActiveModel ?? ModelDisplayName; IsOperationRunning = true; ErrorMessage = null; StatusText = L.Text("CopilotWorking");
         }
         displayMessage?.ApplyActivity(activity);
@@ -190,7 +190,7 @@ public partial class ChatViewModel : ObservableObject
             StatusText = activity.Kind switch { AgentEventKind.TaskCompleted => L.Text("CopilotCompleted"), AgentEventKind.TaskCancelled => L.Text("CopilotStopped"), _ => L.Text("CopilotFailed") };
             if(activity.Kind == AgentEventKind.TaskFailed) ErrorMessage = activity.Detail ?? "任务未完成，请稍后重试。";
             IsOperationRunning = false; PendingInteractionCard = null;
-            displayMessage?.MarkCompletedAt(DateTime.Now); displayMessage = null;
+            displayMessage = null;
         }
         if (activity.Kind == AgentEventKind.MessageCompleted) SaveCurrentConversation();
     }

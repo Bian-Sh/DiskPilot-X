@@ -1,3 +1,7 @@
+using System.Globalization;
+using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
@@ -26,6 +30,7 @@ public sealed class ChatSegment(ChatSegmentKind kind) : INotifyPropertyChanged
     public bool HasText => !string.IsNullOrWhiteSpace(Text);
     public bool HasDetail => !string.IsNullOrWhiteSpace(Detail);
     public bool IsSummary { get; set; }
+    public bool IsFinal { get; set; }
 
     public string Text
     {
@@ -65,6 +70,51 @@ public sealed class ChatSegment(ChatSegmentKind kind) : INotifyPropertyChanged
             var line = (reader.ReadLine() ?? string.Empty).Trim().Trim('*', '#', ' ');
             return line.Length <= 96 ? line : line[..96] + "…";
         }
+    }
+
+    /// <summary>只格式化已脱敏的展示数据，保留路径与字符串的 JSON 语义。</summary>
+    public static string FormatJson(string text)
+    {
+        try
+        {
+            using var json = JsonDocument.Parse(text);
+            var formatted = JsonSerializer.Serialize(json.RootElement, new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
+            return ReadableSurrogates(formatted);
+        }
+        catch (JsonException) { return text; }
+    }
+
+    // JSON 编码器仍会转义非 BMP 字符；只还原有效代理对，跳过已转义的反斜杠和控制字符。
+    private static string ReadableSurrogates(string json)
+    {
+        var readable = new StringBuilder(json.Length);
+        for (var i = 0; i < json.Length; i++)
+        {
+            if (json[i] == '\\' && i + 1 < json.Length)
+            {
+                if (json[i + 1] == '\\')
+                {
+                    readable.Append(json, i, 2);
+                    i++;
+                    continue;
+                }
+                if (i + 11 < json.Length && json[i + 1] == 'u' && json[i + 6] == '\\' && json[i + 7] == 'u'
+                    && ushort.TryParse(json.AsSpan(i + 2, 4), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var high)
+                    && ushort.TryParse(json.AsSpan(i + 8, 4), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var low)
+                    && char.IsHighSurrogate((char)high) && char.IsLowSurrogate((char)low))
+                {
+                    readable.Append((char)high).Append((char)low);
+                    i += 11;
+                    continue;
+                }
+            }
+            readable.Append(json[i]);
+        }
+        return readable.ToString();
     }
 
     private void Notify([CallerMemberName] string? name = null) =>

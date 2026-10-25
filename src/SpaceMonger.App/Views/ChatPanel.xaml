@@ -6,9 +6,32 @@
       <Setter Property="Foreground" Value="{DynamicResource VP.TextSecondaryBrush}"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="7,4"/><Setter Property="Cursor" Value="Hand"/>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="{DynamicResource QuietButtonCornerRadius}" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
     </Style>
+    <Style x:Key="SuggestionPill" TargetType="Button">
+      <Setter Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}"/>
+      <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderLightBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Padding" Value="16,10"/>
+      <Setter Property="Margin" Value="0,0,0,9"/>
+      <Setter Property="HorizontalAlignment" Value="Left"/>
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+        <Border x:Name="Pill" CornerRadius="22" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+          <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" RecognizesAccessKey="True"/>
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Pill" Property="Background" Value="{DynamicResource VP.SurfaceActiveBrush}"/><Setter TargetName="Pill" Property="BorderBrush" Value="{DynamicResource VP.BorderAccentSoftBrush}"/></Trigger>
+          <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Pill" Property="BorderBrush" Value="{DynamicResource VP.AccentBrush}"/></Trigger>
+          <Trigger Property="IsPressed" Value="True"><Setter TargetName="Pill" Property="Background" Value="{DynamicResource VP.AccentBrush}"/><Setter Property="Foreground" Value="White"/></Trigger>
+          <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
     <Style TargetType="Expander">
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Expander"><StackPanel>
-        <ToggleButton x:Name="HeaderSite" IsChecked="{Binding IsExpanded,RelativeSource={RelativeSource TemplatedParent},Mode=TwoWay}" Content="{TemplateBinding Header}" Foreground="{TemplateBinding Foreground}" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch" Padding="0" Cursor="Hand">
+        <ToggleButton PreviewMouseDown="ProcessHeader_PreviewMouseDown" PreviewKeyDown="ProcessHeader_PreviewKeyDown" x:Name="HeaderSite" IsChecked="{Binding IsExpanded,RelativeSource={RelativeSource TemplatedParent},Mode=TwoWay}" Content="{TemplateBinding Header}" Foreground="{TemplateBinding Foreground}" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch" Padding="0" Cursor="Hand">
           <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Grid Background="Transparent"><Grid.ColumnDefinitions><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock x:Name="Arrow" Text="›" Foreground="{TemplateBinding Foreground}" FontSize="14" VerticalAlignment="Center" TextAlignment="Center"/><ContentPresenter Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center"/></Grid><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="Arrow" Property="Text" Value="⌄"/></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource VP.TextSecondaryBrush}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></ToggleButton.Template>
         </ToggleButton>
         <ContentPresenter x:Name="ProcessBody" ContentSource="Content" Visibility="Collapsed"/>
@@ -170,7 +193,7 @@
         <local:CopilotMarkdownView Markdown="{Binding Text}" Visibility="{Binding IsText,Converter={StaticResource BoolVis}}"/>
         <Expander Expanded="Process_ExpansionChanged" Collapsed="Process_ExpansionChanged" IsExpanded="{Binding IsExpanded,Mode=TwoWay}" Visibility="{Binding IsThinking,Converter={StaticResource BoolVis}}" Foreground="{DynamicResource VP.TextTertiaryBrush}" Margin="0,3,0,5" BorderThickness="0" Background="Transparent">
           <Expander.Header><TextBlock Text="{loc:Loc ThinkingLabel}" FontSize="12"/></Expander.Header>
-          <Border BorderBrush="{DynamicResource VP.BorderSubtleBrush}" BorderThickness="1,0,0,0" Margin="8,5,0,2" Padding="10,0,0,0"><TextBlock Text="{Binding Text}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource VP.TextSecondaryBrush}"/></Border>
+          <Border BorderBrush="{DynamicResource VP.BorderSubtleBrush}" BorderThickness="1,0,0,0" Margin="8,5,0,2" Padding="10,0,0,0"><local:ThinkingScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="思考内容"><TextBlock Text="{Binding Text}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource VP.TextSecondaryBrush}" Margin="0,0,8,0"/></local:ThinkingScrollViewer></Border>
         </Expander>
         <Expander Expanded="Process_ExpansionChanged" Collapsed="Process_ExpansionChanged" IsExpanded="{Binding IsExpanded,Mode=TwoWay}" Visibility="{Binding IsTool,Converter={StaticResource BoolVis}}" Foreground="{DynamicResource VP.TextTertiaryBrush}" Margin="0,2,0,3" BorderThickness="0" Background="Transparent">
           <Expander.Header><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding ToolName,Converter={StaticResource ProcessLabel}}" FontSize="12"/><TextBlock Text="{Binding Status,Converter={StaticResource ProcessLabel}}" FontSize="11" Margin="8,0,0,0" Opacity="0.8"/></StackPanel></Expander.Header>
@@ -228,8 +251,17 @@
           <ItemsControl x:Name="MessagesItemsControl" ItemsSource="{Binding Messages}" HorizontalContentAlignment="Stretch"><ItemsControl.ItemTemplate><DataTemplate>
             <StackPanel Margin="0,5,0,10">
               <Border Padding="12,9" CornerRadius="{DynamicResource VP.CardCornerRadius}" Background="{DynamicResource VP.SurfaceHoverBrush}" HorizontalAlignment="Right" Margin="20,0,0,0"><Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Sender}" Value="{x:Static enums:ChatSender.User}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style><TextBlock Text="{Binding Text}" FontSize="13" TextWrapping="Wrap" Foreground="{DynamicResource VP.TextPrimaryBrush}"/></Border>
-              <StackPanel><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding Sender}" Value="{x:Static enums:ChatSender.User}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></StackPanel.Style><ItemsControl ItemsSource="{Binding Segments}"/><ItemsControl ItemsSource="{Binding SkillTasks}"><ItemsControl.ItemTemplate><DataTemplate><Border Background="{DynamicResource VP.SurfaceBrush}" BorderBrush="{DynamicResource VP.BorderLightBrush}" BorderThickness="1" CornerRadius="{DynamicResource VP.CardCornerRadius}" Padding="12" Margin="0,8,0,3"><StackPanel><TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="{DynamicResource VP.TextPrimaryBrush}"/><TextBlock Text="{Binding Summary}" TextWrapping="Wrap" FontSize="12" Margin="0,6,0,10" Foreground="{DynamicResource VP.TextSecondaryBrush}"/><Button Content="打开任务面板" Click="OpenSkillTask_Click" Style="{StaticResource QuietButton}" HorizontalAlignment="Left"/></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl><TextBlock Text="{Binding OperationResultText}" Visibility="{Binding HasOperationResult,Converter={StaticResource BoolVis}}" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource VP.DangerBrush}" Margin="0,5,0,0"/></StackPanel>
-              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,3,0,0"><TextBlock Text="{Binding CompletedAtText}" FontSize="10" Foreground="{DynamicResource VP.TextTertiaryBrush}" VerticalAlignment="Center"/><Button Content="{loc:Loc CopilotCopy}" Click="Copy_Click" Style="{StaticResource QuietButton}" FontSize="10" ToolTip="{loc:Loc CopyMessageToolTip}"/></StackPanel>
+              <StackPanel><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding Sender}" Value="{x:Static enums:ChatSender.User}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></StackPanel.Style><Expander IsExpanded="{Binding IsProcessExpanded,Mode=TwoWay}" Visibility="{Binding HasProcess,Converter={StaticResource BoolVis}}" Expanded="Process_ExpansionChanged" Collapsed="Process_ExpansionChanged" Margin="0,2,0,8" Foreground="{DynamicResource VP.TextTertiaryBrush}" AutomationProperties.Name="执行过程">
+                  <Expander.Header><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding ProcessStatus,Converter={StaticResource ProcessLabel},ConverterParameter=process}" FontSize="12"/><TextBlock Text="{Binding DurationText}" FontSize="11" Margin="7,0,0,0" VerticalAlignment="Center"/></StackPanel></Expander.Header>
+                  <ItemsControl ItemsSource="{Binding ProcessSegments}" Margin="10,5,0,0"/>
+                </Expander><ItemsControl ItemsSource="{Binding FinalSegments}"/><ItemsControl ItemsSource="{Binding SkillTasks}"><ItemsControl.ItemTemplate><DataTemplate><Border Background="{DynamicResource VP.SurfaceBrush}" BorderBrush="{DynamicResource VP.BorderLightBrush}" BorderThickness="1" CornerRadius="{DynamicResource VP.CardCornerRadius}" Padding="12" Margin="0,8,0,3"><StackPanel><TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="{DynamicResource VP.TextPrimaryBrush}"/><TextBlock Text="{Binding Summary}" TextWrapping="Wrap" FontSize="12" Margin="0,6,0,10" Foreground="{DynamicResource VP.TextSecondaryBrush}"/><Button Content="打开任务面板" Click="OpenSkillTask_Click" Style="{StaticResource QuietButton}" HorizontalAlignment="Left"/></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl><TextBlock Text="{Binding OperationResultText}" Visibility="{Binding HasOperationResult,Converter={StaticResource BoolVis}}" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource VP.DangerBrush}" Margin="0,5,0,0"/></StackPanel>
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,3,0,0">
+                <TextBlock Text="{Binding DurationText}" Visibility="{Binding HasDuration,Converter={StaticResource BoolVis}}" ToolTip="{Binding CompletedAt,StringFormat=yyyy-MM-dd HH:mm:ss}" FontSize="10" Foreground="{DynamicResource VP.TextTertiaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBlock Text="{Binding DisplayTime}" ToolTip="{Binding FullTime}" FontSize="10" Foreground="{DynamicResource VP.TextTertiaryBrush}" VerticalAlignment="Center"/>
+                <Button Click="Copy_Click" Style="{StaticResource QuietButton}" ToolTip="{loc:Loc CopyMessageToolTip}" AutomationProperties.Name="{loc:Loc CopilotCopy}" Width="28" Height="26" Margin="4,0,0,0" Padding="6">
+                  <Path Data="M 8,7 H 19 V 21 H 8 Z M 5,17 H 4 V 3 H 15 V 7" Width="13" Height="14" Stretch="Uniform" Stroke="{Binding Foreground,RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" StrokeLineJoin="Round"/>
+                </Button>
+              </StackPanel>
             </StackPanel>
           </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
         </ScrollViewer>
@@ -238,14 +270,14 @@
           <StackPanel VerticalAlignment="Center">
             <TextBlock Text="从一个小问题开始" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource VP.TextPrimaryBrush}" Margin="0,12,0,8"/>
             <TextBlock Text="检查空间，也可以教我清理一种新缓存。" FontSize="12" Foreground="{DynamicResource VP.TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,20"/>
-            <Button Content="＋  教我清理一种新缓存" Command="{Binding ExplorePromptCommand}" CommandParameter="@skill-creator 我想创建自定义清理规则，请通过提问了解我要清理的数据、需要保留的内容，并参考我提供的资料。" Style="{StaticResource QuietButton}" HorizontalContentAlignment="Left" Padding="10,11" AutomationProperties.Name="教我清理一种新缓存"/>
-            <Button Content="查看我的清理规则" Command="{Binding ExplorePromptCommand}" CommandParameter="请列出我现在可以使用的清理规则，区分内置规则和我自己创建的规则，告诉我如何使用。" Style="{StaticResource QuietButton}" HorizontalContentAlignment="Left" Padding="10,11"/>
-            <Button Content="哪些文件占用了空间？" Command="{Binding ExplorePromptCommand}" CommandParameter="帮我检查哪些文件占用了空间。请先让我选择扫描范围，再根据真实扫描结果分析。" Style="{StaticResource QuietButton}" HorizontalContentAlignment="Left" Padding="10,11"/>
+            <Button Content="＋  教我清理一种新缓存" Command="{Binding ExplorePromptCommand}" CommandParameter="@skill-creator 我想创建自定义清理规则，请通过提问了解我要清理的数据、需要保留的内容，并参考我提供的资料。" Style="{StaticResource SuggestionPill}" HorizontalContentAlignment="Left" AutomationProperties.Name="教我清理一种新缓存"/>
+            <Button Content="查看我的清理规则" Command="{Binding ExplorePromptCommand}" CommandParameter="请列出我现在可以使用的清理规则，区分内置规则和我自己创建的规则，告诉我如何使用。" Style="{StaticResource SuggestionPill}" HorizontalContentAlignment="Left"/>
+            <Button Content="哪些文件占用了空间？" Command="{Binding ExplorePromptCommand}" CommandParameter="帮我检查哪些文件占用了空间。请先让我选择扫描范围，再根据真实扫描结果分析。" Style="{StaticResource SuggestionPill}" HorizontalContentAlignment="Left"/>
             <TextBlock Text="试试已有规则" FontSize="11" Foreground="{DynamicResource VP.TextTertiaryBrush}" Margin="10,22,0,8"/>
             <ScrollViewer MaxHeight="190" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
               <ItemsControl ItemsSource="{Binding CleanupRules}"><ItemsControl.ItemTemplate><DataTemplate>
-                <Button Command="{Binding DataContext.ExplorePromptCommand,RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Prompt}" Style="{StaticResource QuietButton}" HorizontalContentAlignment="Stretch" Padding="10,11" ToolTip="{Binding Description}" AutomationProperties.Name="{Binding Title}">
-                  <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Title}" TextWrapping="Wrap" Foreground="{DynamicResource VP.TextPrimaryBrush}"/><TextBlock Grid.Column="1" Text="→" Margin="8,0,0,0" Foreground="{DynamicResource VP.TextTertiaryBrush}"/></Grid>
+                <Button Command="{Binding DataContext.ExplorePromptCommand,RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Prompt}" Style="{StaticResource SuggestionPill}" HorizontalContentAlignment="Stretch" ToolTip="{Binding Description}" AutomationProperties.Name="{Binding Title}">
+                  <Grid MinWidth="190"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Title}" TextWrapping="Wrap" Foreground="{Binding Foreground,RelativeSource={RelativeSource AncestorType=Button}}"/><TextBlock Grid.Column="1" Text="→" Margin="8,0,0,0" Foreground="{DynamicResource VP.TextTertiaryBrush}"/></Grid>
                 </Button>
               </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
             </ScrollViewer>

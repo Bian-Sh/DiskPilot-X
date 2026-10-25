@@ -1,3 +1,4 @@
+using SpaceMonger.Core.Enums;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -102,7 +103,17 @@ public sealed class DiskAssistantService
         restored.ApplySystemPrompt(SystemPrompt, 32);
         restored.RepairDanglingToolCalls("{\"cancelled\":true,\"reason\":\"上次运行已中断\"}");
         restored.RestoreState(snapshot.State);
-        var messages = snapshot.Messages.Select(message => message.Restore()).ToArray();
+        // 旧记录只有会话终态；仅补齐最后助手，避免将之前成功的轮次一起标为取消。
+        var lastAssistant = snapshot.Messages.ToList().FindLastIndex(message => message.Sender == ChatSender.Assistant);
+        if (snapshot.Messages.Skip(lastAssistant + 1).Any(message => message.Sender == ChatSender.User)) lastAssistant = -1;
+        var sessionStatus = snapshot.State switch
+        {
+            AgentSessionState.Completed => ChatSegmentStatus.Completed,
+            AgentSessionState.Failed => ChatSegmentStatus.Failed,
+            _ => ChatSegmentStatus.Cancelled
+        };
+        var messages = snapshot.Messages.Select((message, index) =>
+            message.Restore(index == lastAssistant ? sessionStatus : null)).ToArray();
         session = restored;
         currentConversationId = snapshot.Id;
         conversationPrivacySignature = snapshot.PrivacySignature;
