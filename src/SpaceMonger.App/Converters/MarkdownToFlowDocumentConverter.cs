@@ -8,6 +8,10 @@ using System.Windows.Media;
 using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
+using MdTable = Markdig.Extensions.Tables.Table;
+using MdTableRow = Markdig.Extensions.Tables.TableRow;
+using MdTableCell = Markdig.Extensions.Tables.TableCell;
+using MdTableColumnAlign = Markdig.Extensions.Tables.TableColumnAlign;
 using SpaceMonger.App.Helpers;
 
 namespace SpaceMonger.App.Converters;
@@ -31,13 +35,24 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
         throw new NotImplementedException();
     }
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Brush> FallbackBrushes = new();
+
+    /// <summary>查找主题画刷；Application 未初始化或资源缺失时回退到固定色，避免整条消息退化为纯文本。</summary>
+    private static Brush FindBrush(string key, Color fallback)
+        => Application.Current?.TryFindResource(key) as Brush
+           ?? FallbackBrushes.GetOrAdd(key, _ =>
+           {
+               var brush = new SolidColorBrush(fallback);
+               brush.Freeze();
+               return brush;
+           });
     private static FlowDocument ParseMarkdown(string markdown)
     {
         var document = new FlowDocument
         {
             FontFamily = new FontFamily("Segoe UI, Microsoft YaHei UI"),
             FontSize = 13,
-            Foreground = (Brush)Application.Current.FindResource("VP.TextPrimaryBrush"),
+            Foreground = FindBrush("VP.TextPrimaryBrush", Color.FromRgb(0xE8, 0xE8, 0xE8)),
         };
 
         try
@@ -96,7 +111,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
                         document.Blocks.Add(new BlockUIContainer(new Separator
         {
             Margin = new Thickness(0, 8, 0, 8),
-            Background = (Brush)Application.Current.FindResource("VP.BorderSubtleBrush")
+            Background = FindBrush("VP.BorderSubtleBrush", Color.FromRgb(0x44, 0x44, 0x44))
         }));
                         break;
 
@@ -107,6 +122,15 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
                             currentParagraph = new Paragraph();
                         }
                         document.Blocks.Add(CreateQuote(quote));
+                        break;
+
+                    case MdTable table:
+                        if (currentParagraph.Inlines.Count > 0)
+                        {
+                            document.Blocks.Add(currentParagraph);
+                            currentParagraph = new Paragraph();
+                        }
+                        document.Blocks.Add(CreateTable(table));
                         break;
                 }
             }
@@ -207,7 +231,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
 
                 case LinkInline link:
                     var linkSpan = new Span();
-                    linkSpan.Foreground = (Brush)Application.Current.FindResource("VP.AccentBrush");
+                    linkSpan.Foreground = FindBrush("VP.AccentBrush", Color.FromRgb(0x4D, 0x9F, 0xFF));
                     linkSpan.TextDecorations = TextDecorations.Underline;
                     linkSpan.Cursor = System.Windows.Input.Cursors.Hand;
                     AddInlines(linkSpan, link);
@@ -254,7 +278,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
 
                 case LinkInline link:
                     var linkSpan = new Span();
-                    linkSpan.Foreground = (Brush)Application.Current.FindResource("VP.AccentBrush");
+                    linkSpan.Foreground = FindBrush("VP.AccentBrush", Color.FromRgb(0x4D, 0x9F, 0xFF));
                     linkSpan.TextDecorations = TextDecorations.Underline;
                     linkSpan.Cursor = System.Windows.Input.Cursors.Hand;
                     AddInlines(linkSpan, link);
@@ -276,7 +300,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
     {
         var border = new Border
         {
-            Background = (Brush)Application.Current.FindResource("VP.SurfaceHoverBrush"),
+            Background = FindBrush("VP.SurfaceHoverBrush", Color.FromRgb(0x2A, 0x2A, 0x2A)),
             CornerRadius = new CornerRadius(3),
             Padding = new Thickness(4, 2, 4, 2),
             Child = new TextBlock
@@ -284,7 +308,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
                 Text = code.Content,
                 FontFamily = new FontFamily("Cascadia Code, SF Mono, Menlo, Consolas, monospace"),
                 FontSize = 12,
-                Foreground = (Brush)Application.Current.FindResource("VP.TextPrimaryBrush"),
+                Foreground = FindBrush("VP.TextPrimaryBrush", Color.FromRgb(0xE8, 0xE8, 0xE8)),
             }
         };
 
@@ -302,10 +326,10 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
 
         var container = new Border
         {
-            Background = (Brush)Application.Current.FindResource("VP.SurfaceBrush"),
+            Background = FindBrush("VP.SurfaceBrush", Color.FromRgb(0x1E, 0x1E, 0x1E)),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(12, 8, 12, 8),
-            BorderBrush = (Brush)Application.Current.FindResource("VP.BorderSubtleBrush"),
+            BorderBrush = FindBrush("VP.BorderSubtleBrush", Color.FromRgb(0x44, 0x44, 0x44)),
             BorderThickness = new Thickness(1),
         };
 
@@ -314,7 +338,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
             Text = code,
             FontFamily = new FontFamily("Cascadia Code, SF Mono, Menlo, Consolas, monospace"),
             FontSize = 12.5,
-            Foreground = (Brush)Application.Current.FindResource("VP.TextPrimaryBrush"),
+            Foreground = FindBrush("VP.TextPrimaryBrush", Color.FromRgb(0xE8, 0xE8, 0xE8)),
             TextWrapping = TextWrapping.Wrap,
         };
 
@@ -324,6 +348,77 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
         return section;
     }
 
+    /// <summary>渲染 Markdown 管道表格为 FlowDocument 原生表格。</summary>
+    private static System.Windows.Documents.Table CreateTable(MdTable mdTable)
+    {
+        var borderBrush = FindBrush("VP.BorderSubtleBrush", Color.FromRgb(0x44, 0x44, 0x44));
+        var headerBrush = FindBrush("VP.SurfaceHoverBrush", Color.FromRgb(0x2A, 0x2A, 0x2A));
+
+        // Markdig 会为行尾竖线附加空列定义，列数以最宽数据行为准，兜底取分隔行声明
+        var columnCount = mdTable.OfType<MdTableRow>().Select(r => r.Count).DefaultIfEmpty(mdTable.ColumnDefinitions.Count).Max();
+
+        var table = new System.Windows.Documents.Table
+        {
+            CellSpacing = 0,
+            Margin = new Thickness(0, 6, 0, 10),
+        };
+        for (var i = 0; i < columnCount; i++) table.Columns.Add(new TableColumn());
+
+        var headerGroup = new TableRowGroup();
+        var bodyGroup = new TableRowGroup();
+
+        foreach (var rowBlock in mdTable)
+        {
+            if (rowBlock is not MdTableRow mdRow) continue;
+
+            var row = new TableRow();
+            for (var i = 0; i < mdRow.Count; i++)
+            {
+                if (mdRow[i] is not MdTableCell mdCell) continue;
+
+                var cell = new TableCell
+                {
+                    BorderBrush = borderBrush,
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(8, 4, 8, 4),
+                };
+
+                if (mdRow.IsHeader) cell.Background = headerBrush;
+
+                var alignment = i < mdTable.ColumnDefinitions.Count ? mdTable.ColumnDefinitions[i].Alignment : null;
+                cell.TextAlignment = alignment switch
+                {
+                    MdTableColumnAlign.Center => TextAlignment.Center,
+                    MdTableColumnAlign.Right => TextAlignment.Right,
+                    _ => TextAlignment.Left,
+                };
+
+                var hasContent = false;
+                foreach (var cellBlock in mdCell)
+                {
+                    if (cellBlock is not ParagraphBlock para) continue;
+
+                    // TableCell 默认自带一个空段落，填入内容前先移除
+                    if (!hasContent && cell.Blocks.FirstBlock is Paragraph empty && empty.Inlines.Count == 0)
+                        cell.Blocks.Remove(empty);
+
+                    var paragraph = new Paragraph { Margin = new Thickness(0) };
+                    if (mdRow.IsHeader) paragraph.FontWeight = FontWeights.SemiBold;
+                    if (para.Inline != null) AddInlinesToParagraph(paragraph, para.Inline);
+                    cell.Blocks.Add(paragraph);
+                    hasContent = true;
+                }
+
+                row.Cells.Add(cell);
+            }
+
+            (mdRow.IsHeader ? headerGroup : bodyGroup).Rows.Add(row);
+        }
+
+        if (headerGroup.Rows.Count > 0) table.RowGroups.Add(headerGroup);
+        if (bodyGroup.Rows.Count > 0) table.RowGroups.Add(bodyGroup);
+        return table;
+    }
     private static Section CreateList(ListBlock list)
     {
         var section = new Section
@@ -344,7 +439,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
                 var bullet = list.IsOrdered ? $"{++index}. " : "• ";
                 paragraph.Inlines.Add(new Run(bullet)
                 {
-                    Foreground = (Brush)Application.Current.FindResource("VP.TextSecondaryBrush"),
+                    Foreground = FindBrush("VP.TextSecondaryBrush", Color.FromRgb(0xA8, 0xA8, 0xA8)),
                 });
 
                 foreach (var subBlock in listItem)
@@ -369,7 +464,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
             Margin = new Thickness(12, 8, 0, 8),
             Padding = new Thickness(12, 0, 0, 0),
             BorderThickness = new Thickness(3, 0, 0, 0),
-            BorderBrush = (Brush)Application.Current.FindResource("VP.AccentBrush"),
+            BorderBrush = FindBrush("VP.AccentBrush", Color.FromRgb(0x4D, 0x9F, 0xFF)),
         };
 
         foreach (var block in quote)
@@ -378,7 +473,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
             {
                 var paragraph = new Paragraph
         {
-            Foreground = (Brush)Application.Current.FindResource("VP.TextSecondaryBrush"),
+            Foreground = FindBrush("VP.TextSecondaryBrush", Color.FromRgb(0xA8, 0xA8, 0xA8)),
             FontStyle = FontStyles.Italic,
         };
 
