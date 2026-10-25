@@ -9,7 +9,9 @@ namespace SpaceMonger.Core.Services.Assistant;
 public sealed record AssistantRunOptions(ModelEndpointConfig Endpoint,
     string Language = "zh-CN", IReadOnlyList<AiSkill>? Skills = null, string? FocusPath = null, bool IsAnalysis = false);
 
-public sealed record AssistantRunResult(string Text, AgentSessionState State, SpaceMonger.Core.Models.AnalysisResult? Analysis = null);
+/// <summary>FailureDetail 携带 Harness 的失败摘要（已脱敏），供分析入口直接展示失败原因。</summary>
+public sealed record AssistantRunResult(string Text, AgentSessionState State,
+    SpaceMonger.Core.Models.AnalysisResult? Analysis = null, string? FailureDetail = null);
 
 /// <summary>宿主的实时工作区连接；工具调用每次读取当前扫描，避免捕获过期视图。</summary>
 public sealed class AssistantWorkspace

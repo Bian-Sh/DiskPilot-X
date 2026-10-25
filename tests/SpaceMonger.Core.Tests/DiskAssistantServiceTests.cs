@@ -96,6 +96,30 @@ public class DiskAssistantServiceTests
         executions.Should().Be(0);
     }
 
+    [Fact]
+    public async Task ModelFailure_SurfacesDetailThroughAnalysisEngine()
+    {
+        var settings = Substitute.For<ISettingsService>(); settings.LoadSettings().Returns(new AppSettings());
+        var service = new DiskAssistantService(_ => new FailingClient(), [], new AssistantWorkspace(), settings);
+        var session = new ScanSession { TargetPath = @"D:\sandbox", RootEntry = new FileEntry { Path = @"D:\sandbox", IsDirectory = true } };
+        var engine = new HarnessRecommendationEngine(service);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            engine.AnalyzeWithDiagnosticsAsync(session, new ModelEndpointConfig { ApiKey = "key", Model = "test" }, "zh-CN", CancellationToken.None));
+        // 失败原因（FormatFailure 的友好摘要）必须出现在分析错误里，而不是只有笼统的"未发布有效结果"。
+        error.Message.Should().Contain("分析未发布有效结果：");
+        error.Message.Should().Contain("模型响应未能完成");
+    }
+
+    private sealed class FailingClient : IModelClient
+    {
+        public async IAsyncEnumerable<ModelStreamEvent> StreamAsync(ModelRequest request, [EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.Yield();
+            if (request.Messages.Count < 0) yield return new TextDeltaEvent("");
+            throw new ModelClientException("模型响应无效或流未完整结束。 [stream-end]", ModelErrorKind.Unknown);
+        }
+    }
+
     private sealed class ScriptedClient : IModelClient
     {
         public List<ModelRequest> Requests { get; } = [];

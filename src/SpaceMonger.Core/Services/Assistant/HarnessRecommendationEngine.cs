@@ -19,6 +19,9 @@ public sealed class HarnessRecommendationEngine(DiskAssistantService assistant) 
             new(resolved, responseLanguage ?? "zh-CN", FocusPath: focusEntry?.Path ?? session.RootEntry?.Path, IsAnalysis: true), null, ct);
         if (result.Analysis is { } published) return published;
         if (result.State == AgentSessionState.Cancelled) throw new OperationCanceledException("分析已停止。", ct);
+        // Harness 已判定失败时带上具体原因（如"模型响应未能完成"），避免只有一句无法行动的提示。
+        if (result.State == AgentSessionState.Failed && !string.IsNullOrWhiteSpace(result.FailureDetail))
+            throw new InvalidOperationException($"分析未发布有效结果：{result.FailureDetail}");
         throw new InvalidOperationException("分析未发布有效结果，请查看 Copilot 的运行状态后重试。");
     }
 }

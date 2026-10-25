@@ -50,7 +50,9 @@ public sealed class OpenAiModelClient : IModelClient
         cancellationToken.ThrowIfCancellationRequested();
         using var outgoing = CreateRequest(request);
         using var response = await SendAsync(outgoing, cancellationToken).ConfigureAwait(false);
-        await using var events = ReadEventsAsync(response, cancellationToken).GetAsyncEnumerator(cancellationToken);
+        // 协议故障现场：最近收到的原始帧/非流式响应体，仅在协议失败时落盘（见 LlmStreamDiagnostics）。
+        var tail = new StringBuilder();
+        await using var events = ReadEventsAsync(response, tail, cancellationToken).GetAsyncEnumerator(cancellationToken);
         while (true)
         {
             ModelStreamEvent current;
@@ -67,7 +69,9 @@ public sealed class OpenAiModelClient : IModelClient
             catch (IOException) { throw new ModelClientException("模型服务连接中断。", ModelErrorKind.ConnectionFailed); }
             catch (Exception error) when (error is JsonException or InvalidOperationException or ArgumentException or NotSupportedException or KeyNotFoundException or FormatException)
             {
-                throw ProtocolError();
+                // 帧 JSON/流解码失败：先落盘原始帧现场再按协议错误处理，避免只剩一句无法归因的报错。
+                LlmStreamDiagnostics.WriteDump("openai", endpointUri, model, $"stream-parse: {error.GetType().Name}", tail.ToString());
+                throw Fault("stream-parse", error.GetType().Name);
             }
             cancellationToken.ThrowIfCancellationRequested();
             yield return current;
@@ -135,7 +139,7 @@ public sealed class OpenAiModelClient : IModelClient
                     var toolCalls = new JsonArray();
                     foreach (var call in calls)
                     {
-                        if (string.IsNullOrWhiteSpace(call.Id) || string.IsNullOrWhiteSpace(call.Name)) throw ProtocolError();
+                        if (string.IsNullOrWhiteSpace(call.Id) || string.IsNullOrWhiteSpace(call.Name)) throw Fault("history-invalid-tool-call", null);
                         toolCalls.Add(new JsonObject
                         {
                             ["id"] = call.Id, ["type"] = "function",
@@ -147,12 +151,12 @@ public sealed class OpenAiModelClient : IModelClient
                     break;
                 }
                 case ChatRole.Tool:
-                    if (string.IsNullOrWhiteSpace(message.ToolCallId)) throw ProtocolError();
+                    if (string.IsNullOrWhiteSpace(message.ToolCallId)) throw Fault("history-empty-tool-call-id", null);
                     messages.Add(new JsonObject { ["role"] = "tool", ["tool_call_id"] = message.ToolCallId, ["content"] = message.Content ?? "" });
                     break;
             }
         }
-        if (messages.Count == 0) throw ProtocolError();
+        if (messages.Count == 0) throw Fault("history-empty-messages", null);
         var body = new JsonObject
         {
             ["model"] = model,
@@ -208,18 +212,18 @@ public sealed class OpenAiModelClient : IModelClient
                     if (!string.IsNullOrEmpty(text)) input.Add(MessageItem("assistant", "output_text", text));
                     foreach (var call in calls)
                     {
-                        if (string.IsNullOrWhiteSpace(call.Id) || string.IsNullOrWhiteSpace(call.Name)) throw ProtocolError();
+                        if (string.IsNullOrWhiteSpace(call.Id) || string.IsNullOrWhiteSpace(call.Name)) throw Fault("history-invalid-tool-call", null);
                         input.Add(new JsonObject { ["type"] = "function_call", ["call_id"] = call.Id, ["name"] = call.Name, ["arguments"] = ValidatedArguments(call) });
                     }
                     break;
                 }
                 case ChatRole.Tool:
-                    if (string.IsNullOrWhiteSpace(message.ToolCallId)) throw ProtocolError();
+                    if (string.IsNullOrWhiteSpace(message.ToolCallId)) throw Fault("history-empty-tool-call-id", null);
                     input.Add(new JsonObject { ["type"] = "function_call_output", ["call_id"] = message.ToolCallId, ["output"] = message.Content ?? "" });
                     break;
             }
         }
-        if (input.Count == 0) throw ProtocolError();
+        if (input.Count == 0) throw Fault("history-empty-messages", null);
         var body = new JsonObject
         {
             ["model"] = model,
@@ -263,7 +267,7 @@ public sealed class OpenAiModelClient : IModelClient
 
     private static string ValidatedArguments(ToolCall call)
     {
-        if (JsonNode.Parse(call.ArgumentsJson) is not JsonObject) throw ProtocolError();
+        if (JsonNode.Parse(call.ArgumentsJson) is not JsonObject) throw Fault("history-invalid-tool-arguments", call.Name);
         return call.ArgumentsJson;
     }
 
@@ -296,18 +300,26 @@ public sealed class OpenAiModelClient : IModelClient
         catch (IOException) { throw new ModelClientException("模型服务连接中断。", ModelErrorKind.ConnectionFailed); }
     }
 
-    private async IAsyncEnumerable<ModelStreamEvent> ReadEventsAsync(HttpResponseMessage response, [EnumeratorCancellation] CancellationToken cancellationToken)
+    private async IAsyncEnumerable<ModelStreamEvent> ReadEventsAsync(HttpResponseMessage response, StringBuilder tail, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        // 累积器内部协议故障：统一落盘现场并带站点标记。
+        ModelClientException Fail(string site, string? detail)
+        {
+            LlmStreamDiagnostics.WriteDump("openai", endpointUri, model, $"{site}: {detail}", tail.ToString());
+            return Fault(site, $"openai-stream/{site}: {detail}");
+        }
         var mediaType = response.Content.Headers.ContentType?.MediaType;
         if (string.Equals(mediaType, "application/json", StringComparison.OrdinalIgnoreCase))
         {
             // 中转站兼容：声明 stream 但直接返回完整 JSON。
-            foreach (var item in CompleteJson(await ReadBodyAsync(response, cancellationToken).ConfigureAwait(false))) yield return item;
+            var body = await ReadBodyAsync(response, cancellationToken).ConfigureAwait(false);
+            LlmStreamDiagnostics.Capture(tail, body);
+            foreach (var item in CompleteJson(body, tail)) yield return item;
             yield break;
         }
         using var reader = new StreamReader(await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false), new UTF8Encoding(false, true));
         var data = new StringBuilder();
-        Accumulator blocks = format == LlmApiFormat.OpenAiResponses ? new ResponsesAccumulator(encryptedReasoning) : new ChatCompletionsAccumulator();
+        Accumulator blocks = format == LlmApiFormat.OpenAiResponses ? new ResponsesAccumulator(encryptedReasoning, Fail) : new ChatCompletionsAccumulator(Fail);
         while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -328,11 +340,13 @@ public sealed class OpenAiModelClient : IModelClient
             if (data.Length == 0) continue;
             var payload = data.ToString();
             data.Clear();
+            // 解析前先留档：无论后续在哪一步失败，现场都包含这条原始帧。
+            LlmStreamDiagnostics.Capture(tail, payload);
             if (payload.StartsWith("[DONE]", StringComparison.Ordinal))
             {
                 foreach (var item in blocks.Finish()) yield return item;
                 // [DONE] 到达但从未收到完成原因：视为协议错误，避免假成功。
-                if (!blocks.Completed) throw ProtocolError();
+                if (!blocks.Completed) throw ProtocolFault(tail, "done-without-completion", $"format={format}");
                 yield break;
             }
             using var document = JsonDocument.Parse(payload);
@@ -340,7 +354,7 @@ public sealed class OpenAiModelClient : IModelClient
         }
         // 部分中转站省略 [DONE]：已收到完成原因时允许正常收尾，否则视为协议错误。
         foreach (var item in blocks.Finish()) yield return item;
-        if (!blocks.Completed) throw ProtocolError();
+        if (!blocks.Completed) throw ProtocolFault(tail, "stream-end-without-completion", $"format={format}");
     }
 
     private static async Task<string> ReadBodyAsync(HttpResponseMessage response, CancellationToken cancellationToken)
@@ -350,15 +364,15 @@ public sealed class OpenAiModelClient : IModelClient
         return await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private IEnumerable<ModelStreamEvent> CompleteJson(string body)
+    private IEnumerable<ModelStreamEvent> CompleteJson(string body, StringBuilder tail)
     {
         using var document = JsonDocument.Parse(body);
         var root = document.RootElement;
         if (format == LlmApiFormat.OpenAiChatCompletions)
         {
-            if (!root.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0) throw ProtocolError();
+            if (!root.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0) throw ProtocolFault(tail, "complete-json", "缺少 choices");
             var choice = choices[0];
-            var message = choice.TryGetProperty("message", out var value) && value.ValueKind == JsonValueKind.Object ? value : throw ProtocolError();
+            var message = choice.TryGetProperty("message", out var value) && value.ValueKind == JsonValueKind.Object ? value : throw ProtocolFault(tail, "complete-json", "缺少 message");
             if (message.TryGetProperty("reasoning_content", out var reasoning) && reasoning.ValueKind == JsonValueKind.String && reasoning.GetString() is { Length: > 0 } reasoningText)
                 yield return new ReasoningDeltaEvent(reasoningText);
             if (message.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.String && content.GetString() is { Length: > 0 } text)
@@ -367,16 +381,16 @@ public sealed class OpenAiModelClient : IModelClient
             if (message.TryGetProperty("tool_calls", out var calls) && calls.ValueKind == JsonValueKind.Array)
                 foreach (var call in calls.EnumerateArray())
                 {
-                    var function = call.TryGetProperty("function", out var fn) ? fn : throw ProtocolError();
+                    var function = call.TryGetProperty("function", out var fn) ? fn : throw ProtocolFault(tail, "complete-json", "tool_call 缺少 function");
                     var arguments = function.TryGetProperty("arguments", out var args) && args.ValueKind == JsonValueKind.String ? args.GetString()! : "{}";
-                    if (JsonNode.Parse(arguments) is not JsonObject) throw ProtocolError();
+                    if (JsonNode.Parse(arguments) is not JsonObject) throw ProtocolFault(tail, "complete-json", "工具参数不是 JSON 对象");
                     tools.Add(new ToolCall(call.GetProperty("id").GetString()!, function.GetProperty("name").GetString()!, arguments));
                 }
             foreach (var tool in tools) yield return new ModelToolCallEvent(tool);
             yield return new ModelCompletedEvent(tools.Count > 0 ? "tool_use" : "end_turn");
             yield break;
         }
-        if (!root.TryGetProperty("output", out var output) || output.ValueKind != JsonValueKind.Array) throw ProtocolError();
+        if (!root.TryGetProperty("output", out var output) || output.ValueKind != JsonValueKind.Array) throw ProtocolFault(tail, "complete-json", "缺少 output");
         var emittedTools = new List<ToolCall>();
         foreach (var item in output.EnumerateArray())
         {
@@ -394,7 +408,7 @@ public sealed class OpenAiModelClient : IModelClient
                 case "function_call":
                 {
                     var arguments = String(item, "arguments") ?? "{}";
-                    if (JsonNode.Parse(arguments) is not JsonObject) throw ProtocolError();
+                    if (JsonNode.Parse(arguments) is not JsonObject) throw ProtocolFault(tail, "complete-json", "工具参数不是 JSON 对象");
                     var call = new ToolCall(item.GetProperty("call_id").GetString()!, item.GetProperty("name").GetString()!, arguments);
                     emittedTools.Add(call);
                     yield return new ModelToolCallEvent(call);
@@ -413,19 +427,30 @@ public sealed class OpenAiModelClient : IModelClient
     }
 
     private string? Clean(string? value) => ModelErrorClassifier.SanitizeUpstreamMessage(value?.Replace(apiKey, "***", StringComparison.Ordinal));
-    private static ModelClientException ProtocolError() => new("模型响应无效或流未完整结束。", ModelErrorKind.Unknown);
+    // 请求构造期（尚无流）的协议错误：只带站点标记，便于日志归因。
+    private static ModelClientException Fault(string site, string? detail) =>
+        new($"模型响应无效或流未完整结束。 [{site}]", ModelErrorKind.Unknown,
+            upstreamMessage: ModelErrorClassifier.SanitizeUpstreamMessage(detail));
+    // 流内协议故障：先落盘最近原始帧现场，再抛带站点标记的协议错误。
+    private ModelClientException ProtocolFault(StringBuilder tail, string site, string? detail)
+    {
+        LlmStreamDiagnostics.WriteDump("openai", endpointUri, model, $"{site}: {detail}", tail.ToString());
+        return Fault(site, $"openai-stream/{site}: {detail}");
+    }
     private static string? String(JsonElement element, string name) => element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     /// <summary>两种线上格式共用的增量累积器：切片聚合 + 完成事件收尾。</summary>
-    private abstract class Accumulator
+    private abstract class Accumulator(Func<string, string?, Exception> fail)
     {
+        // 协议故障统一经由宿主传入的 Fail 构造：先落盘流现场，再生成带站点标记的异常。
+        protected readonly Func<string, string?, Exception> Fail = fail;
         public abstract IEnumerable<ModelStreamEvent> Handle(JsonElement frame);
         public abstract IEnumerable<ModelStreamEvent> Finish();
         public bool Completed { get; protected set; }
         protected static string? Str(JsonElement element, string name) => element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     }
 
-    private sealed class ChatCompletionsAccumulator : Accumulator
+    private sealed class ChatCompletionsAccumulator(Func<string, string?, Exception> fail) : Accumulator(fail)
     {
         private readonly SortedDictionary<int, FunctionBuilder> calls = [];
         private string? finishReason;
@@ -464,16 +489,18 @@ public sealed class OpenAiModelClient : IModelClient
             Completed = true;
             foreach (var builder in calls.Values)
             {
-                if (builder.Id.Length == 0 || builder.Name.Length == 0) throw ProtocolError();
+                if (builder.Id.Length == 0 || builder.Name.Length == 0)
+                    throw Fail("tool-call-finish", $"id={builder.Id.Length > 0}, name={builder.Name.Length > 0}");
                 var arguments = builder.Arguments.Length > 0 ? builder.Arguments.ToString() : "{}";
-                if (JsonNode.Parse(arguments) is not JsonObject) throw ProtocolError();
+                if (JsonNode.Parse(arguments) is not JsonObject)
+                    throw Fail("invalid-tool-arguments", $"tool={builder.Name}, bytes={builder.Arguments.Length}");
                 yield return new ModelToolCallEvent(new ToolCall(builder.Id.ToString(), builder.Name.ToString(), arguments));
             }
             yield return new ModelCompletedEvent(calls.Count > 0 ? "tool_use" : "end_turn");
         }
     }
 
-    private sealed class ResponsesAccumulator(ConcurrentDictionary<string, JsonArray> encryptedReasoning) : Accumulator
+    private sealed class ResponsesAccumulator(ConcurrentDictionary<string, JsonArray> encryptedReasoning, Func<string, string?, Exception> fail) : Accumulator(fail)
     {
         private readonly SortedDictionary<int, FunctionBuilder> calls = [];
         private readonly List<(string Id, string Encrypted)> reasoningItems = [];
@@ -519,10 +546,11 @@ public sealed class OpenAiModelClient : IModelClient
                         var index = frame.TryGetProperty("output_index", out var i) && i.ValueKind == JsonValueKind.Number ? i.GetInt32() : -1;
                         FunctionBuilder? builder = index >= 0 ? calls.GetValueOrDefault(index) : null;
                         if (builder is null && calls.Count == 1) builder = calls.Values.First();
-                        if (builder is null) throw ProtocolError();
+                        if (builder is null) throw Fail("tool-block-unknown-index", $"index={index}");
                         if (builder.Arguments.Length == 0 && Str(done, "arguments") is { } full && full.Length > 0) builder.Arguments.Append(full);
                         var arguments = builder.Arguments.Length > 0 ? builder.Arguments.ToString() : "{}";
-                        if (JsonNode.Parse(arguments) is not JsonObject || builder.Id.Length == 0 || builder.Name.Length == 0) throw ProtocolError();
+                        if (JsonNode.Parse(arguments) is not JsonObject || builder.Id.Length == 0 || builder.Name.Length == 0)
+                            throw Fail("tool-block-finish", $"index={index}, tool={builder.Name}, id={builder.Id.Length > 0}, bytes={builder.Arguments.Length}");
                         yield return new ModelToolCallEvent(new ToolCall(builder.Id.ToString(), builder.Name.ToString(), arguments));
                     }
                     else if (Str(done, "type") == "reasoning" && Str(done, "id") is { } id && Str(done, "encrypted_content") is { Length: > 0 } encrypted)
@@ -534,7 +562,7 @@ public sealed class OpenAiModelClient : IModelClient
                 case "response.completed":
                 case "response.incomplete":
                 {
-                    if (completed) throw ProtocolError();
+                    if (completed) throw Fail("duplicate-response-completed", type);
                     completed = true;
                     Completed = true;
                     // 记录本轮的加密思考，供下一次工具回合回传。
@@ -563,7 +591,8 @@ public sealed class OpenAiModelClient : IModelClient
         public override IEnumerable<ModelStreamEvent> Finish()
         {
             // [DONE] 到达或流结束时：response.completed 已处理则无事可做。
-            if (!completed && calls.Values.Any(builder => builder.Arguments.Length > 0)) throw ProtocolError();
+            if (!completed && calls.Values.Any(builder => builder.Arguments.Length > 0))
+                throw Fail("stream-end-unfinished-arguments", $"calls={calls.Count}");
             yield break;
         }
     }
