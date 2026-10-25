@@ -900,4 +900,8 @@
   <data name="CopilotTool_ask_user" xml:space="preserve"><value>Ask for input</value></data>
   <data name="CopilotTool_manage_disk_skills" xml:space="preserve"><value>Manage skills</value></data>
   <data name="CopilotTool_read_unity_registry_context" xml:space="preserve"><value>Inspect Unity environment</value></data>
+  <data name="CopilotConversationHistory" xml:space="preserve"><value>Conversation history</value></data>
+  <data name="CopilotNoConversationHistory" xml:space="preserve"><value>No conversations yet</value></data>
+  <data name="CopilotHistoryLoadFailed" xml:space="preserve"><value>Unable to load conversation history. Check the file or access permissions. The current conversation is kept.</value></data>
+  <data name="CopilotHistorySaveFailed" xml:space="preserve"><value>Unable to save the conversation. Check disk space or access permissions. The current conversation is not saved yet.</value></data>
 </root>

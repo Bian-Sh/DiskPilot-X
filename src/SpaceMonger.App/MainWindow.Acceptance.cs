@@ -44,7 +44,7 @@ public partial class MainWindow
             TreeView = TreeViewControl.GetAcceptanceState(),
             RecommendationsVisible = RecommendationsPanel.Visibility == Visibility.Visible,
             ConsoleVisible = ConsoleFrame.Visibility == Visibility.Visible,
-            Copilot = new { Busy = _chatViewModel?.IsOperationRunning, Status = _chatViewModel?.StatusText, Model = _chatViewModel?.ModelDisplayName, Width = ChatPanelColumn.ActualWidth, Pending = _chatViewModel?.PendingInteractionCard?.Title, MessageCount = _chatViewModel?.Messages.Count, LastMessage = _chatViewModel?.Messages.LastOrDefault()?.Text, SegmentCount = _chatViewModel?.Messages.LastOrDefault()?.Segments.Count },
+            Copilot = new { Busy = _chatViewModel?.IsOperationRunning, Status = _chatViewModel?.StatusText, Model = _chatViewModel?.ModelDisplayName, Width = ChatPanelColumn.ActualWidth, Pending = _chatViewModel?.PendingInteractionCard?.Title, MessageCount = _chatViewModel?.Messages.Count, HistoryOpen = _chatViewModel?.IsHistoryOpen, HistoryCount = _chatViewModel?.ConversationHistory.Count, ConversationId = _chatViewModel?.CurrentConversationId, LastMessage = _chatViewModel?.Messages.LastOrDefault()?.Text, SegmentCount = _chatViewModel?.Messages.LastOrDefault()?.Segments.Count },
             Recommendations = _recommendationsViewModel?.Recommendations.Select(r => new { r.Id, r.TargetPath, r.Size, r.IsAccepted }).ToArray(),
             ScanTotals = new { Files = mainVm?.CurrentSession?.TotalFiles, Folders = mainVm?.CurrentSession?.TotalFolders, Bytes = mainVm?.CurrentSession?.TotalSize },
 

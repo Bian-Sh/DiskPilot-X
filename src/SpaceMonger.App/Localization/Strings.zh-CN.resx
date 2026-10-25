@@ -897,4 +897,8 @@
   <data name="CopilotTool_ask_user" xml:space="preserve"><value>请求必要输入</value></data>
   <data name="CopilotTool_manage_disk_skills" xml:space="preserve"><value>管理磁盘技能</value></data>
   <data name="CopilotTool_read_unity_registry_context" xml:space="preserve"><value>核对 Unity 环境</value></data>
+  <data name="CopilotConversationHistory" xml:space="preserve"><value>历史对话</value></data>
+  <data name="CopilotNoConversationHistory" xml:space="preserve"><value>暂无历史对话</value></data>
+  <data name="CopilotHistoryLoadFailed" xml:space="preserve"><value>无法读取历史对话，请检查文件或访问权限。当前对话已保留。</value></data>
+  <data name="CopilotHistorySaveFailed" xml:space="preserve"><value>对话保存失败，请检查磁盘空间或访问权限。当前对话尚未保存。</value></data>
 </root>
