@@ -167,7 +167,20 @@ public sealed class JsonDetailConverter : IValueConverter
 {
     public object Convert(object value,Type targetType,object parameter,CultureInfo culture)
     {
-        var text=value as string??"";try {using var json=JsonDocument.Parse(text);return JsonSerializer.Serialize(json.RootElement,new JsonSerializerOptions{WriteIndented=true,Encoder=JavaScriptEncoder.UnsafeRelaxedJsonEscaping});}catch(JsonException){return text;}
+        var text = value as string ?? "";
+        try
+        {
+            using var json = JsonDocument.Parse(text);
+            var options = new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+            if (json.RootElement.ValueKind == JsonValueKind.Object &&
+                json.RootElement.TryGetProperty("tree", out var tree) && tree.ValueKind == JsonValueKind.String)
+            {
+                var metadata = json.RootElement.EnumerateObject().Where(p => p.Name != "tree").ToDictionary(p => p.Name, p => p.Value);
+                return JsonSerializer.Serialize(metadata, options) + "\n\n" + tree.GetString();
+            }
+            return JsonSerializer.Serialize(json.RootElement, options);
+        }
+        catch (JsonException) { return text; }
     }
     public object ConvertBack(object value,Type targetType,object parameter,CultureInfo culture)=>throw new NotSupportedException();
 }

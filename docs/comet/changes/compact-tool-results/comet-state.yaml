@@ -1,0 +1,300 @@
+schema: comet.native.v4
+name: compact-tool-results
+language: zh-CN
+phase: verify
+status: await-user
+state_version: 6
+brief: brief.md
+document_constraints_version: 3
+shape_confirmation_hash: 9e4fbfc0cba189d92ba9a4a6b159211870d825ff89244716b30e76eb83eea8a8
+spec_changes:
+  - capability: tool-results
+    operation: create
+    source: specs/tool-results/spec.md
+workspace:
+  isolation: worktree
+  change_branch: codex/compact-tool-results
+  target_branch: main
+  finish: null
+loop:
+  stage: await-user
+  goal_cycle: 1
+  iteration: 1
+  attempt: 1
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: confirm-skill-coordinated-pass
+acceptance:
+  - id: A1
+    source: brief.md
+    text: list_children 的子项不含重复绝对路径和 name/extension，基准与子项可还原真实路径。
+    result: passed
+    reason:
+      text: 已独立审读 FileTreeToolResult.Entry/List 与 ListChildrenTool：顶层 path
+        为本次查询目录的规范绝对路径，path_format=relative；子项只返回相对 path、type、size_bytes 及目录
+        child_count，不重复 name/extension。Core最终TRX的直接子项与后续定位查询用例通过；模型第四轮
+        children-result 与 actual-tool-results-final.json 逐项一致，Library 拼接后的
+        find_by_path 返回完整绝对路径。
+      truncated: false
+  - id: A2
+    source: brief.md
+    text: 深层搜索结果的 tree 输出共享父目录，单子目录链可折叠；同名文件仍可区分，大小排序可追溯。
+    result: passed
+    reason:
+      text: "已独立审读 Tree/Append：公共前缀使用共享分支，仅在中间节点非命中且只有一个后继时折叠目录链；命中条目保留元数据与原输入排名
+        #N，不把结构父目录标为命中。Core最终TRX的共享目录、折叠深链、同名文件及异常测试通过；模型 large-result 保留
+        Library/PackageCache/deep/common、9项与
+        #1..#9，文件大小107..100及30可追溯；final-tree-result.png显示真实换行。"
+      truncated: false
+  - id: A3
+    source: brief.md
+    text: 默认结果不输出全 false 的 flags，异常标志仍可见，详情可按需获取。
+    result: passed
+    reason:
+      text: FileTreeToolResult.Entry仅将为true的reparse/access-denied/cloud-placeholder加入flags，正常条目省略flags；details=true增加修改时间，find_by_path使用完整单项详情投影。最终Core的异常标志、各列表按需详情、完整定位回归均Passed；模型实际children-result不含false标志或冗余名称，detail-result仍含name、绝对path和last_modified。技能保存/写入回执仅精简正文回显，read、错误、预览风险和权限检查保留。
+      truncated: false
+  - id: A4
+    source: brief.md
+    text: 空结果、截断、中文路径、UNC、盘符根目录、白名单和越界基准均有明确行为。
+    result: passed
+    reason:
+      text: 已审读完整Spec、查询实现和CompactToolResultTests：多取一项后截取limit判断truncated；空结果保留count=0及truncated=false，非法format明确invalid_arguments；中文、盘符根和UNC可由本次基准无损还原。未引入相对输入或隐式工作目录解析；相对输入、扫描外路径返回not_found，白名单在查询与输出过滤中保留。最终Core
+        TRX对应边界与json/tree白名单用例均Passed；实际搜索count=3、truncated=true。
+      truncated: false
+  - id: A5
+    source: brief.md
+    text: 对固定的长路径样例比较实际发送 JSON 的长度，记录减少比例；没有真实 tokenizer 时不把字符比例冒充 token 比例。
+    result: passed
+    reason:
+      text: 最终Core
+        TRX记录固定80文件长路径样例：旧紧凑JSON25505字符，精简JSON7307、tree5656，分别减少71.4%与77.8%。已审读DiskAssistantService实际ToJsonString(AgentJson.Options)链路及模型实际收到相对路径和紧凑中文结果测试，且模型第四轮六项tool_result原文与保存样例逐项一致。统计明确为字符数量，未宣称token比例；未运行tokenizer。
+      truncated: false
+  - id: A6
+    source: brief.md
+    text: 测试通过，独立运行包可启动，工具卡片能正常展示精简结果。
+    result: passed
+    reason:
+      text: 当前Runtime记录绑定candidateId、原worktree、codex/compact-tool-results及一致输入指纹门；三项检查的canonical
+        evidenceDigest均按本地Runtime算法复算匹配。Core最终TRX312/312、App77/77、无失败跳过，diff-check退出0；未无故重跑全量。delivery.json指向2026-10-26_05-13-59_工具返回值精简独立单文件包，PID26192的Path匹配该exe。已看final-list-children.png/final-tree-result.png，并用cua-driver对窗口1643124做只读后台snapshot，应用和6个工具完成卡片存在，列表可读、树按真实换行展示；未激活或操作窗口。
+      truncated: false
+builder_handoff:
+  candidate_id: 18e6a5c9-81bb-435b-9336-be68c9f49268
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:d4a8b0e0-be2e-4829-b342-c9892e7922c9
+  iteration: 1
+  summary:
+    text: 实现共享路径基准、相对条目、按需元数据、异常真值、可选无损树形、截断提示；精简分析证据和技能写入回执，并验证最终自包含应用真实工具链与目录树显示。
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+    - A4
+    - A5
+    - A6
+  acceptance_review:
+    - id: A1
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.Core/Services/Agent/FileTreeToolResult.cs
+        - tests/SpaceMonger.Core.Tests/CompactToolResultTests.cs
+        - work/compact-tool-results/verification/actual-tool-results-final.json
+      note: 相对路径只依赖本次基准；已验证可还原后查询。
+    - id: A2
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.Core/Services/Agent/FileTreeToolResult.cs
+        - tests/SpaceMonger.Core.Tests/CompactToolResultTests.cs
+        - work/compact-tool-results/verification/final-tree-result.png
+      note: 树合并目录、折叠链、同名保真，#排名保留原大小排序。
+    - id: A3
+      status: implemented-with-evidence
+      evidence:
+        - src/SpaceMonger.Core/Services/Agent/FileTreeToolResult.cs
+        - tests/SpaceMonger.Core.Tests/CompactToolResultTests.cs
+      note: 默认只输出异常真值，详情按需读取，单项详情仍完整。
+    - id: A4
+      status: implemented-with-evidence
+      evidence:
+        - tests/SpaceMonger.Core.Tests/CompactToolResultTests.cs
+        - tests/SpaceMonger.Core.Tests/AssistantWhitelistModeTests.cs
+        - work/compact-tool-results/verification/final-gui-check.json
+      note: 覆盖空结果、截断、中文、UNC、盘符根、白名单以及拒绝隐式相对输入与扫描外路径。
+    - id: A5
+      status: implemented-with-evidence
+      evidence:
+        - tests/SpaceMonger.Core.Tests/CompactToolResultTests.cs
+        - tests/SpaceMonger.Core.Tests/DiskAssistantServiceTests.cs
+        - work/compact-tool-results/verification/compact.trx
+        - docs/comet/changes/compact-tool-results/audit.md
+      note: 固定80文件样例字符数减少71.4%/77.8%，真实模型历史结果已断言，不冒充精确token计数。
+    - id: A6
+      status: implemented-with-evidence
+      evidence:
+        - tests/SpaceMonger.App.Tests/JsonDetailConverterTests.cs
+        - work/compact-tool-results/verification/final-gui-check.json
+        - work/compact-tool-results/verification/final-tree-result.png
+        - work/compact-tool-results/verification/final-list-children.png
+        - work/compact-tool-results/verification/publish-final.log
+        - D:\AppData\Visual
+          Studio\Projects\SpaceMonger-Copilot\outputs\2026-10-26_05-13-59_工具返回值精简/SpaceMonger.App.exe
+      note: 开发全量与新增局部测试通过，最终包完成真实扫描和6次工具调用；Runtime将执行最终全量回归。
+  checks:
+    - name:
+        text: 开发期Core与App全量回归
+        truncated: false
+      result: passed
+      note:
+        text: Core 307/307，App 75/75；新增路径边界与白名单、树形显示已做局部验证。
+        truncated: false
+    - name:
+        text: 最终包GUI真实工具链
+        truncated: false
+      result: passed
+      note:
+        text: 最终进程Path核对；9文件6目录，6次工具执行成功，路径还原与目录树显示通过。
+        truncated: false
+    - name:
+        text: git diff --check
+        truncated: false
+      result: passed
+      note:
+        text: 无空白错误。
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: 模型压缩效果以实际JSON字符数衡量，未运行tokenizer。
+      truncated: false
+    - text: GUI使用隔离配置和本地模型桩；没有调用用户真实模型服务。
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-10-25T21:27:35.584Z
+blockers:
+  - owner: user
+    reason:
+      text: The generic Skill bridge cannot prove an independent Verifier execution;
+        user confirmation is required before Archive.
+      truncated: false
+    acceptance_ids: []
+    resolution_action: await-user
+verification:
+  candidate_id: 18e6a5c9-81bb-435b-9336-be68c9f49268
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:4e8e135f-ae61-486b-8f38-1970ac006e69
+  iteration: 1
+  attempt: 1
+  assurance: skill-coordinated
+  verdict: pass
+  checks:
+    - id: core-regression
+      name:
+        text: Core完整回归
+        truncated: false
+      argv_display:
+        - text: test
+          truncated: false
+        - text: tests/SpaceMonger.Core.Tests/SpaceMonger.Core.Tests.csproj
+          truncated: false
+        - text: --no-restore
+          truncated: false
+        - text: --logger
+          truncated: false
+        - text: trx;LogFileName=core-final.trx
+          truncated: false
+        - text: --results-directory
+          truncated: false
+        - text: work/compact-tool-results/verification
+          truncated: false
+        - text: --verbosity
+          truncated: false
+        - text: quiet
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 11628
+    - id: app-regression
+      name:
+        text: App完整回归
+        truncated: false
+      argv_display:
+        - text: test
+          truncated: false
+        - text: tests/SpaceMonger.App.Tests/SpaceMonger.App.Tests.csproj
+          truncated: false
+        - text: --no-restore
+          truncated: false
+        - text: --logger
+          truncated: false
+        - text: trx;LogFileName=app-final.trx
+          truncated: false
+        - text: --results-directory
+          truncated: false
+        - text: work/compact-tool-results/verification
+          truncated: false
+        - text: --verbosity
+          truncated: false
+        - text: quiet
+          truncated: false
+        - text: -p:NoWarn=NU1701
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 4748
+    - id: diff-check
+      name:
+        text: 差异空白检查
+        truncated: false
+      argv_display:
+        - text: diff
+          truncated: false
+        - text: --check
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 147
+  summary:
+    text: 独立只读Verifier完成A1-A6逐项审查，六项全部passed，无阻断缺陷、无未完成验收项。已先提交启动回执，核对brief、完整Spec、当前实现、测试、Runtime绑定与证据摘要，复用Core312/312、App77/77和diff-check；已核对最终独立包进程、应用截图、cua-driver后台窗口和真实模型请求中的六项工具结果。发现design.md过时表述一处非阻断文档问题，保留字符统计与本地模型桩限制。未修改应用代码、测试、brief、Spec或候选文档，未替用户accept-result。
+    truncated: false
+  risks:
+    - text: 非阻断文档遗留：docs/comet/changes/compact-tool-results/design.md:1仍标“待确认”，:35仍称“尚未修改应用代码”，与当前已实现候选不一致。已按只读Verifier边界保留原文件，建议后续由Builder维护说明。
+      truncated: false
+    - text: 压缩比例仅衡量固定样例的实际JSON字符数量；未运行tokenizer，不能据此承诺token或费用减少比例。
+      truncated: false
+    - text: 模型验收使用隔离配置与本地模型桩，已验证实际应用工具执行、序列化历史和路径后续调用；未检验真实模型服务的推理遵约表现。
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-10-25T21:37:21.187Z
+history:
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 独立只读Verifier完成A1-A6逐项审查，六项全部passed，无阻断缺陷、无未完成验收项。已先提交启动回执，核对brief、完整Spec、当前实现、测试、Runtime绑定与证据摘要，复用Core312/312、App77/77和diff-check；已核对最终独立包进程、应用截图、cua-driver后台窗口和真实模型请求中的六项工具结果。发现design.md过时表述一处非阻断文档问题，保留字符统计与本地模型桩限制。未修改应用代码、测试、brief、Spec或候选文档，未替用户accept-result。
+      truncated: false
+    completed_at: 2026-10-25T21:37:21.187Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pass
+verification_report: verification.md
+archived: false
+created_at: 2026-10-25T20:47:14.683Z

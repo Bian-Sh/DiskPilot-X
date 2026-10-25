@@ -15,6 +15,31 @@ namespace SpaceMonger.Core.Tests;
 public class DiskAssistantServiceTests
 {
     [Fact]
+    public async Task 模型实际收到相对路径和紧凑中文结果()
+    {
+        var root = new FileEntry { Path = @"D:\sandbox", Name = "sandbox", IsDirectory = true,
+            Children = [new() { Path = @"D:\sandbox\缓存", Name = "缓存", Size = 12, IsDirectory = true }] };
+        var context = new AgentContext(new() { RootEntry = root, TargetPath = root.Path }, root, null, null);
+        var workspace = new AssistantWorkspace
+        {
+            ReadContext = _ => Task.FromResult(context),
+            Execute = (_, _, _) => Task.FromResult<JsonNode>(new JsonObject { ["ok"] = true })
+        };
+        var client = new ScriptedClient();
+        var settings = Substitute.For<ISettingsService>();
+        settings.LoadSettings().Returns(new AppSettings());
+        var service = new DiskAssistantService(_ => client, [new ListChildrenTool(new FileTreeQueryService())], workspace, settings);
+        var run = await service.RunAsync("扫描并列出目录", new(new ModelEndpointConfig { ApiKey = "key", Model = "test" }), null, default);
+        run.State.Should().Be(AgentSessionState.Completed);
+        var message = client.Requests[2].Messages.Single(m => m.Role == ChatRole.Tool && m.ToolCallId == "children");
+        var result = JsonNode.Parse(message.Content!)!;
+        result["path_format"]!.GetValue<string>().Should().Be("relative");
+        result["children"]![0]!["path"]!.GetValue<string>().Should().Be("缓存");
+        message.Content.Should().Contain("缓存").And.NotContain("\\u7F13").And.NotContain("\n");
+        result["children"]![0]!.AsObject().ContainsKey("name").Should().BeFalse();
+    }
+
+    [Fact]
     public async Task ScanThenQuery_UsesNewContextAndNativeToolHistory()
     {
         AgentContext context = new(null, null, null, null);

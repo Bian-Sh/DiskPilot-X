@@ -61,25 +61,7 @@ public abstract class FileTreeAgentToolBase(IFileTreeQueryService queryService, 
             : defaultValue;
     }
 
-    protected static object EntryJson(FileEntry entry)
-    {
-        return new
-        {
-            path = entry.Path,
-            name = entry.Name,
-            size_bytes = entry.Size,
-            type = entry.IsDirectory ? "directory" : "file",
-            extension = entry.Extension,
-            last_modified = entry.LastModified == default ? null : entry.LastModified.ToString("O"),
-            child_count = entry.IsDirectory ? entry.Children.Count : 0,
-            flags = new
-            {
-                is_reparse_point = entry.IsReparsePoint,
-                is_access_denied = entry.IsAccessDenied,
-                is_cloud_placeholder = entry.IsCloudPlaceholder
-            }
-        };
-    }
+    protected static object EntryJson(FileEntry entry) => FileTreeToolResult.Entry(entry, null, true);
 
     protected static JsonElement Error(string code, string message)
     {
@@ -113,8 +95,8 @@ public abstract class FileTreeAgentToolBase(IFileTreeQueryService queryService, 
 public sealed class FindByNameTool(IFileTreeQueryService queryService, ISettingsService? settingsService = null, IPathWhitelistMatcher? whitelistMatcher = null) : FileTreeAgentToolBase(queryService, settingsService, whitelistMatcher)
 {
     public override string Name => "find_by_name";
-    public override string Description => "Find scanned files or directories by name using case-insensitive matching.";
-    public override JsonElement Schema { get; } = SchemaJson("""
+    public override string Description => "按名称查找已扫描文件或目录，按大小排序；结果路径相对 base_path，后续调用须拼成绝对路径。details 获取详情，format=tree 合并目录。";
+    public override JsonElement Schema { get; } = FileTreeToolResult.Schema("""
         {"type":"object","properties":{"name":{"type":"string"},"exact_match":{"type":"boolean"},"max_results":{"type":"integer","minimum":1,"maximum":100}},"required":["name"]}
         """);
 
@@ -131,22 +113,18 @@ public sealed class FindByNameTool(IFileTreeQueryService queryService, ISettings
             session,
             name,
             GetBool(arguments, "exact_match"),
-            GetInt(arguments, "max_results", 25, 1, 100));
+            GetInt(arguments, "max_results", 25, 1, 100) + 1);
 
-        return Task.FromResult(Json(new
-        {
-            ok = true,
-            query = name,
-            count = results.Count,
-            results = results.Select(EntryJson)
-        }));
+        return Task.FromResult(FileTreeToolResult.List(session.RootEntry!.Path, results,
+            GetInt(arguments, "max_results", 25, 1, 100), arguments, "results",
+            metadata: new() { ["query"] = name }));
     }
 }
 
 public sealed class FindByPathTool(IFileTreeQueryService queryService, ISettingsService? settingsService = null, IPathWhitelistMatcher? whitelistMatcher = null) : FileTreeAgentToolBase(queryService, settingsService, whitelistMatcher)
 {
     public override string Name => "find_by_path";
-    public override string Description => "Find a scanned file or directory by full path. Windows paths are case-insensitive and slash-normalized.";
+    public override string Description => "按完整路径读取已扫描项详情；列表结果先将 path 或 base_path 与相对子项路径拼接。Windows 路径不区分大小写。";
     public override JsonElement Schema { get; } = SchemaJson("""
         {"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}
         """);
@@ -175,8 +153,8 @@ public sealed class FindByPathTool(IFileTreeQueryService queryService, ISettings
 public sealed class ListChildrenTool(IFileTreeQueryService queryService, ISettingsService? settingsService = null, IPathWhitelistMatcher? whitelistMatcher = null) : FileTreeAgentToolBase(queryService, settingsService, whitelistMatcher)
 {
     public override string Name => "list_children";
-    public override string Description => "List direct children of a scanned directory, ordered by descending size.";
-    public override JsonElement Schema { get; } = SchemaJson("""
+    public override string Description => "列出已扫描目录的直接子项，按大小排序；子项 path 相对顶层 path，后续调用须拼成绝对路径。details 获取详情，format=tree 输出树形。";
+    public override JsonElement Schema { get; } = FileTreeToolResult.Schema("""
         {"type":"object","properties":{"path":{"type":"string"},"max_results":{"type":"integer","minimum":1,"maximum":200}},"required":["path"]}
         """);
 
@@ -205,22 +183,17 @@ public sealed class ListChildrenTool(IFileTreeQueryService queryService, ISettin
             return Task.FromResult(Error("not_directory", $"Path is not a directory: {path}"));
         }
 
-        var children = QueryService.ListChildren(session, path, GetInt(arguments, "max_results", 50, 1, 200));
-        return Task.FromResult(Json(new
-        {
-            ok = true,
-            path = entry.Path,
-            count = children.Count,
-            children = children.Select(EntryJson)
-        }));
+        var limit = GetInt(arguments, "max_results", 50, 1, 200);
+        var children = QueryService.ListChildren(session, path, limit + 1);
+        return Task.FromResult(FileTreeToolResult.List(entry.Path, children, limit, arguments, "children", "path"));
     }
 }
 
 public sealed class SummarizeSubtreeTool(IFileTreeQueryService queryService, ISettingsService? settingsService = null, IPathWhitelistMatcher? whitelistMatcher = null) : FileTreeAgentToolBase(queryService, settingsService, whitelistMatcher)
 {
     public override string Name => "summarize_subtree";
-    public override string Description => "Summarize a scanned subtree with file/folder counts and largest direct children.";
-    public override JsonElement Schema { get; } = SchemaJson("""
+    public override string Description => "汇总已扫描子树并列出最大直接子项；子项 path 相对顶层 path，后续调用须拼成绝对路径。details 获取详情，format=tree 输出树形。";
+    public override JsonElement Schema { get; } = FileTreeToolResult.Schema("""
         {"type":"object","properties":{"path":{"type":"string"},"top_children":{"type":"integer","minimum":1,"maximum":50}},"required":["path"]}
         """);
 
@@ -244,26 +217,26 @@ public sealed class SummarizeSubtreeTool(IFileTreeQueryService queryService, ISe
             return Task.FromResult(Error("not_found", $"Path not found in scanned tree: {path}"));
         }
 
-        var summary = QueryService.SummarizeSubtree(session, path, GetInt(arguments, "top_children", 20, 1, 50));
-        return Task.FromResult(Json(new
+        var limit = GetInt(arguments, "top_children", 20, 1, 50);
+        var summary = QueryService.SummarizeSubtree(session, path, limit + 1);
+        var metadata = new Dictionary<string, object?>
         {
-            ok = true,
-            path = summary.Path,
-            name = summary.Name,
-            size_bytes = summary.SizeBytes,
-            file_count = summary.FileCount,
-            directory_count = summary.DirectoryCount,
-            last_modified = summary.LastModified?.ToString("O"),
-            largest_children = summary.LargestChildren.Select(EntryJson)
-        }));
+            ["size_bytes"] = summary.SizeBytes,
+            ["file_count"] = summary.FileCount,
+            ["directory_count"] = summary.DirectoryCount
+        };
+        if (GetBool(arguments, "details") && summary.LastModified.HasValue)
+            metadata["last_modified"] = summary.LastModified.Value.ToString("O");
+        return Task.FromResult(FileTreeToolResult.List(summary.Path, summary.LargestChildren, limit, arguments,
+            "largest_children", "path", metadata));
     }
 }
 
 public sealed class FindLargeFilesTool(IFileTreeQueryService queryService, ISettingsService? settingsService = null, IPathWhitelistMatcher? whitelistMatcher = null) : FileTreeAgentToolBase(queryService, settingsService, whitelistMatcher)
 {
     public override string Name => "find_large_files";
-    public override string Description => "Find the largest scanned files, optionally under a directory path.";
-    public override JsonElement Schema { get; } = SchemaJson("""
+    public override string Description => "查找已扫描的大文件，按大小排序；结果路径相对 base_path，后续调用须拼成绝对路径。details 获取详情，format=tree 合并深层目录。";
+    public override JsonElement Schema { get; } = FileTreeToolResult.Schema("""
         {"type":"object","properties":{"under_path":{"type":"string"},"max_results":{"type":"integer","minimum":1,"maximum":100},"min_size_bytes":{"type":"integer","minimum":0}}}
         """);
 
@@ -284,15 +257,11 @@ public sealed class FindLargeFilesTool(IFileTreeQueryService queryService, ISett
         var results = QueryService.FindLargeFiles(
             session,
             underPath,
-            GetInt(arguments, "max_results", 25, 1, 100),
+            GetInt(arguments, "max_results", 25, 1, 100) + 1,
             GetLong(arguments, "min_size_bytes"));
 
-        return Task.FromResult(Json(new
-        {
-            ok = true,
-            under_path = underPath,
-            count = results.Count,
-            results = results.Select(EntryJson)
-        }));
+        var basePath = string.IsNullOrWhiteSpace(underPath) ? session.RootEntry!.Path : QueryService.FindByPath(session, underPath)!.Path;
+        return Task.FromResult(FileTreeToolResult.List(basePath, results,
+            GetInt(arguments, "max_results", 25, 1, 100), arguments, "results"));
     }
 }

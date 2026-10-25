@@ -7,12 +7,13 @@ public partial class RecommendationEngine
     private string BuildCompactMetadata(ScanSession session, FileEntry analysisRoot, IReadOnlyList<PathWhitelistEntry> whitelist)
     {
         var snapshot = BuildMetadataSnapshot(analysisRoot, whitelist);
+        string EvidencePath(string path) => System.IO.Path.GetRelativePath(analysisRoot.Path, path).Replace('\\', '/');
 
         // Top files by size
         var topFiles = snapshot.TopFiles
             .OrderByDescending(f => f.Size)
             .Take(MaxTopFiles)
-            .Select(f => $"{f.Path}|{f.Size}")
+            .Select(f => $"{EvidencePath(f.Path)}|{f.Size}")
             .ToList();
 
         // Known cleanup pattern directories — now with content fingerprints
@@ -30,7 +31,7 @@ public partial class RecommendationEngine
             .ToList();
 
         var patternItems = patternDirs
-            .Select(d => $"{d.Path}|{d.Size}|{BuildContentFingerprint(d, whitelist)}")
+            .Select(d => $"{EvidencePath(d.Path)}|{d.Size}|{BuildContentFingerprint(d, whitelist)}")
             .ToList();
 
         // Also attach content fingerprints to top directories that match
@@ -50,7 +51,7 @@ public partial class RecommendationEngine
                         break;
                     }
                 }
-                var baseLine = $"{d.Path}|{d.Size}|{d.Children.Count(c => c.IsDirectory)} dirs, {d.Children.Count(c => !c.IsDirectory)} files";
+                var baseLine = $"{EvidencePath(d.Path)}|{d.Size}|{d.Children.Count(c => c.IsDirectory)} dirs, {d.Children.Count(c => !c.IsDirectory)} files";
                 return needsFingerprint
                     ? $"{baseLine}|CONTENT_FINGERPRINT: {BuildContentFingerprint(d, whitelist)}"
                     : baseLine;
@@ -64,7 +65,7 @@ public partial class RecommendationEngine
             .Where(g => g.Count() >= 2)
             .OrderByDescending(g => g.Key.Size * g.Count())
             .Take(MaxDuplicateGroups)
-            .Select(g => $"{g.Key.Name}|{g.Key.Size}|{g.Count()} copies: {string.Join("; ", g.Select(f => f.Path))}")
+            .Select(g => $"{g.Key.Name}|{g.Key.Size}|{g.Count()} copies: {string.Join("; ", g.Select(f => EvidencePath(f.Path)))}")
             .ToList();
 
         // Build a compact pipe-delimited format instead of verbose JSON.
@@ -74,6 +75,8 @@ public partial class RecommendationEngine
         sb.AppendLine($"SCAN: {session.TargetPath}");
         if (isFocused)
             sb.AppendLine($"FOCUS: {analysisRoot.Path}");
+        sb.AppendLine($"BASE_PATH: {analysisRoot.Path}");
+        sb.AppendLine("PATH_FORMAT: relative; join BASE_PATH with paths below before tool calls or recommendations.");
         sb.AppendLine($"TOTAL_FILES: {snapshot.TotalFiles}");
         sb.AppendLine($"TOTAL_FOLDERS: {snapshot.TotalFolders}");
         sb.AppendLine($"TOTAL_SIZE: {analysisRoot.Size}");
@@ -115,7 +118,7 @@ public partial class RecommendationEngine
             sb.AppendLine("## UNITY LIBRARY EVIDENCE (path|size_bytes|project_markers)");
             foreach (var library in unityLibraries)
             {
-                sb.AppendLine($"{library.Path}|{library.Size}|Assets + ProjectSettings");
+                sb.AppendLine($"{EvidencePath(library.Path)}|{library.Size}|Assets + ProjectSettings");
             }
         }
 

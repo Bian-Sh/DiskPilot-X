@@ -31,6 +31,7 @@ public class ManageDiskSkillsToolTests
                 CancellationToken.None);
 
             create.GetProperty("ok").GetBoolean().Should().BeTrue();
+            create.TryGetProperty("content", out _).Should().BeFalse();
             provider.GetSkillCatalog().Should().ContainSingle(skill =>
                 skill.Id == "unity-cache-audit" &&
                 skill.DisplayName == "Unity Cache Audit Skill" &&

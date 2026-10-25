@@ -160,7 +160,7 @@ public class FileTreeAgentToolTests
         var result = await tool.ExecuteAsync(new AgentContext(session, session.RootEntry!, null, null), arguments, CancellationToken.None);
 
         result.GetProperty("ok").GetBoolean().Should().BeTrue();
-        result.GetProperty("results").EnumerateArray().Select(item => item.GetProperty("name").GetString())
-            .Should().Equal("hero.fbx", "villain.obj");
+        result.GetProperty("results").EnumerateArray().Select(item => item.GetProperty("path").GetString())
+            .Should().Equal("Models/hero.fbx", "Models/villain.obj");
     }
 }

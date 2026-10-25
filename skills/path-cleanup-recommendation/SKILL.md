@@ -13,7 +13,7 @@ description: 为用户指定的路径扫描并生成可复核的清理建议。
 
 1. 用 resolve_path 校验用户路径，再用 get_copilot_context 获取当前 root、current_path 和 scan_id。
 2. 当前扫描已覆盖目标时直接查询；未覆盖或用户明确要求重扫时调用 scan_path，并等待真实完成。覆盖已有结果的确认由宿主处理，拒绝后停止。
-3. 调用 get_analysis_evidence 检查当前范围的元数据与内容指纹，必要时用 list_children、summarize_subtree、find_large_files 补充证据。
+3. 调用 get_analysis_evidence 检查当前范围的元数据与内容指纹，必要时用 list_children、summarize_subtree、find_large_files 补充证据。证据里的路径相对 BASE_PATH，查询列表相对结果声明的基准路径；提交建议前必须还原为完整路径。
 4. 用 publish_recommendations 发布候选，带当前 scan_id。每项包含 path、category、safety_rating、explanation；大小由本地扫描决定。无候选也发布空 recommendations 数组。
 5. 根据工具实际接受/过滤结果回答，告诉用户建议在推荐列表中。不要把未发布候选说成已完成，不递归启动另一轮分析。
 

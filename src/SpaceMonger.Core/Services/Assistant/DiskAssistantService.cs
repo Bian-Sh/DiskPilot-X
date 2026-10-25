@@ -167,7 +167,7 @@ public sealed class DiskAssistantService
                     {
                         var result = await handler(args, ct).ConfigureAwait(false);
                         if (result["cancelled"]?.GetValue<bool>() == true) declinedOperations.Add(name);
-                        return result["ok"]?.GetValue<bool>() == false ? ToolResult.SafeFail(result.ToJsonString()) : ToolResult.Ok(result.ToJsonString());
+                        return result["ok"]?.GetValue<bool>() == false ? ToolResult.SafeFail(result.ToJsonString(AgentJson.Options)) : ToolResult.Ok(result.ToJsonString(AgentJson.Options));
                     }
                     catch (OperationCanceledException) { throw; }
                     catch (UserDecisionValidationException ex)

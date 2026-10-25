@@ -32,7 +32,7 @@ public sealed class ManageDiskSkillsTool(ISkillPromptProvider skillPromptProvide
 
     public override string Name => "manage_disk_skills";
 
-    public override string Description => "List and read built-in or user disk-management skills so the agent can discover native workflows; create, update, or delete user disk-management skills only when the user explicitly asks to manage skills. Create/update only for workflows implementable with SpaceMonger host tools; refuse non-disk or unsupported skill requests.";
+    public override string Description => "列出或读取内置及用户磁盘管理技能。仅在用户明确要求管理技能时创建、更新或删除用户技能；只支持宿主工具可实现的磁盘流程。写入返回回执，完整内容按需 read。";
 
     public override ToolRiskLevel RiskLevel => ToolRiskLevel.Medium;
 
@@ -110,7 +110,6 @@ public sealed class ManageDiskSkillsTool(ISkillPromptProvider skillPromptProvide
             ok = result.Success,
             id = result.SkillId,
             message = result.Message,
-            content = result.Content,
             error = result.Success ? null : new { code = result.ErrorCode, message = result.Message }
         });
     }
