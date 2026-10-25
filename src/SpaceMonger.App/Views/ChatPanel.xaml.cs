@@ -43,6 +43,10 @@ public partial class ChatPanel : UserControl
         foreach(var message in vm.Messages) Attach(message);
         QueueScroll();
     }
+    private void History_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && viewModel is not null) { viewModel.IsHistoryOpen = false; e.Handled = true; }
+    }
     public void FocusInput() { InputTextBox.Focus(); InputTextBox.CaretIndex=InputTextBox.Text.Length; }
     private void Attach(ChatMessage message)
     {

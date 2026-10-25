@@ -61,8 +61,10 @@ public partial class ChatViewModel : ObservableObject
         FilteredSkillMentionSuggestions = new(SkillMentionSuggestions);
         Messages.CollectionChanged += (_, _) => HasMessages = Messages.Count > 0;
         assistant.Activity += activity => OnUi(() => ApplyActivity(activity));
+        assistant.RunFinished += () => OnUi(RefreshConversationCommands);
         L.LanguageChanged += RefreshSlashCommandSuggestions;
         RefreshApiKeyStatus();
+        RefreshConversationHistory();
     }
     public void SetContext(ScanSession session, FileEntry viewRoot) { _currentSession = session; _currentViewRoot = viewRoot; RefreshApiKeyStatus(); }
     public void UpdateViewRoot(FileEntry root) => _currentViewRoot = root;
@@ -81,7 +83,13 @@ public partial class ChatViewModel : ObservableObject
     partial void OnLinkedEntryChanged(FileEntry? value) => LinkedItemPath = value?.Path ?? LinkedRecommendation?.TargetPath;
     partial void OnLinkedRecommendationChanged(CleanupRecommendation? value) => LinkedItemPath = value?.TargetPath ?? LinkedEntry?.Path;
     partial void OnPendingInteractionCardChanged(AiInteractionCard? value) => OnPropertyChanged(nameof(HasPendingInteractionCard));
-    partial void OnIsOperationRunningChanged(bool value) { OnPropertyChanged(nameof(SendButtonText)); OnPropertyChanged(nameof(IsSending)); if(!value)RefreshApiKeyStatus(); }
+    partial void OnIsOperationRunningChanged(bool value)
+    {
+        OnPropertyChanged(nameof(SendButtonText)); OnPropertyChanged(nameof(IsSending));
+        RefreshConversationCommands();
+        if (value) IsHistoryOpen = false;
+        else RefreshApiKeyStatus();
+    }
     partial void OnIsSlashCommandMenuOpenChanged(bool value) => OnPropertyChanged(nameof(IsCompletionMenuOpen));
     partial void OnIsSkillMentionMenuOpenChanged(bool value) => OnPropertyChanged(nameof(IsCompletionMenuOpen));
     partial void OnInputTextChanged(string? value)
@@ -103,6 +111,7 @@ public partial class ChatViewModel : ObservableObject
         if (!IsApiKeyConfigured) { ErrorMessage = "请先在设置中配置模型 API Key。"; return; }
         InputText = null; ErrorMessage = null;
         Messages.Add(new Message { Sender = ChatSender.User, Text = text, Timestamp = DateTime.Now, LinkedEntry = LinkedEntry, LinkedRecommendation = LinkedRecommendation });
+        SaveCurrentConversation();
         var settings = _settingsService.LoadSettings();
         var routing = _skillRouter.Route(text, LinkedEntry, _currentViewRoot, false);
         try
@@ -116,7 +125,7 @@ public partial class ChatViewModel : ObservableObject
             _logger.LogWarning("Copilot 运行未完成 {ExceptionType}", ex.GetType().Name);
             ErrorMessage = "当前任务未完成，请检查模型配置或稍后重试。";
         }
-        finally { OnUi(() => { IsOperationRunning = false; PendingInteractionCard = null; RefreshSkills(); }); }
+        finally { OnUi(() => { IsOperationRunning = false; PendingInteractionCard = null; RefreshSkills(); SaveCurrentConversation(); RefreshConversationHistory(); }); }
     }
     private void ApplyActivity(AgentEvent activity)
     {
@@ -134,6 +143,7 @@ public partial class ChatViewModel : ObservableObject
             IsOperationRunning = false; PendingInteractionCard = null;
             displayMessage?.MarkCompletedAt(DateTime.Now); displayMessage = null;
         }
+        if (activity.Kind == AgentEventKind.MessageCompleted) SaveCurrentConversation();
     }
     public async Task<bool> ConfirmAsync(string title, string description, string? impact, CancellationToken ct, bool allowNotes = false)
     {

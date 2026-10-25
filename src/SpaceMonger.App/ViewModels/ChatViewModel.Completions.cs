@@ -138,11 +138,14 @@ public partial class ChatViewModel
         SelectedSlashCommandSuggestion = IsSlashCommandMenuOpen ? SlashCommandSuggestions.FirstOrDefault() : null;
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanChangeConversation))]
     private void ClearConversation()
     {
-        if (assistant.IsRunning) { ErrorMessage = "请先停止当前任务再清空会话。"; return; }
-        assistant.ClearHistory(); Messages.Clear(); PendingInteractionCard = null; ErrorMessage = null; StatusText = L.Text("CopilotReady");
+        if (!CanChangeConversation || !SaveCurrentConversation()) return;
+        assistant.ClearHistory();
+        Messages.Clear();
+        ResetConversationUi();
+        RefreshConversationHistory();
     }
     private void StartNewConversationSegment() => ClearConversation();
 }

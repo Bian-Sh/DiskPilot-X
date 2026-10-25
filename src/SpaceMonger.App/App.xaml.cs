@@ -92,12 +92,21 @@ public partial class App : Application
         services.AddSingleton<SpaceMonger.Core.Services.Skills.CleanupSkillSourceService>();
         services.AddSingleton<IAgentTool, CleanupSkillTool>();
         services.AddSingleton<AssistantWorkspace>();
+        services.AddSingleton(_ =>
+        {
+            var acceptanceSettings = AcceptanceAutomationServer.IsEnabled()
+                ? Environment.GetEnvironmentVariable("SPACEMONGER_ACCEPTANCE_SETTINGS") : null;
+            var directory = !string.IsNullOrWhiteSpace(acceptanceSettings)
+                ? System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(acceptanceSettings))!
+                : System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SpaceMonger");
+            return new ConversationStore(System.IO.Path.Combine(directory, "Conversations"));
+        });
         services.AddSingleton<DiskAssistantService>(provider => new DiskAssistantService(
             options => new AnthropicModelClient(provider.GetRequiredService<IHttpClientFactory>().CreateClient("Anthropic"),
                 options.ApiKey, options.BaseUrl, options.Model, options.EnableThinking),
             provider.GetServices<IAgentTool>(), provider.GetRequiredService<AssistantWorkspace>(),
             provider.GetRequiredService<ISettingsService>(), provider.GetRequiredService<RecommendationEngine>(),
-            provider.GetRequiredService<ILoggerFactory>()));
+            provider.GetRequiredService<ILoggerFactory>(), provider.GetRequiredService<ConversationStore>()));
         services.AddTransient<ChatViewModel>();
 
         // TreeView services

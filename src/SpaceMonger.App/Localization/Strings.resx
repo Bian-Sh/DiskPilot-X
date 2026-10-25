@@ -903,4 +903,8 @@
   <data name="CopilotTool_manage_cleanup_skill" xml:space="preserve"><value>Manage cleanup rules</value></data>
   <data name="CopilotTool_show_skill_panel" xml:space="preserve"><value>Prepare task panel</value></data>
   <data name="CopilotTool_run_skill_source" xml:space="preserve"><value>Run custom detector</value></data>
+  <data name="CopilotConversationHistory" xml:space="preserve"><value>Conversation history</value></data>
+  <data name="CopilotNoConversationHistory" xml:space="preserve"><value>No conversations yet</value></data>
+  <data name="CopilotHistoryLoadFailed" xml:space="preserve"><value>Unable to load conversation history. Check the file or access permissions. The current conversation is kept.</value></data>
+  <data name="CopilotHistorySaveFailed" xml:space="preserve"><value>Unable to save the conversation. Check disk space or access permissions. The current conversation is not saved yet.</value></data>
 </root>

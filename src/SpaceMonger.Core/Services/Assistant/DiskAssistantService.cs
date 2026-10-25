@@ -45,17 +45,22 @@ public sealed class DiskAssistantService
     private readonly FileTreeQueryService query = new();
     private readonly PathWhitelistMatcher whitelist = new();
     private AgentSession? session;
+    private readonly ConversationStore? conversationStore;
+    private string? currentConversationId;
+    public string? CurrentConversationId => currentConversationId;
     private string? conversationPrivacySignature;
     private CancellationTokenSource? activeCancellation;
     public event Action<AgentEvent>? Activity;
+    public event Action? RunFinished;
     public void CancelCurrentRun() { try { activeCancellation?.Cancel(); } catch (ObjectDisposedException) { } }
     public string? ActiveModel { get; private set; }
     public bool IsRunning => runGate.CurrentCount == 0;
     private AnalysisResult? LastAnalysisResult { get; set; }
 
     public DiskAssistantService(Func<AssistantRunOptions, IModelClient> modelFactory, IEnumerable<IAgentTool> queryTools,
-        AssistantWorkspace workspace, ISettingsService settings, RecommendationEngine? policy = null, ILoggerFactory? loggerFactory = null)
+        AssistantWorkspace workspace, ISettingsService settings, RecommendationEngine? policy = null, ILoggerFactory? loggerFactory = null, ConversationStore? conversationStore = null)
     {
+        this.conversationStore = conversationStore;
         this.modelFactory = modelFactory;
         this.queryTools = queryTools.Select(tool => tool switch { FindByNameTool => (IAgentTool)new FindByNameTool(query), FindByPathTool => new FindByPathTool(query), ListChildrenTool => new ListChildrenTool(query), SummarizeSubtreeTool => new SummarizeSubtreeTool(query), FindLargeFilesTool => new FindLargeFilesTool(query), _ => tool }).ToArray();
         this.workspace = workspace;
@@ -68,8 +73,41 @@ public sealed class DiskAssistantService
     {
         if (IsRunning) throw new InvalidOperationException("请先停止当前任务再清空会话。");
         session = null;
+        currentConversationId = null;
         conversationPrivacySignature = null;
         LastAnalysisResult = null;
+    }
+
+    public IReadOnlyList<ConversationSummary> GetConversations() => conversationStore?.List() ?? [];
+
+    public void SaveConversation(IEnumerable<SpaceMonger.Core.Models.ChatMessage> messages)
+    {
+        if (conversationStore is null) return;
+        var saved = messages.Select(SavedChatMessage.Capture).ToArray();
+        if (saved.Length == 0) return;
+        currentConversationId ??= Guid.NewGuid().ToString("N");
+        conversationStore.Save(new(currentConversationId, DateTimeOffset.UtcNow, conversationPrivacySignature,
+            session?.State ?? AgentSessionState.Created, session?.Messages.ToArray() ?? [], saved));
+    }
+
+    public ConversationSnapshot ReadConversation(string id) => conversationStore?.Load(id)
+        ?? throw new InvalidDataException("历史对话不可用。");
+
+    public IReadOnlyList<SpaceMonger.Core.Models.ChatMessage> RestoreConversation(ConversationSnapshot snapshot)
+    {
+        if (IsRunning) throw new InvalidOperationException("请先停止当前任务再切换会话。");
+        var restored = new AgentSession(new AgentSessionOptions { MaxSteps = 32, ModelTimeout = TimeSpan.FromSeconds(180) });
+        restored.RestoreId(snapshot.Id);
+        foreach (var message in snapshot.ModelMessages) restored.RestoreMessage(message);
+        restored.ApplySystemPrompt(SystemPrompt, 32);
+        restored.RepairDanglingToolCalls("{\"cancelled\":true,\"reason\":\"上次运行已中断\"}");
+        restored.RestoreState(snapshot.State);
+        var messages = snapshot.Messages.Select(message => message.Restore()).ToArray();
+        session = restored;
+        currentConversationId = snapshot.Id;
+        conversationPrivacySignature = snapshot.PrivacySignature;
+        LastAnalysisResult = null;
+        return messages;
     }
 
     public async Task<AssistantRunResult> RunAsync(string message, AssistantRunOptions options, Action<AgentEvent>? onActivity,
@@ -104,7 +142,7 @@ public sealed class DiskAssistantService
             }
             return new(text.ToString(), runSession.State, LastAnalysisResult);
         }
-        finally { activeCancellation = null; runGate.Release(); }
+        finally { activeCancellation = null; runGate.Release(); RunFinished?.Invoke(); }
     }
 
     private ToolRegistry BuildTools(AssistantRunOptions options)

@@ -1,0 +1,118 @@
+using System.Text.Json;
+using SpaceMonger.Core.Enums;
+using SpaceMonger.Core.Models;
+using TinyHarness;
+using Message = SpaceMonger.Core.Models.ChatMessage;
+using ModelMessage = TinyHarness.ChatMessage;
+
+namespace SpaceMonger.Core.Services.Assistant;
+
+public sealed record ConversationSummary(string Id, string Title, DateTimeOffset UpdatedAt, int MessageCount)
+{
+    public bool IsCurrent { get; init; }
+    public string UpdatedAtText => UpdatedAt.LocalDateTime.ToString("g");
+}
+
+public sealed record SavedChatSegment(ChatSegmentKind Kind, string Text, string? Detail, string? ToolName,
+    string? ToolCallId, ChatSegmentStatus Status, bool IsSummary);
+
+/// <summary>只保存展示数据，不序列化磁盘对象、交互确认或凭据配置。</summary>
+public sealed record SavedChatMessage(Guid Id, ChatSender Sender, string Text, string Thinking, DateTime Timestamp,
+    string CompletedAtText, bool IsError, IReadOnlyList<SavedChatSegment> Segments)
+{
+    public static SavedChatMessage Capture(Message message) => new(message.Id, message.Sender, message.Text,
+        message.Thinking, message.Timestamp, message.CompletedAtText, message.IsError,
+        message.Segments.Select(segment => new SavedChatSegment(segment.Kind, segment.Text, segment.Detail,
+            segment.ToolName, segment.ToolCallId, segment.Status, segment.IsSummary)).ToArray());
+
+    public Message Restore()
+    {
+        var message = new Message { Id = Id, Sender = Sender, Text = Text, Thinking = Thinking,
+            Timestamp = Timestamp, CompletedAtText = CompletedAtText, IsError = IsError };
+        foreach (var segment in Segments)
+            message.Segments.Add(new ChatSegment(segment.Kind) { Text = segment.Text, Detail = segment.Detail,
+                ToolName = segment.ToolName, ToolCallId = segment.ToolCallId, IsSummary = segment.IsSummary,
+                Status = segment.Status is ChatSegmentStatus.Running or ChatSegmentStatus.WaitingForUser
+                    ? ChatSegmentStatus.Cancelled : segment.Status });
+        return message;
+    }
+}
+
+public sealed record ConversationSnapshot(string Id, DateTimeOffset UpdatedAt, string? PrivacySignature,
+    AgentSessionState State, IReadOnlyList<ModelMessage> ModelMessages, IReadOnlyList<SavedChatMessage> Messages)
+{
+    public int Version { get; init; } = 1;
+}
+
+/// <summary>每会话一个本地快照；先写同目录临时文件，再原子替换，避免中断破坏上一份记录。</summary>
+public sealed class ConversationStore(string rootDirectory)
+{
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
+
+    public void Save(ConversationSnapshot snapshot)
+    {
+        Validate(snapshot, snapshot.Id);
+        if (snapshot.Messages.Count == 0) return;
+        Directory.CreateDirectory(rootDirectory);
+        var target = PathFor(snapshot.Id);
+        var temporary = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllText(temporary, JsonSerializer.Serialize(snapshot, JsonOptions));
+            File.Move(temporary, target, overwrite: true);
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+    }
+
+    public ConversationSnapshot Load(string id)
+    {
+        var snapshot = JsonSerializer.Deserialize<ConversationSnapshot>(File.ReadAllText(PathFor(id)), JsonOptions)
+            ?? throw new InvalidDataException("历史对话内容为空。");
+        Validate(snapshot, id);
+        return snapshot;
+    }
+
+    public IReadOnlyList<ConversationSummary> List()
+    {
+        if (!Directory.Exists(rootDirectory)) return [];
+        var summaries = new List<ConversationSummary>();
+        foreach (var file in Directory.EnumerateFiles(rootDirectory, "*.json"))
+        {
+            if (!Guid.TryParseExact(Path.GetFileNameWithoutExtension(file), "N", out _)) continue;
+            try
+            {
+                var snapshot = Load(Path.GetFileNameWithoutExtension(file));
+                if (snapshot.Messages.Count == 0) continue;
+                var first = snapshot.Messages.FirstOrDefault(message => message.Sender == ChatSender.User)?.Text ?? "";
+                var title = string.Join(' ', first.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+                if (title.Length > 40) title = title[..40] + "…";
+                summaries.Add(new(snapshot.Id, title, snapshot.UpdatedAt, snapshot.Messages.Count));
+            }
+            catch (Exception exception) when (IsStorageError(exception)) { /* 单个损坏文件不影响其他会话。 */ }
+        }
+        return summaries.OrderByDescending(summary => summary.UpdatedAt).ToArray();
+    }
+
+    public static bool IsStorageError(Exception exception) => exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException;
+
+    private string PathFor(string id)
+    {
+        if (!Guid.TryParseExact(id, "N", out _)) throw new InvalidDataException("历史对话标识无效。");
+        return Path.Combine(rootDirectory, id + ".json");
+    }
+
+    private static void Validate(ConversationSnapshot snapshot, string id)
+    {
+        if (snapshot.Version != 1 || snapshot.Id != id || snapshot.Messages is null || snapshot.ModelMessages is null
+            || !Enum.IsDefined(snapshot.State)
+            || snapshot.Messages.Any(message => message is null || message.Text is null || message.Thinking is null
+                || !Enum.IsDefined(message.Sender) || message.Segments is null
+                || message.Segments.Any(segment => segment is null || segment.Text is null
+                    || !Enum.IsDefined(segment.Kind) || !Enum.IsDefined(segment.Status)))
+            || snapshot.ModelMessages.Any(message => message is null || !Enum.IsDefined(message.Role)
+                || message.ToolCalls is null || message.Blocks is null
+                || message.ToolCalls.Any(call => call is null)
+                || message.Blocks.Any(block => block is null)))
+            throw new InvalidDataException("历史对话格式不完整或版本不受支持。");
+    }
+}

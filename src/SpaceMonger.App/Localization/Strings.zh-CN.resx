@@ -900,4 +900,8 @@
   <data name="CopilotTool_manage_cleanup_skill" xml:space="preserve"><value>管理清理规则</value></data>
   <data name="CopilotTool_show_skill_panel" xml:space="preserve"><value>准备任务面板</value></data>
   <data name="CopilotTool_run_skill_source" xml:space="preserve"><value>运行自定义识别</value></data>
+  <data name="CopilotConversationHistory" xml:space="preserve"><value>历史对话</value></data>
+  <data name="CopilotNoConversationHistory" xml:space="preserve"><value>暂无历史对话</value></data>
+  <data name="CopilotHistoryLoadFailed" xml:space="preserve"><value>无法读取历史对话，请检查文件或访问权限。当前对话已保留。</value></data>
+  <data name="CopilotHistorySaveFailed" xml:space="preserve"><value>对话保存失败，请检查磁盘空间或访问权限。当前对话尚未保存。</value></data>
 </root>
