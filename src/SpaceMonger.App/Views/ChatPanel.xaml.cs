@@ -108,6 +108,21 @@ public partial class ChatPanel : UserControl
         if(sender is FrameworkElement {DataContext:ChatMessage message} && !string.IsNullOrWhiteSpace(message.Text))
             try { Clipboard.SetText(message.Text); } catch(System.Runtime.InteropServices.ExternalException) { }
     }
+    // 输入卡聚焦：整卡唯一描边换品牌色相（LoomX AccentBorderSoft 配方），不加重不放大。
+    private void Input_GotFocus(object sender,RoutedEventArgs e) => InputCard.BorderBrush=TryFindResource("VP.BorderAccentSoftBrush") as Brush ?? InputCard.BorderBrush;
+    private void Input_LostFocus(object sender,RoutedEventArgs e) => InputCard.BorderBrush=TryFindResource("VP.BorderLightBrush") as Brush ?? InputCard.BorderBrush;
+    private void ModelList_SelectionChanged(object sender,SelectionChangedEventArgs e)
+    {
+        if(e.AddedItems.Count==0) return;
+        ModelPickerToggle.IsChecked=false;
+        FocusInput();
+    }
+    // 滑条拖动 → 等级回写；等级变化经绑定回流时值相同，WPF 会忽略，不会形成循环。
+    private void ThinkingSlider_ValueChanged(object sender,RoutedPropertyChangedEventArgs<double> e)
+    {
+        if(viewModel is null || !IsLoaded) return;
+        viewModel.SetThinkingLevelFromSlider((int)Math.Round(e.NewValue));
+    }
 }
 
 /// <summary>将连续增量合并到短 UI 节奏，避免每个 token 都重建整段 Markdown。</summary>

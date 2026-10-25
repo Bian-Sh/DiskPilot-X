@@ -23,6 +23,7 @@
     <Color x:Key="VP.Card">#12FFFFFF</Color>             <!-- 7% white — recommendation cards -->
     <Color x:Key="VP.BorderLight">#2FFFFFFF</Color>      <!-- 19% white -->
     <Color x:Key="VP.BorderSubtle">#20FFFFFF</Color>     <!-- 13% white -->
+    <Color x:Key="VP.BorderAccentSoft">#663B82F6</Color> <!-- 40% accent — 输入卡聚焦描边（LoomX AccentBorderSoft 同款） -->
 
     <Color x:Key="VP.TextPrimary">#FFFFFF</Color>
     <Color x:Key="VP.TextSecondary">#9AA8BC</Color>
@@ -44,6 +45,7 @@
     <SolidColorBrush x:Key="VP.CardBrush" Color="{DynamicResource VP.Card}" />
     <SolidColorBrush x:Key="VP.BorderLightBrush" Color="{DynamicResource VP.BorderLight}" />
     <SolidColorBrush x:Key="VP.BorderSubtleBrush" Color="{DynamicResource VP.BorderSubtle}" />
+    <SolidColorBrush x:Key="VP.BorderAccentSoftBrush" Color="{DynamicResource VP.BorderAccentSoft}" />
     <SolidColorBrush x:Key="VP.TextPrimaryBrush" Color="{DynamicResource VP.TextPrimary}" />
     <SolidColorBrush x:Key="VP.TextSecondaryBrush" Color="{DynamicResource VP.TextSecondary}" />
     <SolidColorBrush x:Key="VP.TextTertiaryBrush" Color="{DynamicResource VP.TextTertiary}" />

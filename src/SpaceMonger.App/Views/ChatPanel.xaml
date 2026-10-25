@@ -14,6 +14,157 @@
         <ContentPresenter x:Name="ProcessBody" ContentSource="Content" Visibility="Collapsed"/>
       </StackPanel><ControlTemplate.Triggers><Trigger Property="IsExpanded" Value="True"><Setter TargetName="ProcessBody" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
     </Style>
+    <!-- ── 沉浸式输入区（LoomX/ZCode 设计语言）────────────────────── -->
+    <!-- bare 选择器：透明常态，hover/展开才出浅底；圆角 7；文字三级色 -->
+    <Style x:Key="PickerToggle" TargetType="ToggleButton">
+      <Setter Property="Foreground" Value="{DynamicResource VP.TextTertiaryBrush}"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="Padding" Value="8,4"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Focusable" Value="False"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border x:Name="Surface" Background="Transparent" CornerRadius="7" Padding="{TemplateBinding Padding}">
+              <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="False"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Surface" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource VP.TextSecondaryBrush}"/>
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Surface" Property="Background" Value="{DynamicResource VP.SurfaceActiveBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource VP.TextSecondaryBrush}"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <!-- 弹层：不透明深底 + 极淡描边 + 轻投影，圆角 10 -->
+    <Style x:Key="PickerPopupBorder" TargetType="Border">
+      <Setter Property="Background" Value="{DynamicResource VP.BackgroundAltBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderLightBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Padding" Value="6"/>
+      <Setter Property="Effect">
+        <Setter.Value>
+          <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.35" Color="#000000"/>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <!-- 弹层列表：无框透明，行 hover/选中才出底 -->
+    <Style x:Key="PickerList" TargetType="ListBox">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Foreground" Value="{DynamicResource VP.TextSecondaryBrush}"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+      <Setter Property="ItemContainerStyle">
+        <Setter.Value>
+          <Style TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource VP.TextSecondaryBrush}"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+              <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                  <Border x:Name="Row" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                    <ContentPresenter VerticalAlignment="Center"/>
+                  </Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}"/>
+                    </Trigger>
+                    <Trigger Property="IsSelected" Value="True">
+                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource VP.SurfaceActiveBrush}"/>
+                      <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}"/>
+                    </Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </Setter.Value>
+            </Setter>
+          </Style>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <!-- 发送键：28×28 正圆 Accent 实心，白描边矢量图标（纸飞机/停止） -->
+    <Style x:Key="ComposerSendButton" TargetType="Button">
+      <Setter Property="Width" Value="28"/>
+      <Setter Property="Height" Value="28"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Focusable" Value="False"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Circle" Background="{DynamicResource VP.AccentBrush}" CornerRadius="14">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Circle" Property="Background" Value="{DynamicResource VP.AccentHoverBrush}"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="Circle" Property="Opacity" Value="0.78"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.45"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <!-- 思考等级滑条：渐变轨道 + 白圆点，快照到 5 档（ZCode 截图样式） -->
+    <LinearGradientBrush x:Key="ThinkingSliderGradient" StartPoint="0,0.5" EndPoint="1,0.5">
+      <GradientStop Color="#30D158" Offset="0"/>
+      <GradientStop Color="#3B82F6" Offset="1"/>
+    </LinearGradientBrush>
+    <Style x:Key="ThinkingSlider" TargetType="Slider">
+      <Setter Property="Minimum" Value="0"/>
+      <Setter Property="Maximum" Value="4"/>
+      <Setter Property="IsSnapToTickEnabled" Value="True"/>
+      <Setter Property="TickFrequency" Value="1"/>
+      <Setter Property="IsMoveToPointEnabled" Value="True"/>
+      <Setter Property="Height" Value="20"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Slider">
+            <Grid Background="Transparent">
+              <Border Height="8" CornerRadius="4" VerticalAlignment="Center" Background="{StaticResource ThinkingSliderGradient}"/>
+              <Track x:Name="PART_Track">
+                <Track.DecreaseRepeatButton>
+                  <RepeatButton Command="{x:Static Slider.DecreaseLarge}" Focusable="False">
+                    <RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Grid Background="Transparent"/></ControlTemplate></RepeatButton.Template>
+                  </RepeatButton>
+                </Track.DecreaseRepeatButton>
+                <Track.IncreaseRepeatButton>
+                  <RepeatButton Command="{x:Static Slider.IncreaseLarge}" Focusable="False">
+                    <RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Grid Background="Transparent"/></ControlTemplate></RepeatButton.Template>
+                  </RepeatButton>
+                </Track.IncreaseRepeatButton>
+                <Track.Thumb>
+                  <Thumb Width="16" Height="16" Focusable="False">
+                    <Thumb.Template>
+                      <ControlTemplate TargetType="Thumb">
+                        <Ellipse Fill="White" Stroke="#33000000" StrokeThickness="0.5">
+                          <Ellipse.Effect><DropShadowEffect BlurRadius="5" ShadowDepth="1" Opacity="0.3" Color="#000000"/></Ellipse.Effect>
+                        </Ellipse>
+                      </ControlTemplate>
+                    </Thumb.Template>
+                  </Thumb>
+                </Track.Thumb>
+              </Track>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
     <DataTemplate DataType="{x:Type models:ChatSegment}">
       <StackPanel>
         <local:CopilotMarkdownView Markdown="{Binding Text}" Visibility="{Binding IsText,Converter={StaticResource BoolVis}}"/>
@@ -110,12 +261,51 @@
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="{Binding CancelText}" Command="{Binding DataContext.CancelInteractionCommand,RelativeSource={RelativeSource AncestorType=UserControl}}" Style="{StaticResource QuietButton}" Margin="0,0,6,0"/><Button Content="{Binding ConfirmText}" Command="{Binding DataContext.ConfirmInteractionCommand,RelativeSource={RelativeSource AncestorType=UserControl}}" Style="{StaticResource VP.AccentButton}" Background="{DynamicResource VP.AccentBrush}" Foreground="White" Padding="14,6"/></StackPanel>
       </StackPanel></Border>
       <ContentControl Grid.Row="4" Margin="12,4,12,8" Content="{Binding PendingAskUser}" Visibility="{Binding PendingAskUser,Converter={StaticResource NullVis}}"><ContentControl.ContentTemplate><DataTemplate><local:AskUserCard/></DataTemplate></ContentControl.ContentTemplate></ContentControl>
-      <Border Grid.Row="5" Margin="12,5,12,12" Padding="10,8" CornerRadius="{DynamicResource VP.CardCornerRadius}" Background="{DynamicResource VP.CardBrush}" BorderBrush="{DynamicResource VP.BorderLightBrush}" BorderThickness="1"><StackPanel>
+      <Border x:Name="InputCard" Grid.Row="5" Margin="12,5,12,12" Padding="8,6" CornerRadius="14" Background="{DynamicResource VP.CardBrush}" BorderBrush="{DynamicResource VP.BorderLightBrush}" BorderThickness="1"><StackPanel>
         <ListBox x:Name="SkillList" ItemsSource="{Binding FilteredSkillMentionSuggestions}" SelectedItem="{Binding SelectedSkillMentionSuggestion}" Visibility="{Binding IsSkillMentionMenuOpen,Converter={StaticResource BoolVis}}" MaxHeight="130" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource VP.TextPrimaryBrush}" HorizontalContentAlignment="Stretch" PreviewMouseLeftButtonUp="Skill_Click"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="2,3"><TextBlock Text="{Binding DisplayName}" FontSize="12"/><TextBlock Text="{Binding Mention}" FontSize="10" Foreground="{DynamicResource VP.TextTertiaryBrush}"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
         <ListBox x:Name="SlashList" ItemsSource="{Binding SlashCommandSuggestions}" SelectedItem="{Binding SelectedSlashCommandSuggestion}" Visibility="{Binding IsSlashCommandMenuOpen,Converter={StaticResource BoolVis}}" MaxHeight="130" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource VP.TextPrimaryBrush}" PreviewMouseLeftButtonUp="Slash_Click"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="2,3"><TextBlock Text="{Binding Command}" FontSize="12"/><TextBlock Text="{Binding Description}" FontSize="10" TextWrapping="Wrap"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
-        <Grid Visibility="{Binding LinkedItemPath,Converter={StaticResource NullVis}}" Margin="0,0,0,6"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="{Binding LinkedItemPath}" FontSize="10" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource VP.TextSecondaryBrush}" VerticalAlignment="Center" ToolTip="{Binding LinkedItemPath}"/><Button Grid.Column="1" Content="×" Command="{Binding UnlinkItemCommand}" Style="{StaticResource QuietButton}" ToolTip="{loc:Loc ClearContextToolTip}"/></Grid>
-        <Grid><TextBox x:Name="InputTextBox" Text="{Binding InputText,UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="65" MaxHeight="160" VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0" Padding="2,4" FontSize="13" Foreground="{DynamicResource VP.TextPrimaryBrush}" PreviewKeyDown="Input_KeyDown" AutomationProperties.Name="{loc:Loc CopilotInputLabel}"/><TextBlock Text="{loc:Loc CopilotPlaceholder}" IsHitTestVisible="False" Margin="4,6" FontSize="12" Foreground="{DynamicResource VP.TextTertiaryBrush}"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding InputText}" Value="{x:Null}"><Setter Property="Visibility" Value="Visible"/></DataTrigger><DataTrigger Binding="{Binding InputText}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid>
-        <Grid Margin="0,4,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><Button Content="@" Click="Skills_Click" Style="{StaticResource QuietButton}" ToolTip="{loc:Loc CopilotChooseSkill}" FontSize="14"/><TextBlock Grid.Column="1" Text="{Binding ModelDisplayName}" ToolTip="{Binding ModelDisplayName}" TextTrimming="CharacterEllipsis" Margin="8,0" FontSize="10" Foreground="{DynamicResource VP.TextSecondaryBrush}" VerticalAlignment="Center"/><Button x:Name="SendButton" Grid.Column="2" Click="Submit_Click" Command="{Binding SubmitOrStopCommand}" Style="{StaticResource VP.AccentButton}" Background="{DynamicResource VP.AccentBrush}" Foreground="White" Width="32" Height="32" Padding="0" ToolTip="{Binding SendButtonText}" AutomationProperties.Name="{Binding SendButtonText}"><Button.Clip><EllipseGeometry Center="16,16" RadiusX="16" RadiusY="16"/></Button.Clip><TextBlock TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="↑"/><Setter Property="FontSize" Value="18"/><Setter Property="FontWeight" Value="SemiBold"/><Style.Triggers><DataTrigger Binding="{Binding IsOperationRunning}" Value="True"><Setter Property="Text" Value="■"/><Setter Property="FontSize" Value="12"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Button></Grid>
+        <Grid Visibility="{Binding LinkedItemPath,Converter={StaticResource NullVis}}" Margin="2,0,2,6"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="{Binding LinkedItemPath}" FontSize="10" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource VP.TextSecondaryBrush}" VerticalAlignment="Center" ToolTip="{Binding LinkedItemPath}"/><Button Grid.Column="1" Content="×" Command="{Binding UnlinkItemCommand}" Style="{StaticResource QuietButton}" ToolTip="{loc:Loc ClearContextToolTip}"/></Grid>
+        <Grid><TextBox x:Name="InputTextBox" Text="{Binding InputText,UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="62" MaxHeight="160" VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0" Padding="6,6" FontSize="13" Foreground="{DynamicResource VP.TextPrimaryBrush}" PreviewKeyDown="Input_KeyDown" GotFocus="Input_GotFocus" LostFocus="Input_LostFocus" AutomationProperties.Name="{loc:Loc CopilotInputLabel}"/><TextBlock Text="{loc:Loc CopilotPlaceholder}" IsHitTestVisible="False" Margin="8,8" FontSize="12" Foreground="{DynamicResource VP.TextTertiaryBrush}"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding InputText}" Value="{x:Null}"><Setter Property="Visibility" Value="Visible"/></DataTrigger><DataTrigger Binding="{Binding InputText}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid>
+        <!-- 底部控件行：@ 技能 | 模型+思考等级（合并选择器） | 发送。bare 选择器沉浸于卡片，hover 才出底。 -->
+        <Grid Margin="2,3,2,3"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <Button Content="@" Click="Skills_Click" Style="{StaticResource QuietButton}" ToolTip="{loc:Loc CopilotChooseSkill}" FontSize="14" Padding="7,3"/>
+          <!-- 合并选择器（ZCode 样式）：模型名 + 思考等级 + ▾，一个控件，点开弹层 -->
+          <ToggleButton x:Name="ModelPickerToggle" Grid.Column="1" Style="{StaticResource PickerToggle}" ToolTip="{loc:Loc CopilotModelSelectorLabel}" AutomationProperties.Name="{loc:Loc CopilotModelSelectorLabel}">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="{Binding ModelDisplayName}" TextTrimming="CharacterEllipsis" MaxWidth="160" VerticalAlignment="Center"/>
+              <TextBlock Text="{Binding ThinkingPickerLabel}" Margin="6,0,0,0" Opacity="0.85" VerticalAlignment="Center"/>
+              <TextBlock Text="▾" FontSize="8" Margin="4,2,0,0" Opacity="0.7" VerticalAlignment="Center"/>
+            </StackPanel>
+          </ToggleButton>
+          <Popup IsOpen="{Binding IsChecked,ElementName=ModelPickerToggle,Mode=TwoWay}" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" Placement="Top" PlacementTarget="{Binding ElementName=ModelPickerToggle}" VerticalOffset="-4">
+            <Border Style="{StaticResource PickerPopupBorder}" Width="272">
+              <StackPanel>
+                <TextBlock Text="{loc:Loc ComposerModelsSectionLabel}" FontSize="10" Foreground="{DynamicResource VP.TextTertiaryBrush}" Margin="9,6,0,4"/>
+                <ListBox x:Name="ModelList" Style="{StaticResource PickerList}" ItemsSource="{Binding ModelCandidates}" SelectedItem="{Binding SelectedChatModel}" MaxHeight="196" SelectionChanged="ModelList_SelectionChanged"/>
+                <!-- 思考等级：弹层底部分隔线下方，渐变滑条（LoomX foldout 配方 + ZCode 交互） -->
+                <Border BorderBrush="{DynamicResource VP.BorderSubtleBrush}" BorderThickness="0,1,0,0" Margin="0,6,0,0" Padding="6,8,6,2">
+                  <StackPanel>
+                    <Grid>
+                      <TextBlock Text="{loc:Loc CopilotThinkingSelectorLabel}" FontSize="11" Foreground="{DynamicResource VP.TextTertiaryBrush}" VerticalAlignment="Center"/>
+                      <TextBlock Text="{Binding ThinkingPickerLabel}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource VP.AccentBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    </Grid>
+                    <Slider x:Name="ThinkingSlider" Style="{StaticResource ThinkingSlider}" Margin="3,9,3,4" ValueChanged="ThinkingSlider_ValueChanged" Value="{Binding SelectedThinkingLevelIndex,Mode=OneWay}"/>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </Border>
+          </Popup>
+          <Button Grid.Column="4" Click="Submit_Click" Command="{Binding SubmitOrStopCommand}" Style="{StaticResource ComposerSendButton}" ToolTip="{Binding SendButtonText}" AutomationProperties.Name="{Binding SendButtonText}">
+            <Grid>
+              <Path Data="M 21,3 L 10.5,13.5 M 21,3 L 14.5,21 L 10.5,13.5 M 10.5,13.5 L 3,10.2 L 21,3" Width="13" Height="13" Stretch="None" Stroke="White" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Path.Style><Style TargetType="Path"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding IsOperationRunning}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Path.Style>
+              </Path>
+              <Path Data="M 8.5,8.5 H 15.5 V 15.5 H 8.5 Z" Width="12" Height="12" Stretch="None" Stroke="White" StrokeThickness="1.7" StrokeLineJoin="Round" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Path.Style><Style TargetType="Path"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsOperationRunning}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Path.Style>
+              </Path>
+            </Grid>
+          </Button>
+        </Grid>
       </StackPanel></Border>
     </Grid>
   </Border>
