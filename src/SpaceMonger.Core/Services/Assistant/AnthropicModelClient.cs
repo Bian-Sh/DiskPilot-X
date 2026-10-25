@@ -41,7 +41,9 @@ public sealed class AnthropicModelClient : IModelClient
         cancellationToken.ThrowIfCancellationRequested();
         using var outgoing = CreateRequest(request);
         using var response = await SendAsync(outgoing, cancellationToken).ConfigureAwait(false);
-        await using var events = ReadEventsAsync(response, cancellationToken).GetAsyncEnumerator(cancellationToken);
+        // 协议故障现场：最近收到的原始 data 帧，仅在协议失败时落盘（见 LlmStreamDiagnostics）。
+        var tail = new StringBuilder();
+        await using var events = ReadEventsAsync(response, tail, cancellationToken).GetAsyncEnumerator(cancellationToken);
         while (true)
         {
             ModelStreamEvent current;
@@ -58,7 +60,9 @@ public sealed class AnthropicModelClient : IModelClient
             catch (IOException) { throw new ModelClientException("模型服务连接中断。", ModelErrorKind.ConnectionFailed); }
             catch (Exception error) when (error is JsonException or InvalidOperationException or ArgumentException or NotSupportedException or KeyNotFoundException or FormatException)
             {
-                throw ProtocolError();
+                // 帧 JSON/流解码失败：先落盘原始帧现场再按协议错误处理，避免只剩一句无法归因的报错。
+                LlmStreamDiagnostics.WriteDump("anthropic", messagesUri, model, $"stream-parse: {error.GetType().Name}", tail.ToString());
+                throw Fault("stream-parse", error.GetType().Name);
             }
             cancellationToken.ThrowIfCancellationRequested();
             yield return current;
@@ -83,7 +87,7 @@ public sealed class AnthropicModelClient : IModelClient
                 var role = message.Role == ChatRole.Assistant ? "assistant" : "user";
                 if (message.Role == ChatRole.Tool)
                 {
-                    if (string.IsNullOrWhiteSpace(message.ToolCallId)) throw ProtocolError();
+                    if (string.IsNullOrWhiteSpace(message.ToolCallId)) throw Fault("history-empty-tool-call-id", null);
                     content.Add(new JsonObject { ["type"] = "tool_result", ["tool_use_id"] = message.ToolCallId, ["content"] = message.Content ?? "" });
                 }
                 else
@@ -103,8 +107,8 @@ public sealed class AnthropicModelClient : IModelClient
                     {
                         foreach (var call in calls)
                         {
-                            if (string.IsNullOrWhiteSpace(call.Id) || string.IsNullOrWhiteSpace(call.Name)) throw ProtocolError();
-                            var input = JsonNode.Parse(call.ArgumentsJson) as JsonObject ?? throw ProtocolError();
+                            if (string.IsNullOrWhiteSpace(call.Id) || string.IsNullOrWhiteSpace(call.Name)) throw Fault("history-invalid-tool-call", null);
+                            var input = JsonNode.Parse(call.ArgumentsJson) as JsonObject ?? throw Fault("history-invalid-tool-arguments", call.Name);
                             content.Add(new JsonObject { ["type"] = "tool_use", ["id"] = call.Id, ["name"] = call.Name, ["input"] = input });
                         }
                     }
@@ -179,7 +183,7 @@ public sealed class AnthropicModelClient : IModelClient
         catch (IOException) { throw new ModelClientException("模型服务连接中断。", ModelErrorKind.ConnectionFailed); }
     }
 
-    private async IAsyncEnumerable<ModelStreamEvent> ReadEventsAsync(HttpResponseMessage response, [EnumeratorCancellation] CancellationToken cancellationToken)
+    private async IAsyncEnumerable<ModelStreamEvent> ReadEventsAsync(HttpResponseMessage response, StringBuilder tail, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         using var reader = new StreamReader(await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false), new UTF8Encoding(false, true));
         var data = new StringBuilder();
@@ -201,8 +205,11 @@ public sealed class AnthropicModelClient : IModelClient
                 continue;
             }
             if (data.Length == 0) continue;
-            using var document = JsonDocument.Parse(data.ToString());
+            var payload = data.ToString();
             data.Clear();
+            // 解析前先留档：无论后续在哪一步失败，现场都包含这条原始帧。
+            LlmStreamDiagnostics.Capture(tail, payload);
+            using var document = JsonDocument.Parse(payload);
             var root = document.RootElement;
             var type = root.GetProperty("type").GetString();
             if (type == "error")
@@ -213,20 +220,20 @@ public sealed class AnthropicModelClient : IModelClient
             if (type == "ping") continue;
             if (type == "message_start")
             {
-                if (started) throw ProtocolError();
+                if (started) throw ProtocolFault(tail, "duplicate-message-start");
                 started = true;
                 continue;
             }
-            if (!started) throw ProtocolError();
+            if (!started) throw ProtocolFault(tail, "event-before-message-start", type);
             switch (type)
             {
                 case "content_block_start":
                 {
-                    if (finishReason is not null) throw ProtocolError();
+                    if (finishReason is not null) throw ProtocolFault(tail, "block-after-finish", $"index={root.GetProperty("index").GetInt32()}");
                     var index = root.GetProperty("index").GetInt32();
                     var content = root.GetProperty("content_block");
                     var block = new ContentBlock(content.GetProperty("type").GetString()!);
-                    if (index < 0 || !blocks.TryAdd(index, block)) throw ProtocolError();
+                    if (index < 0 || !blocks.TryAdd(index, block)) throw ProtocolFault(tail, "duplicate-block-index", $"index={index}");
                     switch (block.Type)
                     {
                         case "text":
@@ -240,64 +247,81 @@ public sealed class AnthropicModelClient : IModelClient
                             if (thinking.Length > 0) yield return new ReasoningDeltaEvent(thinking);
                             break;
                         case "redacted_thinking":
-                            block.RedactedData = String(content, "data") ?? throw ProtocolError();
+                            block.RedactedData = String(content, "data") ?? throw ProtocolFault(tail, "redacted-thinking-missing-data", $"index={index}");
                             break;
                         case "tool_use":
                             block.Id = String(content, "id");
                             block.Name = String(content, "name");
-                            if (string.IsNullOrWhiteSpace(block.Id) || string.IsNullOrWhiteSpace(block.Name) || !toolIds.Add(block.Id)) throw ProtocolError();
+                            if (string.IsNullOrWhiteSpace(block.Id) || string.IsNullOrWhiteSpace(block.Name) || !toolIds.Add(block.Id))
+                                throw ProtocolFault(tail, "invalid-tool-block", $"index={index}, id={block.Id ?? "(empty)"}, name={block.Name ?? "(empty)"}");
                             block.InitialInput = content.GetProperty("input").Clone();
                             break;
-                        default: throw ProtocolError();
+                        default: throw ProtocolFault(tail, "unknown-block-type", block.Type);
                     }
                     break;
                 }
                 case "content_block_delta":
                 {
-                    if (finishReason is not null || !blocks.TryGetValue(root.GetProperty("index").GetInt32(), out var block) || block.Closed) throw ProtocolError();
+                    if (finishReason is not null || !blocks.TryGetValue(root.GetProperty("index").GetInt32(), out var block) || block.Closed)
+                        throw ProtocolFault(tail, "delta-for-closed-block", $"index={root.GetProperty("index").GetInt32()}");
                     var delta = root.GetProperty("delta");
                     switch (delta.GetProperty("type").GetString())
                     {
                         case "text_delta" when block.Type == "text":
-                            yield return new TextDeltaEvent(delta.GetProperty("text").GetString() ?? throw ProtocolError());
+                            yield return new TextDeltaEvent(delta.GetProperty("text").GetString() ?? throw ProtocolFault(tail, "null-text-delta"));
                             break;
                         case "thinking_delta" when block.Type == "thinking":
-                            var thinking = delta.GetProperty("thinking").GetString() ?? throw ProtocolError();
+                            var thinking = delta.GetProperty("thinking").GetString() ?? throw ProtocolFault(tail, "null-thinking-delta");
                             block.Thinking.Append(thinking);
                             yield return new ReasoningDeltaEvent(thinking);
                             break;
                         case "signature_delta" when block.Type == "thinking":
-                            block.Signature.Append(delta.GetProperty("signature").GetString() ?? throw ProtocolError());
+                            block.Signature.Append(delta.GetProperty("signature").GetString() ?? throw ProtocolFault(tail, "null-signature-delta"));
                             break;
                         case "input_json_delta" when block.Type == "tool_use":
                             block.HasArgumentsDelta = true;
-                            block.Arguments.Append(delta.GetProperty("partial_json").GetString() ?? throw ProtocolError());
+                            block.Arguments.Append(delta.GetProperty("partial_json").GetString() ?? throw ProtocolFault(tail, "null-arguments-delta"));
                             break;
-                        default: throw ProtocolError();
+                        default: throw ProtocolFault(tail, "unknown-delta-type", delta.GetProperty("type").GetString());
                     }
                     break;
                 }
                 case "content_block_stop":
                 {
-                    if (!blocks.TryGetValue(root.GetProperty("index").GetInt32(), out var block) || block.Closed) throw ProtocolError();
+                    if (!blocks.TryGetValue(root.GetProperty("index").GetInt32(), out var block) || block.Closed)
+                        throw ProtocolFault(tail, "stop-for-unknown-block", $"index={root.GetProperty("index").GetInt32()}");
                     block.Closed = true;
                     if (block.Type == "tool_use")
                     {
                         var arguments = block.HasArgumentsDelta ? block.Arguments.ToString() : block.InitialInput.GetRawText();
-                        using var input = JsonDocument.Parse(arguments);
-                        if (input.RootElement.ValueKind != JsonValueKind.Object) throw ProtocolError();
+                        var valid = false;
+                        try
+                        {
+                            using var input = JsonDocument.Parse(arguments);
+                            valid = input.RootElement.ValueKind == JsonValueKind.Object;
+                        }
+                        catch (JsonException) { }
+                        if (!valid) throw ProtocolFault(tail, "invalid-tool-arguments", $"tool={block.Name}, bytes={arguments.Length}");
                         yield return new ModelToolCallEvent(new ToolCall(block.Id!, block.Name!, arguments));
                     }
                     break;
                 }
                 case "message_delta":
-                    if (blocks.Values.Any(block => !block.Closed)) throw ProtocolError();
+                    if (blocks.Values.Any(block => !block.Closed))
+                        throw ProtocolFault(tail, "message-delta-open-blocks", $"open={blocks.Values.Count(block => !block.Closed)}");
                     finishReason = String(root.GetProperty("delta"), "stop_reason") ?? finishReason;
                     break;
                 case "message_stop":
                 {
-                    if (string.IsNullOrWhiteSpace(finishReason) || blocks.Values.Any(block => !block.Closed)
-                        || (toolIds.Count > 0 && finishReason != "tool_use") || (toolIds.Count == 0 && finishReason == "tool_use")) throw ProtocolError();
+                    if (string.IsNullOrWhiteSpace(finishReason)) throw ProtocolFault(tail, "message-stop-without-reason");
+                    if (blocks.Values.Any(block => !block.Closed))
+                        throw ProtocolFault(tail, "message-stop-open-blocks", $"stopReason={finishReason}");
+                    // max_tokens 截断时 stop_reason 不会是 tool_use，但各块与工具参数均已通过完整校验，
+                    // 按有效完成收尾让 Harness 继续执行；真正的截断残缺会在参数校验处失败。
+                    if (toolIds.Count > 0 && finishReason != "tool_use" && finishReason != "max_tokens")
+                        throw ProtocolFault(tail, "message-stop-reason-mismatch", $"toolCalls={toolIds.Count}, stopReason={finishReason}");
+                    if (toolIds.Count == 0 && finishReason == "tool_use")
+                        throw ProtocolFault(tail, "message-stop-reason-mismatch", "toolCalls=0, stopReason=tool_use");
                     if (EnableThinking && toolIds.Count > 0)
                     {
                         var thoughts = new JsonArray();
@@ -318,7 +342,7 @@ public sealed class AnthropicModelClient : IModelClient
                 // Anthropic 可能增加无关事件；未知事件不能代替 message_stop。
             }
         }
-        throw ProtocolError();
+        throw ProtocolFault(tail, "stream-end", $"stopReason={finishReason ?? "none"}, blocks={blocks.Count}, toolCalls={toolIds.Count}");
     }
 
     private ModelClientException ProviderError(int? status, string? code, string? message, TimeSpan? retryAfter = null)
@@ -329,7 +353,16 @@ public sealed class AnthropicModelClient : IModelClient
     }
 
     private string? Clean(string? value) => ModelErrorClassifier.SanitizeUpstreamMessage(value?.Replace(apiKey, "***", StringComparison.Ordinal));
-    private static ModelClientException ProtocolError() => new("模型响应无效或流未完整结束。", ModelErrorKind.Unknown);
+    // 请求构造期（尚无流）的协议错误：只带站点标记，便于日志归因。
+    private static ModelClientException Fault(string site, string? detail) =>
+        new($"模型响应无效或流未完整结束。 [{site}]", ModelErrorKind.Unknown,
+            upstreamMessage: ModelErrorClassifier.SanitizeUpstreamMessage(detail));
+    // 流内协议故障：先落盘最近原始帧现场，再抛带站点标记的协议错误。
+    private ModelClientException ProtocolFault(StringBuilder tail, string site, string? detail = null)
+    {
+        LlmStreamDiagnostics.WriteDump("anthropic", messagesUri, model, $"{site}: {detail}", tail.ToString());
+        return Fault(site, $"anthropic-stream/{site}: {detail}");
+    }
     private static string? String(JsonElement element, string name) => element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     private sealed class ContentBlock(string type)
