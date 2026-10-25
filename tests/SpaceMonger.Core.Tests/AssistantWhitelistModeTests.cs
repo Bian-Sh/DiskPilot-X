@@ -5,6 +5,7 @@ using NSubstitute;
 using SpaceMonger.Core.Models;
 using SpaceMonger.Core.Services.Agent;
 using SpaceMonger.Core.Services.Assistant;
+using SpaceMonger.Core.Services.Llm;
 using SpaceMonger.Core.Services.Settings;
 namespace SpaceMonger.Core.Tests;
 public class AssistantWhitelistModeTests
@@ -23,7 +24,7 @@ public class AssistantWhitelistModeTests
             var settings=Substitute.For<ISettingsService>();settings.LoadSettings().Returns(new AppSettings{AiConversationWhitelist=[new(){Path=ai.FullName}],CleanupRecommendationWhitelist=[new(){Path=cleanup.FullName}]});
             var workspace=new AssistantWorkspace{ReadContext=_=>Task.FromResult(new AgentContext(scan,root,null,null))};var client=new EvidenceClient();
             var service=new DiskAssistantService(_=>client,[],workspace,settings);
-            await service.RunAsync("分析",new("key",null,"model",IsAnalysis:analysisMode),null,CancellationToken.None);
+            await service.RunAsync("分析",new(new ModelEndpointConfig { ApiKey = "key", Model = "model" }, IsAnalysis: analysisMode),null,CancellationToken.None);
             client.Evidence.Should().NotContain("cleanup-hidden");
             if(analysisMode)client.Evidence.Should().Contain("ai-hidden");else client.Evidence.Should().NotContain("ai-hidden");
         }

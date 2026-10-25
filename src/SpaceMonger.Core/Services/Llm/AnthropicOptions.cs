@@ -55,4 +55,29 @@ public static class AnthropicOptions
         return builder.Uri;
     }
 
+    public static Uri GetModelsUri(string? configuredBaseUrl = null)
+    {
+        var baseUri = GetBaseUri(configuredBaseUrl);
+        var builder = new UriBuilder(baseUri);
+        var path = builder.Path.TrimEnd('/');
+
+        if (string.IsNullOrEmpty(path))
+        {
+            path = "/v1/models";
+        }
+        else if (path.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
+        {
+            path += "/models";
+        }
+        else if (!path.EndsWith("/v1/models", StringComparison.OrdinalIgnoreCase) && !path.EndsWith("/models", StringComparison.OrdinalIgnoreCase))
+        {
+            path += "/v1/models";
+        }
+
+        builder.Path = path;
+        // Anthropic 官方接口需要 limit 参数才返回完整列表。
+        builder.Query = "limit=1000";
+        return builder.Uri;
+    }
+
 }

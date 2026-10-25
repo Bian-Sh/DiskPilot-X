@@ -2,16 +2,17 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
-using NSubstitute;
 using SpaceMonger.Core.Services.Assistant;
+using SpaceMonger.Core.Services.Llm;
 namespace SpaceMonger.Core.Tests;
 public class ModelConnectionTesterTests
 {
     [Fact]
     public async Task ConnectionTestUsesSelectedModelAndNativeEndpoint()
     {
-        var handler=new Handler();var factory=Substitute.For<IHttpClientFactory>();factory.CreateClient("Anthropic").Returns(new HttpClient(handler));
-        (await new ModelConnectionTester(factory).ValidateAsync("fixture-key","http://127.0.0.1:39386","selected-model",CancellationToken.None)).Should().BeTrue();
+        var handler=new Handler();var factory=new ModelClientFactory(new ModelHttpClientFactory(()=>handler));
+        var endpoint=new ModelEndpointConfig{ApiKey="fixture-key",BaseUrl="http://127.0.0.1:39386",Model="selected-model"};
+        (await new ModelConnectionTester(factory).ValidateAsync(endpoint,CancellationToken.None)).Should().BeTrue();
         handler.Model.Should().Be("selected-model");handler.Uri.Should().Be("http://127.0.0.1:39386/v1/messages");
     }
     private sealed class Handler:HttpMessageHandler

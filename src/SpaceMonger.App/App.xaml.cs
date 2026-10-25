@@ -42,12 +42,6 @@ public partial class App : Application
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.ClearProviders().AddSerilog(dispose: true));
 
-        services.AddHttpClient("Anthropic", client =>
-        {
-            client.BaseAddress = AnthropicOptions.GetBaseUri();
-            client.Timeout = TimeSpan.FromSeconds(300);
-        });
-
         // Theme manager (singleton, initialized early)
         services.AddSingleton<ThemeManager>();
 
@@ -70,6 +64,9 @@ public partial class App : Application
         // US2 services
         services.AddSingleton<ISettingsService>(_ => new SettingsService(AcceptanceAutomationServer.IsEnabled()
             ? Environment.GetEnvironmentVariable("SPACEMONGER_ACCEPTANCE_SETTINGS") : null));
+        services.AddSingleton<ModelHttpClientFactory>();
+        services.AddSingleton<ModelClientFactory>();
+        services.AddSingleton<ModelCatalogService>();
         services.AddSingleton<ModelConnectionTester>();
         services.AddSingleton<IDuplicateDetector, DuplicateDetector>();
         services.AddSingleton<RecommendationEngine>();
@@ -102,8 +99,7 @@ public partial class App : Application
             return new ConversationStore(System.IO.Path.Combine(directory, "Conversations"));
         });
         services.AddSingleton<DiskAssistantService>(provider => new DiskAssistantService(
-            options => new AnthropicModelClient(provider.GetRequiredService<IHttpClientFactory>().CreateClient("Anthropic"),
-                options.ApiKey, options.BaseUrl, options.Model, options.EnableThinking),
+            options => provider.GetRequiredService<ModelClientFactory>().Create(options.Endpoint),
             provider.GetServices<IAgentTool>(), provider.GetRequiredService<AssistantWorkspace>(),
             provider.GetRequiredService<ISettingsService>(), provider.GetRequiredService<RecommendationEngine>(),
             provider.GetRequiredService<ILoggerFactory>(), provider.GetRequiredService<ConversationStore>()));

@@ -5,6 +5,7 @@ using TinyHarness;
 using NSubstitute;
 using SpaceMonger.Core.Models;
 using SpaceMonger.Core.Services.Assistant;
+using SpaceMonger.Core.Services.Llm;
 using SpaceMonger.Core.Services.Settings;
 namespace SpaceMonger.Core.Tests;
 public class AssistantDeclineTests
@@ -14,7 +15,7 @@ public class AssistantDeclineTests
         var calls=0;var settings=Substitute.For<ISettingsService>();settings.LoadSettings().Returns(new AppSettings());
         var workspace=new AssistantWorkspace{Execute=(_,_,_)=>{calls++;return Task.FromResult<JsonNode>(new JsonObject{["ok"]=false,["cancelled"]=true});}};
         var service=new DiskAssistantService(_=>new RepeatClient(),[],workspace,settings);
-        await service.RunAsync("询问",new("key",null,"model"),null,CancellationToken.None);
+        await service.RunAsync("询问",new(new ModelEndpointConfig { ApiKey = "key", Model = "model" }),null,CancellationToken.None);
         calls.Should().Be(1);
     }
     [Fact] public void UserDeclinedToolHasCancelledStatus()

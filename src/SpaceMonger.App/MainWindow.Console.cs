@@ -195,10 +195,9 @@ public partial class MainWindow
 
         _recommendationsViewModel.SetContext(
             mainVm.CurrentSession,
-            apiKey,
-            loadedSettings.AnthropicBaseUrl,
-            loadedSettings.AnalysisModelName,
-            loadedSettings.EnableThinking,
+            SpaceMonger.Core.Services.Llm.ModelEndpointConfig.FromSettings(
+                loadedSettings, apiKey!, loadedSettings.AnalysisModelName ?? string.Empty,
+                settingsService.GetProxyPassword(loadedSettings)),
             loadedSettings.Language,
             focusEntry);
         DebugBreakpoints.Hit("analyze-context-ready");

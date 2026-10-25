@@ -1,12 +1,13 @@
 using System.Text.Json.Nodes;
 using SpaceMonger.Core.Services.Agent;
 using SpaceMonger.Core.Services.Copilot;
+using SpaceMonger.Core.Services.Llm;
 using TinyHarness;
 
 namespace SpaceMonger.Core.Services.Assistant;
 
-public sealed record AssistantRunOptions(string ApiKey, string? BaseUrl, string Model,
-    bool EnableThinking = false, string Language = "zh-CN", IReadOnlyList<AiSkill>? Skills = null, string? FocusPath = null, bool IsAnalysis = false);
+public sealed record AssistantRunOptions(ModelEndpointConfig Endpoint,
+    string Language = "zh-CN", IReadOnlyList<AiSkill>? Skills = null, string? FocusPath = null, bool IsAnalysis = false);
 
 public sealed record AssistantRunResult(string Text, AgentSessionState State, SpaceMonger.Core.Models.AnalysisResult? Analysis = null);
 

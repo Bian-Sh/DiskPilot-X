@@ -205,7 +205,7 @@
     <value>无法显示属性：{0}</value>
   </data>
   <data name="ChatConfigureApiKey" xml:space="preserve">
-    <value>Configure your API key in Settings to use the chat</value>
+    <value>请先在设置中配置模型 API Key，再使用对话功能</value>
   </data>
   <data name="OpenSettingsButton" xml:space="preserve">
     <value>打开设置</value>
@@ -904,4 +904,40 @@
   <data name="CopilotNoConversationHistory" xml:space="preserve"><value>暂无历史对话</value></data>
   <data name="CopilotHistoryLoadFailed" xml:space="preserve"><value>无法读取历史对话，请检查文件或访问权限。当前对话已保留。</value></data>
   <data name="CopilotHistorySaveFailed" xml:space="preserve"><value>对话保存失败，请检查磁盘空间或访问权限。当前对话尚未保存。</value></data>
+  <data name="SettingsApiFormatLabel" xml:space="preserve"><value>接口格式</value></data>
+  <data name="SettingsApiFormatHint" xml:space="preserve"><value>与模型服务通信使用的线上协议</value></data>
+  <data name="SettingsCliIdentityLabel" xml:space="preserve"><value>客户端指纹</value></data>
+  <data name="SettingsCliIdentityHint" xml:space="preserve"><value>模拟 CLI 客户端的 User-Agent 与特征头，避免按客户端放行的中转站拦截请求</value></data>
+  <data name="SettingsThinkingLevelLabel" xml:space="preserve"><value>思考等级</value></data>
+  <data name="SettingsThinkingLevelHint" xml:space="preserve"><value>等级越高推理越充分但响应更慢；Anthropic 格式的最低档按低档处理</value></data>
+  <data name="SettingsProxyModeLabel" xml:space="preserve"><value>代理</value></data>
+  <data name="SettingsProxyModeHint" xml:space="preserve"><value>部分中转站需要通过代理才能访问</value></data>
+  <data name="SettingsProxyAddressLabel" xml:space="preserve"><value>代理地址</value></data>
+  <data name="SettingsProxyAddressHint" xml:space="preserve"><value>HTTP(S) 代理主机，例如 http://127.0.0.1</value></data>
+  <data name="SettingsProxyPortLabel" xml:space="preserve"><value>端口</value></data>
+  <data name="SettingsProxyPasswordLabel" xml:space="preserve"><value>代理密码（可选）</value></data>
+  <data name="SettingsRefreshModelsButton" xml:space="preserve"><value>刷新模型列表</value></data>
+  <data name="SettingsModelRefreshRunning" xml:space="preserve"><value>正在获取模型列表…</value></data>
+  <data name="SettingsModelRefreshFailed" xml:space="preserve"><value>模型列表获取失败，请检查地址、密钥、格式与代理设置。</value></data>
+  <data name="SettingsModelRefreshSuccessFormat" xml:space="preserve"><value>已发现 {0} 个模型。</value></data>
+  <data name="ThinkingLevelOffLabel" xml:space="preserve"><value>关闭</value></data>
+  <data name="ThinkingLevelMinimalLabel" xml:space="preserve"><value>最低</value></data>
+  <data name="ThinkingLevelLowLabel" xml:space="preserve"><value>低</value></data>
+  <data name="ThinkingLevelMediumLabel" xml:space="preserve"><value>中</value></data>
+  <data name="ThinkingLevelHighLabel" xml:space="preserve"><value>高</value></data>
+  <data name="ApiFormatAnthropicLabel" xml:space="preserve"><value>Anthropic Messages</value></data>
+  <data name="ApiFormatResponsesLabel" xml:space="preserve"><value>OpenAI Responses</value></data>
+  <data name="ApiFormatChatCompletionsLabel" xml:space="preserve"><value>OpenAI Chat Completions</value></data>
+  <data name="CliIdentityNoneLabel" xml:space="preserve"><value>不模拟</value></data>
+  <data name="CliIdentityClaudeCodeLabel" xml:space="preserve"><value>Claude Code</value></data>
+  <data name="CliIdentityCodexLabel" xml:space="preserve"><value>Codex CLI</value></data>
+  <data name="CliIdentityGrokLabel" xml:space="preserve"><value>Grok CLI</value></data>
+  <data name="ProxyModeSystemLabel" xml:space="preserve"><value>跟随系统代理</value></data>
+  <data name="ProxyModeDirectLabel" xml:space="preserve"><value>直连（不走代理）</value></data>
+  <data name="ProxyModeCustomLabel" xml:space="preserve"><value>自定义</value></data>
+  <data name="CopilotModelSelectorLabel" xml:space="preserve"><value>聊天模型</value></data>
+  <data name="CopilotThinkingSelectorLabel" xml:space="preserve"><value>思考等级</value></data>
+  <data name="CopilotThinkingSelectorToolTip" xml:space="preserve"><value>下一条消息使用的思考等级</value></data>
+  <data name="CopilotModelFilterPlaceholder" xml:space="preserve"><value>搜索或输入自定义模型名，回车应用</value></data>
+  <data name="ComposerModelsSectionLabel" xml:space="preserve"><value>模型</value></data>
 </root>

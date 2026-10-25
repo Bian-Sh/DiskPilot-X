@@ -4,6 +4,7 @@ using TinyHarness;
 using NSubstitute;
 using SpaceMonger.Core.Models;
 using SpaceMonger.Core.Services.Assistant;
+using SpaceMonger.Core.Services.Llm;
 using SpaceMonger.Core.Services.Settings;
 
 namespace SpaceMonger.Core.Tests;
@@ -17,7 +18,7 @@ public class ChatServiceStreamingTests
         var settings=Substitute.For<ISettingsService>();settings.LoadSettings().Returns(new AppSettings());
         var assistant=new DiskAssistantService(_=>client,[],new AssistantWorkspace(),settings);
         var first=new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var running=assistant.RunAsync("测试流式",new("key",null,"test"),e=>{if(e.Kind==AgentEventKind.TextDelta)first.TrySetResult(e.Text!);},CancellationToken.None);
+        var running=assistant.RunAsync("测试流式",new(new ModelEndpointConfig { ApiKey = "key", Model = "test" }),e=>{if(e.Kind==AgentEventKind.TextDelta)first.TrySetResult(e.Text!);},CancellationToken.None);
         (await first.Task.WaitAsync(TimeSpan.FromSeconds(5))).Should().Be("第一段");
         running.IsCompleted.Should().BeFalse();
         client.Release.TrySetResult();

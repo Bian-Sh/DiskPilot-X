@@ -16,18 +16,22 @@ public sealed class AnthropicModelClient : IModelClient
     private readonly string apiKey;
     private readonly Uri messagesUri;
     private readonly string model;
-    private readonly bool enableThinking;
+    private readonly ThinkingLevel thinkingLevel;
+    private readonly CliIdentityKind cliIdentity;
+    private bool EnableThinking => thinkingLevel != ThinkingLevel.Off;
     // Harness 历史没有签名字段，只保存本客户端收到且已完整结束的签名思考。
     private readonly ConcurrentDictionary<string, JsonArray> signedThinking = new(StringComparer.Ordinal);
 
-    public AnthropicModelClient(HttpClient httpClient, string apiKey, string? baseUrl, string model, bool enableThinking = false)
+    public AnthropicModelClient(HttpClient httpClient, string apiKey, string? baseUrl, string model,
+        ThinkingLevel thinkingLevel = ThinkingLevel.Off, CliIdentityKind cliIdentity = CliIdentityKind.None)
     {
         this.httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
         this.apiKey = apiKey;
         this.model = model;
-        this.enableThinking = enableThinking;
+        this.thinkingLevel = thinkingLevel;
+        this.cliIdentity = cliIdentity;
         try { messagesUri = AnthropicOptions.GetMessagesUri(baseUrl); }
         catch (InvalidOperationException) { throw new ModelClientException("模型服务地址无效。", ModelErrorKind.InvalidRequest); }
     }
@@ -86,7 +90,7 @@ public sealed class AnthropicModelClient : IModelClient
                 {
                     var calls = message.ToolCalls.Count > 0 ? message.ToolCalls : message.Blocks
                         .Where(block => block.Kind == ChatContentKind.ToolCall && block.ToolCall is not null).Select(block => block.ToolCall!).ToArray();
-                    if (message.Role == ChatRole.Assistant && enableThinking)
+                    if (message.Role == ChatRole.Assistant && EnableThinking)
                     {
                         var thoughts = calls.Select(call => signedThinking.GetValueOrDefault(call.Id)).FirstOrDefault(value => value is not null);
                         if (thoughts is not null)
@@ -114,7 +118,8 @@ public sealed class AnthropicModelClient : IModelClient
                 }
                 else messages.Add(new JsonObject { ["role"] = role, ["content"] = content });
             }
-            var body = new JsonObject { ["model"] = model, ["max_tokens"] = 4096, ["stream"] = true, ["messages"] = messages };
+            var (budgetTokens, maxTokens) = LlmContracts.ToAnthropicThinkingBudget(thinkingLevel);
+            var body = new JsonObject { ["model"] = model, ["max_tokens"] = maxTokens, ["stream"] = true, ["messages"] = messages };
             if (systems.Count > 0) body["system"] = string.Join("\n\n", systems);
             if (request.Tools.Count > 0)
             {
@@ -123,12 +128,18 @@ public sealed class AnthropicModelClient : IModelClient
                     tools.Add(new JsonObject { ["name"] = tool.Name, ["description"] = tool.Description, ["input_schema"] = tool.ParametersSchema.DeepClone() });
                 body["tools"] = tools;
             }
-            body["thinking"] = enableThinking ? new JsonObject { ["type"] = "enabled", ["budget_tokens"] = 1024 } : new JsonObject { ["type"] = "disabled" };
+            // Anthropic 没有 minimal 档，按低档换算。
+            body["thinking"] = EnableThinking
+                ? new JsonObject { ["type"] = "enabled", ["budget_tokens"] = budgetTokens }
+                : new JsonObject { ["type"] = "disabled" };
             var outgoing = new HttpRequestMessage(HttpMethod.Post, messagesUri);
             outgoing.Headers.Add("x-api-key", apiKey);
             outgoing.Headers.Add("anthropic-version", "2023-06-01");
             if (!messagesUri.Host.Equals("api.anthropic.com", StringComparison.OrdinalIgnoreCase))
                 outgoing.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            // CLI 客户端指纹：部分中转站按 User-Agent 与特征头放行。
+            foreach (var (name, value) in CliIdentityService.BuildHeaders(cliIdentity))
+                outgoing.Headers.TryAddWithoutValidation(name, value);
             outgoing.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
             return outgoing;
         }
@@ -287,7 +298,7 @@ public sealed class AnthropicModelClient : IModelClient
                 {
                     if (string.IsNullOrWhiteSpace(finishReason) || blocks.Values.Any(block => !block.Closed)
                         || (toolIds.Count > 0 && finishReason != "tool_use") || (toolIds.Count == 0 && finishReason == "tool_use")) throw ProtocolError();
-                    if (enableThinking && toolIds.Count > 0)
+                    if (EnableThinking && toolIds.Count > 0)
                     {
                         var thoughts = new JsonArray();
                         foreach (var block in blocks.Values)

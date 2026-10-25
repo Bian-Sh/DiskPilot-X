@@ -7,6 +7,7 @@ using NSubstitute;
 using SpaceMonger.Core.Models;
 using SpaceMonger.Core.Services.Agent;
 using SpaceMonger.Core.Services.Assistant;
+using SpaceMonger.Core.Services.Llm;
 using SpaceMonger.Core.Services.Settings;
 namespace SpaceMonger.Core.Tests;
 public class AssistantRunResultTests
@@ -14,15 +15,15 @@ public class AssistantRunResultTests
     [Fact] public async Task PublishedArtifactBelongsToItsRunAfterNextConversationStarts()
     {
         var (service,scan)=Create(false);
-        var first=await service.RunAsync("分析",new("key",null,"analysis",IsAnalysis:true),null,CancellationToken.None);
-        var next=await service.RunAsync("继续",new("key",null,"chat"),null,CancellationToken.None);
+        var first=await service.RunAsync("分析",new(new ModelEndpointConfig { ApiKey = "key", Model = "analysis" }, IsAnalysis: true),null,CancellationToken.None);
+        var next=await service.RunAsync("继续",new(new ModelEndpointConfig { ApiKey = "key", Model = "chat" }),null,CancellationToken.None);
         first.Analysis.Should().NotBeNull();first.Analysis!.Recommendations.Should().ContainSingle();next.Analysis.Should().BeNull();
     }
     [Fact] public async Task CancellingFinalNarrationKeepsAlreadyPublishedAnalysis()
     {
         var (service,scan)=Create(true);using var cts=new CancellationTokenSource();
         service.Activity+=e=>{if(e.Kind==AgentEventKind.TextDelta)cts.Cancel();};
-        var result=await new HarnessRecommendationEngine(service).AnalyzeWithDiagnosticsAsync(scan,"key",null,"analysis",false,"zh-CN",cts.Token);
+        var result=await new HarnessRecommendationEngine(service).AnalyzeWithDiagnosticsAsync(scan,new ModelEndpointConfig{ApiKey="key",Model="analysis"},"zh-CN",cts.Token);
         result.Recommendations.Should().ContainSingle();
     }
     private static (DiskAssistantService,ScanSession) Create(bool hold)

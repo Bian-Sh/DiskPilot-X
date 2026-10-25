@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Net.Http;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
@@ -10,8 +11,10 @@ using SpaceMonger.Core.Enums;
 using SpaceMonger.Core.Models;
 using SpaceMonger.Core.Models.Theme;
 using SpaceMonger.Core.Services.Assistant;
+using SpaceMonger.Core.Services.Llm;
 using SpaceMonger.Core.Services.Settings;
 using SpaceMonger.Core.Services.Whitelist;
+using TinyHarness;
 
 namespace SpaceMonger.App.ViewModels;
 
@@ -28,6 +31,7 @@ public partial class SettingsViewModel : ObservableObject
     private readonly ISettingsService _settingsService;
     private readonly ModelConnectionTester _llmClient;
     private readonly ThemeManager _themeManager;
+    private readonly ModelCatalogService? _modelCatalog;
     private readonly IPathWhitelistMatcher _whitelistMatcher;
     private bool _isLoadingSettings;
     private bool _suppressPersistence;
@@ -91,12 +95,84 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    private bool _enableThinking;
+    private ThinkingLevel _selectedThinkingLevel = ThinkingLevel.Off;
 
-    partial void OnEnableThinkingChanged(bool value)
+    partial void OnSelectedThinkingLevelChanged(ThinkingLevel value)
     {
-        PersistAppSettings(settings => settings.EnableThinking = value);
+        PersistAppSettings(settings => settings.ThinkingLevel = LlmContracts.FormatThinkingLevel(value));
     }
+
+    [ObservableProperty]
+    private LlmApiFormat _selectedApiFormat = LlmApiFormat.AnthropicMessages;
+
+    partial void OnSelectedApiFormatChanged(LlmApiFormat value)
+    {
+        PersistAppSettings(settings => settings.ApiFormat = LlmContracts.FormatApiFormat(value));
+    }
+
+    [ObservableProperty]
+    private CliIdentityKind _selectedCliIdentity = CliIdentityKind.None;
+
+    partial void OnSelectedCliIdentityChanged(CliIdentityKind value)
+    {
+        PersistAppSettings(settings => settings.CliIdentity = LlmContracts.FormatCliIdentity(value));
+    }
+
+    [ObservableProperty]
+    private ProxyKind _selectedProxyKind = ProxyKind.System;
+
+    partial void OnSelectedProxyKindChanged(ProxyKind value)
+    {
+        PersistAppSettings(settings => settings.ProxyMode = LlmContracts.FormatProxyKind(value));
+        OnPropertyChanged(nameof(IsCustomProxyConfigurable));
+    }
+
+    [ObservableProperty]
+    private string? _proxyHost;
+
+    partial void OnProxyHostChanged(string? value)
+    {
+        PersistAppSettings(settings => settings.ProxyHost = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+    }
+
+    [ObservableProperty]
+    private string? _proxyPortText = "7890";
+
+    partial void OnProxyPortTextChanged(string? value)
+    {
+        PersistAppSettings(settings => settings.ProxyPort = int.TryParse(value?.Trim(), out var port) && port > 0 && port < 65536 ? port : null);
+    }
+
+    [ObservableProperty]
+    private string? _proxyUsername;
+
+    partial void OnProxyUsernameChanged(string? value)
+    {
+        PersistAppSettings(settings => settings.ProxyUsername = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+    }
+
+    [ObservableProperty]
+    private string? _proxyPassword;
+
+    partial void OnProxyPasswordChanged(string? value)
+    {
+        PersistAppSettings(settings => settings.EncryptedProxyPassword = string.IsNullOrEmpty(value) ? null : _settingsService.EncryptProxyPassword(value));
+    }
+
+    public bool IsCustomProxyConfigurable => SelectedProxyKind == ProxyKind.Custom;
+
+    public ObservableCollection<string> ModelCandidates { get; } = [];
+
+    [ObservableProperty]
+    private bool _isRefreshingModels;
+
+    [ObservableProperty]
+    private string? _modelRefreshMessage;
+
+    public IReadOnlyList<ThinkingLevelOption> ThinkingLevelOptions => AiOptions.ThinkingLevels();
+    public IReadOnlyList<ApiFormatOption> ApiFormatOptions => AiOptions.ApiFormats();
+    public IReadOnlyList<CliIdentityOption> CliIdentityOptions => AiOptions.CliIdentities();
+    public IReadOnlyList<ProxyKindOption> ProxyKindOptions => AiOptions.ProxyKinds();
 
     [ObservableProperty]
     private string _language = "zh-CN";
@@ -205,15 +281,26 @@ public partial class SettingsViewModel : ObservableObject
 
     public static IReadOnlyList<ThemeProfile> AvailableThemePresets { get; } = ThemeProfile.BuiltInPresets;
 
-    public SettingsViewModel(ISettingsService settingsService, ModelConnectionTester llmClient, ThemeManager themeManager, IPathWhitelistMatcher? whitelistMatcher = null)
+    public SettingsViewModel(ISettingsService settingsService, ModelConnectionTester llmClient, ThemeManager themeManager,
+        ModelCatalogService? modelCatalog = null, IPathWhitelistMatcher? whitelistMatcher = null)
     {
         _settingsService = settingsService;
         _llmClient = llmClient;
         _themeManager = themeManager;
+        _modelCatalog = modelCatalog;
         _whitelistMatcher = whitelistMatcher ?? new PathWhitelistMatcher();
         L.LanguageChanged += RefreshValidationStatusText;
+        L.LanguageChanged += RefreshOptionLabels;
 
         LoadSettings();
+    }
+
+    private void RefreshOptionLabels()
+    {
+        OnPropertyChanged(nameof(ThinkingLevelOptions));
+        OnPropertyChanged(nameof(ApiFormatOptions));
+        OnPropertyChanged(nameof(CliIdentityOptions));
+        OnPropertyChanged(nameof(ProxyKindOptions));
     }
 
     partial void OnValidationStateChanged(ValidationState value)
@@ -322,7 +409,8 @@ public partial class SettingsViewModel : ObservableObject
 
         try
         {
-            var isValid = await _llmClient.ValidateAsync(ApiKey, AnthropicBaseUrl, ChatViewModel.ResolveModel(ChatModelName, AnthropicBaseUrl, false), CancellationToken.None);
+            var endpoint = BuildEndpoint(analysis: false);
+            var isValid = await _llmClient.ValidateAsync(endpoint, CancellationToken.None);
 
             if (isValid)
             {
@@ -342,6 +430,54 @@ public partial class SettingsViewModel : ObservableObject
             ValidationState = ValidationState.Invalid;
             IsApiKeyValid = false;
             ValidationMessage = L.Format("ValidationFailedMessage", "模型连接验证失败，请检查地址、模型与凭据。");
+        }
+    }
+
+    /// <summary>用当前编辑中的字段构建端点配置；代理口令优先取输入框，未改动时解密存量值。</summary>
+    private ModelEndpointConfig BuildEndpoint(bool analysis)
+    {
+        var settings = _settingsService.LoadSettings();
+        var proxyPassword = string.IsNullOrEmpty(ProxyPassword) ? _settingsService.GetProxyPassword(settings) : ProxyPassword;
+        return ModelEndpointConfig.FromSettings(settings, ApiKey ?? string.Empty,
+            ModelEndpointResolver.ResolveModel(analysis ? AnalysisModelName : ChatModelName, AnthropicBaseUrl, analysis),
+            proxyPassword) with
+        {
+            ApiFormat = SelectedApiFormat,
+            CliIdentity = SelectedCliIdentity,
+            ThinkingLevel = SelectedThinkingLevel,
+            ProxyMode = SelectedProxyKind,
+        };
+    }
+
+    [RelayCommand]
+    private async Task RefreshModelsAsync()
+    {
+        if (_modelCatalog is null || IsRefreshingModels) return;
+        if (string.IsNullOrWhiteSpace(ApiKey))
+        {
+            ModelRefreshMessage = L.Text("ApiKeyEmptyMessage");
+            return;
+        }
+
+        IsRefreshingModels = true;
+        ModelRefreshMessage = L.Text("SettingsModelRefreshRunning");
+        try
+        {
+            var endpoint = BuildEndpoint(analysis: false);
+            var models = await Task.Run(() => _modelCatalog.FetchAsync(endpoint, CancellationToken.None));
+            var ids = models.Select(model => model.Id).ToList();
+            PersistAppSettings(settings => settings.DiscoveredModels = ids);
+            ModelCandidates.Clear();
+            foreach (var id in ids) ModelCandidates.Add(id);
+            ModelRefreshMessage = L.Format("SettingsModelRefreshSuccessFormat", $"{ids.Count}");
+        }
+        catch (Exception ex) when (ex is ModelClientException or InvalidOperationException or HttpRequestException)
+        {
+            ModelRefreshMessage = L.Text("SettingsModelRefreshFailed");
+        }
+        finally
+        {
+            IsRefreshingModels = false;
         }
     }
 
@@ -366,7 +502,17 @@ public partial class SettingsViewModel : ObservableObject
         settings.ChatModelName = string.IsNullOrWhiteSpace(ChatModelName)
             ? null
             : ChatModelName.Trim();
-        settings.EnableThinking = EnableThinking;
+        settings.ThinkingLevel = LlmContracts.FormatThinkingLevel(SelectedThinkingLevel);
+        settings.ApiFormat = LlmContracts.FormatApiFormat(SelectedApiFormat);
+        settings.CliIdentity = LlmContracts.FormatCliIdentity(SelectedCliIdentity);
+        settings.ProxyMode = LlmContracts.FormatProxyKind(SelectedProxyKind);
+        settings.ProxyHost = string.IsNullOrWhiteSpace(ProxyHost) ? null : ProxyHost.Trim();
+        settings.ProxyPort = int.TryParse(ProxyPortText?.Trim(), out var proxyPort) && proxyPort > 0 && proxyPort < 65536 ? proxyPort : null;
+        settings.ProxyUsername = string.IsNullOrWhiteSpace(ProxyUsername) ? null : ProxyUsername.Trim();
+        if (!string.IsNullOrEmpty(ProxyPassword))
+        {
+            settings.EncryptedProxyPassword = _settingsService.EncryptProxyPassword(ProxyPassword);
+        }
         settings.Language = string.IsNullOrWhiteSpace(Language) ? "zh-CN" : Language.Trim();
         L.SetLanguage(settings.Language);
 
@@ -695,7 +841,19 @@ public partial class SettingsViewModel : ObservableObject
             AnthropicBaseUrl = settings.AnthropicBaseUrl;
             AnalysisModelName = settings.AnalysisModelName;
             ChatModelName = settings.ChatModelName;
-            EnableThinking = settings.EnableThinking;
+            SelectedThinkingLevel = ModelEndpointConfig.ResolveThinkingLevel(settings);
+            SelectedApiFormat = LlmContracts.ParseApiFormat(settings.ApiFormat);
+            SelectedCliIdentity = LlmContracts.ParseCliIdentity(settings.CliIdentity);
+            SelectedProxyKind = LlmContracts.ParseProxyKind(settings.ProxyMode);
+            ProxyHost = settings.ProxyHost;
+            ProxyPortText = settings.ProxyPort?.ToString() ?? "7890";
+            ProxyUsername = settings.ProxyUsername;
+            ProxyPassword = null;
+            ModelCandidates.Clear();
+            foreach (var id in settings.DiscoveredModels.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase))
+                ModelCandidates.Add(id);
+            ModelRefreshMessage = null;
+            OnPropertyChanged(nameof(IsCustomProxyConfigurable));
             Language = string.IsNullOrWhiteSpace(settings.Language) ? "zh-CN" : settings.Language;
             SelectedDeletionMode = settings.DeletionMode;
             IsApiKeyValid = settings.IsApiKeyValid;

@@ -6,6 +6,7 @@ using NSubstitute;
 using SpaceMonger.Core.Models;
 using SpaceMonger.Core.Services.Agent;
 using SpaceMonger.Core.Services.Assistant;
+using SpaceMonger.Core.Services.Llm;
 using SpaceMonger.Core.Services.FileTree;
 using SpaceMonger.Core.Services.Settings;
 
@@ -34,7 +35,7 @@ public class DiskAssistantServiceTests
         var service = new DiskAssistantService(_ => client,
             [new ListChildrenTool(new FileTreeQueryService())], workspace, settings);
         var events = new List<AgentEvent>();
-        var result = await service.RunAsync("扫描并查看目录", new("key", null, "test"), events.Add, CancellationToken.None);
+        var result = await service.RunAsync("扫描并查看目录", new(new ModelEndpointConfig { ApiKey = "key", Model = "test" }), events.Add, CancellationToken.None);
         result.State.Should().Be(AgentSessionState.Completed);
         result.Text.Should().Contain("完成");
         client.Requests.Should().HaveCount(3);
@@ -50,11 +51,11 @@ public class DiskAssistantServiceTests
         var settings = Substitute.For<ISettingsService>(); settings.LoadSettings().Returns(new AppSettings());
         var service = new DiskAssistantService(_ => client, [], new AssistantWorkspace(), settings);
         using var cts = new CancellationTokenSource();
-        var first = service.RunAsync("第一轮", new("key", null, "test"), e =>
+        var first = service.RunAsync("第一轮", new(new ModelEndpointConfig { ApiKey = "key", Model = "test" }), e =>
         { if (e.Kind == AgentEventKind.TextDelta) cts.Cancel(); }, cts.Token);
         var cancelled = await first;
         cancelled.State.Should().Be(AgentSessionState.Cancelled);
-        var next = await service.RunAsync("继续", new("key", null, "test"), null, CancellationToken.None);
+        var next = await service.RunAsync("继续", new(new ModelEndpointConfig { ApiKey = "key", Model = "test" }), null, CancellationToken.None);
         next.State.Should().Be(AgentSessionState.Completed);
     }
 
@@ -66,7 +67,7 @@ public class DiskAssistantServiceTests
         var workspace = new AssistantWorkspace { Execute = (_, _, _) =>
         { executions++; return Task.FromResult<JsonNode>(new JsonObject { ["ok"] = true }); }};
         var service = new DiskAssistantService(_ => new TextClient(), [], workspace, settings);
-        await service.RunAsync("展示例子", new("key", null, "test"), null, CancellationToken.None);
+        await service.RunAsync("展示例子", new(new ModelEndpointConfig { ApiKey = "key", Model = "test" }), null, CancellationToken.None);
         executions.Should().Be(0);
     }
 

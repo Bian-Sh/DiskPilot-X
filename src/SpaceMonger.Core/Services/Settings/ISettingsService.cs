@@ -8,4 +8,6 @@ public interface ISettingsService
     void SaveSettings(AppSettings settings);
     string? GetApiKey(AppSettings settings);
     byte[] EncryptApiKey(string apiKey);
+    string? GetProxyPassword(AppSettings settings);
+    byte[] EncryptProxyPassword(string password);
 }

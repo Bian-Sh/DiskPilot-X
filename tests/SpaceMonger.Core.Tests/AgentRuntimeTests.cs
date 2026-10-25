@@ -5,6 +5,7 @@ using TinyHarness;
 using NSubstitute;
 using SpaceMonger.Core.Models;
 using SpaceMonger.Core.Services.Assistant;
+using SpaceMonger.Core.Services.Llm;
 using SpaceMonger.Core.Services.Settings;
 
 namespace SpaceMonger.Core.Tests;
@@ -21,7 +22,7 @@ public class AgentRuntimeTests
         var settings=Substitute.For<ISettingsService>(); settings.LoadSettings().Returns(new AppSettings());
         var client=new InvalidClient(tool,args);
         var assistant=new DiskAssistantService(_=>client,[],workspace,settings);
-        var result=await assistant.RunAsync("测试非法工具",new("key",null,"model"),null,CancellationToken.None);
+        var result=await assistant.RunAsync("测试非法工具",new(new ModelEndpointConfig { ApiKey = "key", Model = "model" }),null,CancellationToken.None);
         executions.Should().Be(0);
         result.State.Should().Be(AgentSessionState.Completed);
         client.LastRequest!.Messages.Should().Contain(m=>m.Role==ChatRole.Tool && !string.IsNullOrEmpty(m.Content));

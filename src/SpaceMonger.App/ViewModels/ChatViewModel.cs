@@ -11,6 +11,7 @@ using SpaceMonger.Core.Enums;
 using SpaceMonger.Core.Models;
 using SpaceMonger.Core.Services.Assistant;
 using SpaceMonger.Core.Services.Copilot;
+using SpaceMonger.Core.Services.Llm;
 using SpaceMonger.Core.Services.Settings;
 using Message = SpaceMonger.Core.Models.ChatMessage;
 
@@ -26,6 +27,7 @@ public partial class ChatViewModel : ObservableObject
     private ScanSession? _currentSession;
     private FileEntry? _currentViewRoot;
     private TaskCompletionSource<bool>? pendingDecision;
+    private bool _isLoadingSettings;
     [ObservableProperty] private ObservableCollection<Message> _messages = [];
     [ObservableProperty] private string? _inputText;
     [ObservableProperty] private bool _hasMessages;
@@ -46,6 +48,15 @@ public partial class ChatViewModel : ObservableObject
     [ObservableProperty] private ObservableCollection<ChatSkillSuggestion> _filteredSkillMentionSuggestions = [];
     [ObservableProperty] private ChatCommandSuggestion? _selectedSlashCommandSuggestion;
     [ObservableProperty] private ChatSkillSuggestion? _selectedSkillMentionSuggestion;
+    [ObservableProperty] private ObservableCollection<string> _modelCandidates = [];
+    [ObservableProperty] private string? _selectedChatModel;
+    [ObservableProperty] private ThinkingLevel _selectedThinkingLevel = ThinkingLevel.Off;
+    public IReadOnlyList<ThinkingLevelOption> ThinkingLevelOptions => AiOptions.ThinkingLevels();
+    /// <summary>合并选择器上的思考等级文案，如「最高」。</summary>
+    public string ThinkingPickerLabel => CurrentThinkingLevelLabel;
+    private string CurrentThinkingLevelLabel => ThinkingLevelOptions.FirstOrDefault(option => option.Value == SelectedThinkingLevel)?.Label ?? "";
+    /// <summary>思考等级滑条绑定（0=关闭 … 4=高），随 SelectedThinkingLevel 双向同步。</summary>
+    public int SelectedThinkingLevelIndex => (int)SelectedThinkingLevel;
     public bool IsChatAvailable => true;
     public bool IsSending => IsOperationRunning;
     public bool HasPendingInteractionCard => PendingInteractionCard is not null;
@@ -63,6 +74,8 @@ public partial class ChatViewModel : ObservableObject
         assistant.Activity += activity => OnUi(() => ApplyActivity(activity));
         assistant.RunFinished += () => OnUi(RefreshConversationCommands);
         L.LanguageChanged += RefreshSlashCommandSuggestions;
+        L.LanguageChanged += () => OnPropertyChanged(nameof(ThinkingLevelOptions));
+        L.LanguageChanged += () => OnPropertyChanged(nameof(ThinkingPickerLabel));
         RefreshApiKeyStatus();
         RefreshConversationHistory();
     }
@@ -72,13 +85,47 @@ public partial class ChatViewModel : ObservableObject
     {
         var settings = _settingsService.LoadSettings();
         IsApiKeyConfigured = !string.IsNullOrWhiteSpace(_settingsService.GetApiKey(settings));
-        ModelDisplayName = IsOperationRunning ? assistant.ActiveModel ?? ResolveModel(settings.ChatModelName, settings.AnthropicBaseUrl, false) : ResolveModel(settings.ChatModelName, settings.AnthropicBaseUrl, false);
+        _isLoadingSettings = true;
+        try
+        {
+            ModelCandidates = new ObservableCollection<string>(settings.DiscoveredModels.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase));
+            SelectedChatModel = settings.ChatModelName;
+            SelectedThinkingLevel = ModelEndpointConfig.ResolveThinkingLevel(settings);
+            OnPropertyChanged(nameof(ThinkingLevelOptions));
+        }
+        finally { _isLoadingSettings = false; }
+        OnPropertyChanged(nameof(ThinkingPickerLabel));
+        ModelDisplayName = IsOperationRunning && assistant.ActiveModel is { } active
+            ? active
+            : ModelEndpointResolver.ResolveModel(settings.ChatModelName, settings.AnthropicBaseUrl, false);
     }
-    public static string ResolveModel(string? configured, string? baseUrl, bool analysis)
+
+    partial void OnSelectedChatModelChanged(string? value)
     {
-        if (!string.IsNullOrWhiteSpace(configured)) return configured.Trim();
-        return Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) && uri.Host.EndsWith("deepseek.com", StringComparison.OrdinalIgnoreCase)
-            ? analysis ? "deepseek-v4-pro" : "deepseek-v4-flash" : "claude-sonnet-4-20250514";
+        if (_isLoadingSettings) return;
+        PersistSetting(settings =>
+        {
+            settings.ChatModelName = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            ModelDisplayName = ModelEndpointResolver.ResolveModel(settings.ChatModelName, settings.AnthropicBaseUrl, false);
+        });
+    }
+
+    partial void OnSelectedThinkingLevelChanged(ThinkingLevel value)
+    {
+        if (_isLoadingSettings) return;
+        PersistSetting(settings => settings.ThinkingLevel = LlmContracts.FormatThinkingLevel(value));
+        OnPropertyChanged(nameof(ThinkingPickerLabel));
+        OnPropertyChanged(nameof(SelectedThinkingLevelIndex));
+    }
+
+    /// <summary>滑条写入入口：滑条 Value 双向绑定到 SelectedThinkingLevel。</summary>
+    public void SetThinkingLevelFromSlider(int index) => SelectedThinkingLevel = (ThinkingLevel)Math.Clamp(index, 0, 4);
+
+    private void PersistSetting(Action<AppSettings> update)
+    {
+        var settings = _settingsService.LoadSettings();
+        update(settings);
+        _settingsService.SaveSettings(settings);
     }
     partial void OnLinkedEntryChanged(FileEntry? value) => LinkedItemPath = value?.Path ?? LinkedRecommendation?.TargetPath;
     partial void OnLinkedRecommendationChanged(CleanupRecommendation? value) => LinkedItemPath = value?.TargetPath ?? LinkedEntry?.Path;
@@ -116,8 +163,10 @@ public partial class ChatViewModel : ObservableObject
         var routing = _skillRouter.Route(text, LinkedEntry, _currentViewRoot, false);
         try
         {
-            await assistant.RunAsync(text, new(_settingsService.GetApiKey(settings)!, settings.AnthropicBaseUrl,
-                ResolveModel(settings.ChatModelName, settings.AnthropicBaseUrl, false), settings.EnableThinking, settings.Language, routing.Skills), null, CancellationToken.None);
+            var endpoint = ModelEndpointConfig.FromSettings(settings, _settingsService.GetApiKey(settings)!,
+                ModelEndpointResolver.ResolveModel(settings.ChatModelName, settings.AnthropicBaseUrl, false),
+                _settingsService.GetProxyPassword(settings));
+            await assistant.RunAsync(text, new(endpoint, settings.Language, routing.Skills), null, CancellationToken.None);
         }
         catch (OperationCanceledException) { StatusText = L.Text("CopilotStopped"); }
         catch (Exception ex)

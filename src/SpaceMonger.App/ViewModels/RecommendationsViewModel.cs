@@ -9,6 +9,7 @@ using SpaceMonger.App.Localization;
 using SpaceMonger.Core.Enums;
 using SpaceMonger.Core.Models;
 using SpaceMonger.Core.Services.Analysis;
+using SpaceMonger.Core.Services.Llm;
 
 namespace SpaceMonger.App.ViewModels;
 
@@ -17,10 +18,7 @@ public partial class RecommendationsViewModel : ObservableObject
     private readonly IRecommendationEngine _recommendationEngine;
     private readonly ILogger<RecommendationsViewModel> _logger;
     private ScanSession? _currentSession;
-    private string? _apiKey;
-    private string? _baseUrl;
-    private string? _modelName;
-    private bool _enableThinking;
+    private ModelEndpointConfig? _endpoint;
     private string? _responseLanguage;
     private FileEntry? _focusEntry;
 
@@ -100,16 +98,13 @@ public partial class RecommendationsViewModel : ObservableObject
         OnPropertyChanged(nameof(EmptyStateDescriptionText));
     }
 
-    public void SetContext(ScanSession session, string apiKey, string? baseUrl, string? modelName, bool enableThinking, string? responseLanguage, FileEntry? focusEntry = null)
+    public void SetContext(ScanSession session, ModelEndpointConfig endpoint, string? responseLanguage, FileEntry? focusEntry = null)
     {
         _currentSession = session;
-        _apiKey = apiKey;
-        _baseUrl = baseUrl;
-        _modelName = modelName;
-        _enableThinking = enableThinking;
+        _endpoint = endpoint;
         _responseLanguage = responseLanguage;
         _focusEntry = focusEntry;
-        _logger.LogInformation("Recommendation context set: target={TargetPath}, focus={FocusPath}, model={ModelName}, thinking={EnableThinking}", session.TargetPath, focusEntry?.Path, modelName, enableThinking);
+        _logger.LogInformation("Recommendation context set: target={TargetPath}, focus={FocusPath}, model={ModelName}", session.TargetPath, focusEntry?.Path, endpoint.Model);
     }
 
     public void SetExternalRecommendations(IEnumerable<CleanupRecommendation> recommendations, AnalysisDiagnostics? diagnostics = null)
@@ -153,7 +148,7 @@ public partial class RecommendationsViewModel : ObservableObject
     [RelayCommand]
     private async Task AnalyzeAsync()
     {
-        if (_currentSession is null || _apiKey is null)
+        if (_currentSession is null || _endpoint is null)
             return;
 
         _logger.LogInformation("Recommendation analysis started: target={TargetPath}, focus={FocusPath}", _currentSession.TargetPath, _focusEntry?.Path);
@@ -161,8 +156,8 @@ public partial class RecommendationsViewModel : ObservableObject
         IsWaitingForExternalRecommendations = false;
         AnalysisError = null;
 
-        // Clear previous recommendations immediately so stale results from
-        // a different scope (e.g. subfolder) don't persist if this call fails.
+        // Clear previous recommendations immediately so stale results from a
+        // different scope (e.g. subfolder) don't persist if this call fails.
         Recommendations = new ObservableCollection<CleanupRecommendation>();
         ApplyFilters();
         UpdateTotals();
@@ -171,15 +166,12 @@ public partial class RecommendationsViewModel : ObservableObject
         {
             DebugBreakpoints.Hit("recommendation-engine-before");
             var session = _currentSession;
-            var apiKey = _apiKey;
-            var baseUrl = _baseUrl;
-            var modelName = _modelName;
-            var enableThinking = _enableThinking;
+            var endpoint = _endpoint;
             var responseLanguage = _responseLanguage;
             var focusEntry = _focusEntry;
 
             var result = await Task.Run(() => _recommendationEngine.AnalyzeWithDiagnosticsAsync(
-                session, apiKey, baseUrl, modelName, enableThinking, responseLanguage, CancellationToken.None, focusEntry));
+                session, endpoint, responseLanguage, CancellationToken.None, focusEntry));
             DebugBreakpoints.Hit("recommendation-engine-after");
 
             LastDiagnostics = result.Diagnostics;

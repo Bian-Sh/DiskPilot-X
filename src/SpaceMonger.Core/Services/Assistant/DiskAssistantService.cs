@@ -119,9 +119,9 @@ public sealed class DiskAssistantService
         activeCancellation = linked;
         try
         {
-            if (string.IsNullOrWhiteSpace(options.ApiKey)) throw new InvalidOperationException("请先在设置中配置 API Key。");
+            if (string.IsNullOrWhiteSpace(options.Endpoint.ApiKey)) throw new InvalidOperationException("请先在设置中配置 API Key。");
             LastAnalysisResult = null;
-            ActiveModel = options.Model;
+            ActiveModel = options.Endpoint.Model;
             AgentSession NewSession() => new(new AgentSessionOptions { MaxSteps = 32, SystemPrompt = SystemPrompt, ModelTimeout = TimeSpan.FromSeconds(180) });
             var privacySignature = JsonSerializer.Serialize(settings.LoadSettings().AiConversationWhitelist.Select(entry => entry.Path));
             if(!options.IsAnalysis && privacySignature != conversationPrivacySignature) { session = null; conversationPrivacySignature = privacySignature; }

@@ -4,6 +4,7 @@ using SpaceMonger.App.ViewModels;
 using SpaceMonger.Core.Enums;
 using SpaceMonger.Core.Models;
 using SpaceMonger.Core.Services.Analysis;
+using SpaceMonger.Core.Services.Llm;
 
 namespace SpaceMonger.App.Tests;
 
@@ -60,10 +61,7 @@ public class RecommendationsViewModelTests
                 TargetPath = @"C:\",
                 RootEntry = new FileEntry { Path = @"C:\", Name = @"C:\", IsDirectory = true }
             },
-            "api-key",
-            null,
-            null,
-            false,
+            new ModelEndpointConfig { ApiKey = "api-key", Model = "stub-model" },
             "zh-CN");
 
         await viewModel.AnalyzeCommand.ExecuteAsync(null);
@@ -88,20 +86,14 @@ public class RecommendationsViewModelTests
     {
         public Task<List<CleanupRecommendation>> AnalyzeAsync(
             ScanSession session,
-            string apiKey,
-            string? baseUrl,
-            string? modelName,
-            bool enableThinking,
+            ModelEndpointConfig endpoint,
             string? responseLanguage,
             CancellationToken cancellationToken,
             FileEntry? focusEntry = null) => Task.FromResult(recommendations);
 
         public Task<AnalysisResult> AnalyzeWithDiagnosticsAsync(
             ScanSession session,
-            string apiKey,
-            string? baseUrl,
-            string? modelName,
-            bool enableThinking,
+            ModelEndpointConfig endpoint,
             string? responseLanguage,
             CancellationToken cancellationToken,
             FileEntry? focusEntry = null) => Task.FromResult(new AnalysisResult { Recommendations = recommendations, Diagnostics = new AnalysisDiagnostics() });

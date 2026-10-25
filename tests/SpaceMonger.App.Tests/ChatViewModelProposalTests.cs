@@ -5,6 +5,7 @@ using NSubstitute;
 using SpaceMonger.App.ViewModels;
 using SpaceMonger.Core.Models;
 using SpaceMonger.Core.Services.Assistant;
+using SpaceMonger.Core.Services.Llm;
 using SpaceMonger.Core.Services.Copilot;
 using SpaceMonger.Core.Services.Settings;
 
@@ -17,7 +18,7 @@ public class ChatViewModelProposalTests
     {
         var client=new TextClient();
         var model="";
-        var vm=Create(options=>{model=options.Model;return client;});
+        var vm=Create(options=>{model=options.Endpoint.Model;return client;});
         vm.InputText="你好";
         await vm.SubmitOrStopCommand.ExecuteAsync(null);
         model.Should().Be("configured-model");
@@ -84,7 +85,7 @@ public class ChatViewModelProposalTests
     [Fact] public async Task ComposerReturnsToChatModelAfterExternalAnalysis()
     {
         DiskAssistantService? service=null;var vm=Create(_=>new TextClient(),value=>service=value);
-        await service!.RunAsync("手动分析",new("key",null,"analysis-model",IsAnalysis:true),null,CancellationToken.None);
+        await service!.RunAsync("手动分析",new(new ModelEndpointConfig { ApiKey = "key", Model = "analysis-model" }, IsAnalysis: true),null,CancellationToken.None);
         vm.ModelDisplayName.Should().Be("configured-model");
     }
     private static ChatViewModel Create(Func<AssistantRunOptions,IModelClient> factory,Action<DiskAssistantService>? observe=null)

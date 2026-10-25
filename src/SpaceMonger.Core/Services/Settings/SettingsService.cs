@@ -75,4 +75,36 @@ public class SettingsService : ISettingsService
             null,
             DataProtectionScope.CurrentUser);
     }
+
+    public string? GetProxyPassword(AppSettings settings)
+    {
+        if (settings.EncryptedProxyPassword is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var decryptedBytes = ProtectedData.Unprotect(
+                settings.EncryptedProxyPassword,
+                null,
+                DataProtectionScope.CurrentUser);
+
+            return Encoding.UTF8.GetString(decryptedBytes);
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+    }
+
+    public byte[] EncryptProxyPassword(string password)
+    {
+        var bytes = Encoding.UTF8.GetBytes(password);
+
+        return ProtectedData.Protect(
+            bytes,
+            null,
+            DataProtectionScope.CurrentUser);
+    }
 }

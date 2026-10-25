@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:loc="clr-namespace:SpaceMonger.App.Localization"
              xmlns:vm="clr-namespace:SpaceMonger.App.ViewModels"
+             xmlns:c="clr-namespace:SpaceMonger.App.Converters"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel, IsDesignTimeCreatable=False}"
              FontFamily="{DynamicResource VP.FontFamily}">
@@ -13,6 +14,40 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="SettingsSharedResources.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <c:BoolToVisibilityConverter x:Key="BoolVis" />
+            <c:NullToVisibilityConverter x:Key="NullVis" />
+            <Style x:Key="ApiPasswordBox" TargetType="PasswordBox">
+                <Setter Property="FontFamily" Value="{DynamicResource VP.FontFamily}" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
+                <Setter Property="CaretBrush" Value="{DynamicResource VP.TextPrimaryBrush}" />
+                <Setter Property="Background" Value="{DynamicResource VP.SurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderLightBrush}" />
+                <Setter Property="Padding" Value="10,8" />
+                <Setter Property="SelectionBrush" Value="{DynamicResource VP.AccentBrush}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="PasswordBox">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="0.5"
+                                    CornerRadius="6"
+                                    SnapsToDevicePixels="True">
+                                <ScrollViewer x:Name="PART_ContentHost" Margin="0" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsFocused" Value="True">
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource VP.AccentBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -90,11 +125,31 @@
                         <ColumnDefinition Width="170" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="{loc:Loc SettingsAnalysisModelLabel}"
+                    <TextBlock Text="{loc:Loc SettingsApiFormatLabel}"
                                Style="{StaticResource SettingsLabelStyle}"
-                               ToolTip="{loc:Loc SettingsAnalysisModelHint}" />
-                    <TextBox Grid.Column="1" Style="{DynamicResource VP.TextBox}"
-                             Text="{Binding AnalysisModelName, UpdateSourceTrigger=PropertyChanged}" />
+                               ToolTip="{loc:Loc SettingsApiFormatHint}" />
+                    <ComboBox Grid.Column="1"
+                              Style="{DynamicResource VP.ComboBox}"
+                              ItemsSource="{Binding ApiFormatOptions}"
+                              SelectedValue="{Binding SelectedApiFormat}"
+                              SelectedValuePath="Value"
+                              DisplayMemberPath="Label" />
+                </Grid>
+                <Separator Margin="14,0" />
+                <Grid Margin="14,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:Loc SettingsCliIdentityLabel}"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               ToolTip="{loc:Loc SettingsCliIdentityHint}" />
+                    <ComboBox Grid.Column="1"
+                              Style="{DynamicResource VP.ComboBox}"
+                              ItemsSource="{Binding CliIdentityOptions}"
+                              SelectedValue="{Binding SelectedCliIdentity}"
+                              SelectedValuePath="Value"
+                              DisplayMemberPath="Label" />
                 </Grid>
                 <Separator Margin="14,0" />
                 <Grid Margin="14,12">
@@ -105,8 +160,26 @@
                     <TextBlock Text="{loc:Loc SettingsChatModelLabel}"
                                Style="{StaticResource SettingsLabelStyle}"
                                ToolTip="{loc:Loc SettingsChatModelHint}" />
-                    <TextBox Grid.Column="1" Style="{DynamicResource VP.TextBox}"
-                             Text="{Binding ChatModelName, UpdateSourceTrigger=PropertyChanged}" />
+                    <StackPanel Grid.Column="1">
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox Style="{DynamicResource VP.ComboBox}"
+                                      Width="240"
+                                      IsEditable="True"
+                                      StaysOpenOnEdit="True"
+                                      Text="{Binding ChatModelName, UpdateSourceTrigger=PropertyChanged}"
+                                      ItemsSource="{Binding ModelCandidates}" />
+                            <Button Content="{loc:Loc SettingsRefreshModelsButton}"
+                                    Style="{DynamicResource VP.Button}"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding RefreshModelsCommand}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding ModelRefreshMessage}"
+                                   Margin="0,6,0,0"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource VP.TextTertiaryBrush}"
+                                   Visibility="{Binding ModelRefreshMessage, Converter={StaticResource NullVis}}" />
+                    </StackPanel>
                 </Grid>
                 <Separator Margin="14,0" />
                 <Grid Margin="14,12">
@@ -114,14 +187,87 @@
                         <ColumnDefinition Width="170" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="{loc:Loc SettingsThinkingLabel}"
+                    <TextBlock Text="{loc:Loc SettingsAnalysisModelLabel}"
                                Style="{StaticResource SettingsLabelStyle}"
-                               ToolTip="{loc:Loc SettingsThinkingHint}" />
-                    <CheckBox Grid.Column="1"
-                              Style="{DynamicResource VP.CheckBox}"
-                              IsChecked="{Binding EnableThinking}"
-                              VerticalAlignment="Center"
-                              Content="{loc:Loc SettingsAllowThinkingOption}" />
+                               ToolTip="{loc:Loc SettingsAnalysisModelHint}" />
+                    <ComboBox Grid.Column="1"
+                              Style="{DynamicResource VP.ComboBox}"
+                              IsEditable="True"
+                              StaysOpenOnEdit="True"
+                              Text="{Binding AnalysisModelName, UpdateSourceTrigger=PropertyChanged}"
+                              ItemsSource="{Binding ModelCandidates}" />
+                </Grid>
+                <Separator Margin="14,0" />
+                <Grid Margin="14,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:Loc SettingsThinkingLevelLabel}"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               ToolTip="{loc:Loc SettingsThinkingLevelHint}" />
+                    <ComboBox Grid.Column="1"
+                              Style="{DynamicResource VP.ComboBox}"
+                              Width="240"
+                              HorizontalAlignment="Left"
+                              ItemsSource="{Binding ThinkingLevelOptions}"
+                              SelectedValue="{Binding SelectedThinkingLevel}"
+                              SelectedValuePath="Value"
+                              DisplayMemberPath="Label" />
+                </Grid>
+                <Separator Margin="14,0" />
+                <Grid Margin="14,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:Loc SettingsProxyModeLabel}"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               ToolTip="{loc:Loc SettingsProxyModeHint}" />
+                    <ComboBox Grid.Column="1"
+                              Style="{DynamicResource VP.ComboBox}"
+                              Width="240"
+                              HorizontalAlignment="Left"
+                              ItemsSource="{Binding ProxyKindOptions}"
+                              SelectedValue="{Binding SelectedProxyKind}"
+                              SelectedValuePath="Value"
+                              DisplayMemberPath="Label" />
+                </Grid>
+                <Grid Margin="14,0,14,12"
+                      Visibility="{Binding IsCustomProxyConfigurable, Converter={StaticResource BoolVis}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:Loc SettingsProxyAddressLabel}"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               ToolTip="{loc:Loc SettingsProxyAddressHint}" />
+                    <StackPanel Grid.Column="1">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox Style="{DynamicResource VP.TextBox}"
+                                     Width="200"
+                                      Text="{Binding ProxyHost, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="{loc:Loc SettingsProxyPortLabel}"
+                                       Margin="10,0,6,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource VP.TextSecondaryBrush}" />
+                            <TextBox Style="{DynamicResource VP.TextBox}"
+                                     Width="70"
+                                     Text="{Binding ProxyPortText, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBox Style="{DynamicResource VP.TextBox}"
+                                     Width="130"
+                                     Text="{Binding ProxyUsername, UpdateSourceTrigger=PropertyChanged}" />
+                            <PasswordBox x:Name="ProxyPasswordBox"
+                                         Style="{StaticResource ApiPasswordBox}"
+                                         Width="200"
+                                         Margin="8,0,0,0"
+                                         PasswordChanged="ProxyPasswordBox_PasswordChanged"
+                                         ToolTip="{loc:Loc SettingsProxyPasswordLabel}"
+                                         AutomationProperties.Name="{loc:Loc SettingsProxyPasswordLabel}" />
+                        </StackPanel>
+                    </StackPanel>
                 </Grid>
             </StackPanel>
         </Border>

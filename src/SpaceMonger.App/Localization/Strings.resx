@@ -907,4 +907,40 @@
   <data name="CopilotNoConversationHistory" xml:space="preserve"><value>No conversations yet</value></data>
   <data name="CopilotHistoryLoadFailed" xml:space="preserve"><value>Unable to load conversation history. Check the file or access permissions. The current conversation is kept.</value></data>
   <data name="CopilotHistorySaveFailed" xml:space="preserve"><value>Unable to save the conversation. Check disk space or access permissions. The current conversation is not saved yet.</value></data>
+  <data name="SettingsApiFormatLabel" xml:space="preserve"><value>API Format</value></data>
+  <data name="SettingsApiFormatHint" xml:space="preserve"><value>Wire protocol used to talk to the model service</value></data>
+  <data name="SettingsCliIdentityLabel" xml:space="preserve"><value>Client Fingerprint</value></data>
+  <data name="SettingsCliIdentityHint" xml:space="preserve"><value>Simulate a CLI client (User-Agent and headers) so relays that gate by client keep the requests through</value></data>
+  <data name="SettingsThinkingLevelLabel" xml:space="preserve"><value>Thinking Level</value></data>
+  <data name="SettingsThinkingLevelHint" xml:space="preserve"><value>Higher levels allow deeper reasoning but slower responses; Anthropic treats Minimal as Low</value></data>
+  <data name="SettingsProxyModeLabel" xml:space="preserve"><value>Proxy</value></data>
+  <data name="SettingsProxyModeHint" xml:space="preserve"><value>Some relays are only reachable through a proxy</value></data>
+  <data name="SettingsProxyAddressLabel" xml:space="preserve"><value>Proxy Address</value></data>
+  <data name="SettingsProxyAddressHint" xml:space="preserve"><value>HTTP(S) proxy host, e.g. http://127.0.0.1</value></data>
+  <data name="SettingsProxyPortLabel" xml:space="preserve"><value>Port</value></data>
+  <data name="SettingsProxyPasswordLabel" xml:space="preserve"><value>Proxy password (optional)</value></data>
+  <data name="SettingsRefreshModelsButton" xml:space="preserve"><value>Fetch models</value></data>
+  <data name="SettingsModelRefreshRunning" xml:space="preserve"><value>Fetching model list...</value></data>
+  <data name="SettingsModelRefreshFailed" xml:space="preserve"><value>Failed to fetch the model list. Check the base URL, key, format and proxy.</value></data>
+  <data name="SettingsModelRefreshSuccessFormat" xml:space="preserve"><value>Discovered {0} models.</value></data>
+  <data name="ThinkingLevelOffLabel" xml:space="preserve"><value>Off</value></data>
+  <data name="ThinkingLevelMinimalLabel" xml:space="preserve"><value>Minimal</value></data>
+  <data name="ThinkingLevelLowLabel" xml:space="preserve"><value>Low</value></data>
+  <data name="ThinkingLevelMediumLabel" xml:space="preserve"><value>Medium</value></data>
+  <data name="ThinkingLevelHighLabel" xml:space="preserve"><value>High</value></data>
+  <data name="ApiFormatAnthropicLabel" xml:space="preserve"><value>Anthropic Messages</value></data>
+  <data name="ApiFormatResponsesLabel" xml:space="preserve"><value>OpenAI Responses</value></data>
+  <data name="ApiFormatChatCompletionsLabel" xml:space="preserve"><value>OpenAI Chat Completions</value></data>
+  <data name="CliIdentityNoneLabel" xml:space="preserve"><value>None</value></data>
+  <data name="CliIdentityClaudeCodeLabel" xml:space="preserve"><value>Claude Code</value></data>
+  <data name="CliIdentityCodexLabel" xml:space="preserve"><value>Codex CLI</value></data>
+  <data name="CliIdentityGrokLabel" xml:space="preserve"><value>Grok CLI</value></data>
+  <data name="ProxyModeSystemLabel" xml:space="preserve"><value>Use system proxy</value></data>
+  <data name="ProxyModeDirectLabel" xml:space="preserve"><value>Direct (no proxy)</value></data>
+  <data name="ProxyModeCustomLabel" xml:space="preserve"><value>Custom</value></data>
+  <data name="CopilotModelSelectorLabel" xml:space="preserve"><value>Chat model</value></data>
+  <data name="CopilotThinkingSelectorLabel" xml:space="preserve"><value>Thinking level</value></data>
+  <data name="CopilotThinkingSelectorToolTip" xml:space="preserve"><value>Thinking level used for the next message</value></data>
+  <data name="CopilotModelFilterPlaceholder" xml:space="preserve"><value>Search or type a custom model name, Enter to apply</value></data>
+  <data name="ComposerModelsSectionLabel" xml:space="preserve"><value>Models</value></data>
 </root>

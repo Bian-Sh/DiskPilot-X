@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using TinyHarness;
 using SpaceMonger.Core.Services.Assistant;
+using SpaceMonger.Core.Services.Llm;
 using Message = TinyHarness.ChatMessage;
 
 namespace SpaceMonger.Core.Tests;
@@ -301,7 +302,7 @@ public sealed class AnthropicModelClientTests
     {
         public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => throw new IOException(Key);
     }
-    private static AnthropicModelClient Client(HttpClient http, bool thinking = false) => new(http, Key, "https://gateway.example/proxy/v1", "claude-test", thinking);
+    private static AnthropicModelClient Client(HttpClient http, bool thinking = false) => new(http, Key, "https://gateway.example/proxy/v1", "claude-test", thinking ? ThinkingLevel.Medium : ThinkingLevel.Off);
     private static HttpClient TextHttp(string text) => new(new FakeHandler(_ => Response(text)));
     private static HttpResponseMessage Response(string text) => Response(new MemoryStream(Encoding.UTF8.GetBytes(text)));
     private static HttpResponseMessage Response(Stream stream) => new(HttpStatusCode.OK) { Content = new StreamContent(stream) };
