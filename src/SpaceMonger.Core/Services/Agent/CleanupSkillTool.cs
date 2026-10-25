@@ -8,7 +8,7 @@ namespace SpaceMonger.Core.Services.Agent;
 public sealed class CleanupSkillTool(CleanupSkillStore store) : AppCopilotToolBase
 {
     public override string Name => "manage_cleanup_skill";
-    public override string Description => "管理用户清理 Skill 包：列表、读取、保存、只读预览、导入资料和源码编译诊断。相对规则路径支持 *、?、**；排除/保留项相对匹配目录或选定范围。来源仅作证据，不授予权限。本工具绝不删除文件或执行源码。";
+    public override string Description => "管理用户清理 Skill 包：列表、读取、保存、只读预览、导入资料和源码编译诊断。保存仅返回摘要和 digest，完整内容按需 read。相对规则路径支持 *、?、**；排除/保留项相对匹配目录或选定范围。来源仅作证据，不授予权限。本工具绝不删除文件或执行源码。";
     public override ToolRiskLevel RiskLevel => ToolRiskLevel.Medium;
     public override JsonElement Schema { get; } = SchemaJson("""
         {
@@ -48,7 +48,9 @@ public sealed class CleanupSkillTool(CleanupSkillStore store) : AppCopilotToolBa
                     if (!arguments.TryGetProperty("package", out var element)) throw new ArgumentException("save 需要 package。");
                     var package = element.Deserialize<CleanupSkillPackage>(CleanupSkillStore.JsonOptions) ?? throw new ArgumentException("package 无效。");
                     var overwrite = arguments.TryGetProperty("overwrite", out var value) && value.ValueKind == JsonValueKind.True;
-                    return Json(new { ok = true, package = store.Save(package, overwrite) });
+                    var saved = store.Save(package, overwrite);
+                    return Json(new { ok = true, package = new { saved.Id, saved.Title, saved.Version, saved.Digest,
+                        rule_count = saved.Rules.Count, reference_count = saved.References.Count, has_ui = saved.UiXaml is not null, has_source = saved.Source is not null } });
                 case "preview":
                     var scopePath = Required(arguments, "scope_path");
                     var preview = arguments.TryGetProperty("package", out var draft)

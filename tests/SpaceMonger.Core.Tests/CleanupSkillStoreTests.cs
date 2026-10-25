@@ -200,6 +200,10 @@ public sealed class CleanupSkillStoreTests : IDisposable
         var save = await tool.ExecuteAsync(new(null, null, null, null, false), JsonSerializer.SerializeToElement(new { operation = "save", package = Package() }, options), default);
         Assert.True(save.GetProperty("ok").GetBoolean());
         Assert.Equal(preview.GetProperty("preview").GetProperty("digest").GetString(), save.GetProperty("package").GetProperty("digest").GetString());
+        Assert.False(save.GetProperty("package").TryGetProperty("skill_markdown", out _));
+        Assert.False(save.GetProperty("package").TryGetProperty("rules", out _));
+        var read = await tool.ExecuteAsync(new(null, null, null, null, false), JsonSerializer.SerializeToElement(new { operation = "read", id = "sample-cleanup" }), default);
+        Assert.Contains("缓存检查", read.GetProperty("package").GetProperty("skill_markdown").GetString());
     }
 
     [Fact]

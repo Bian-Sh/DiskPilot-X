@@ -15,6 +15,31 @@ namespace SpaceMonger.Core.Tests;
 public class DiskAssistantServiceTests
 {
     [Fact]
+    public async Task 模型实际收到相对路径和紧凑中文结果()
+    {
+        var root = new FileEntry { Path = @"D:\sandbox", Name = "sandbox", IsDirectory = true,
+            Children = [new() { Path = @"D:\sandbox\缓存", Name = "缓存", Size = 12, IsDirectory = true }] };
+        var context = new AgentContext(new() { RootEntry = root, TargetPath = root.Path }, root, null, null);
+        var workspace = new AssistantWorkspace
+        {
+            ReadContext = _ => Task.FromResult(context),
+            Execute = (_, _, _) => Task.FromResult<JsonNode>(new JsonObject { ["ok"] = true })
+        };
+        var client = new ScriptedClient();
+        var settings = Substitute.For<ISettingsService>();
+        settings.LoadSettings().Returns(new AppSettings());
+        var service = new DiskAssistantService(_ => client, [new ListChildrenTool(new FileTreeQueryService())], workspace, settings);
+        var run = await service.RunAsync("扫描并列出目录", new(new ModelEndpointConfig { ApiKey = "key", Model = "test" }), null, default);
+        run.State.Should().Be(AgentSessionState.Completed);
+        var message = client.Requests[2].Messages.Single(m => m.Role == ChatRole.Tool && m.ToolCallId == "children");
+        var result = JsonNode.Parse(message.Content!)!;
+        result["path_format"]!.GetValue<string>().Should().Be("relative");
+        result["children"]![0]!["path"]!.GetValue<string>().Should().Be("缓存");
+        message.Content.Should().Contain("缓存").And.NotContain("\\u7F13").And.NotContain("\n");
+        result["children"]![0]!.AsObject().ContainsKey("name").Should().BeFalse();
+    }
+
+    [Fact]
     public async Task ScanThenQuery_UsesNewContextAndNativeToolHistory()
     {
         AgentContext context = new(null, null, null, null);
@@ -69,6 +94,30 @@ public class DiskAssistantServiceTests
         var service = new DiskAssistantService(_ => new TextClient(), [], workspace, settings);
         await service.RunAsync("展示例子", new(new ModelEndpointConfig { ApiKey = "key", Model = "test" }), null, CancellationToken.None);
         executions.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ModelFailure_SurfacesDetailThroughAnalysisEngine()
+    {
+        var settings = Substitute.For<ISettingsService>(); settings.LoadSettings().Returns(new AppSettings());
+        var service = new DiskAssistantService(_ => new FailingClient(), [], new AssistantWorkspace(), settings);
+        var session = new ScanSession { TargetPath = @"D:\sandbox", RootEntry = new FileEntry { Path = @"D:\sandbox", IsDirectory = true } };
+        var engine = new HarnessRecommendationEngine(service);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            engine.AnalyzeWithDiagnosticsAsync(session, new ModelEndpointConfig { ApiKey = "key", Model = "test" }, "zh-CN", CancellationToken.None));
+        // 失败原因（FormatFailure 的友好摘要）必须出现在分析错误里，而不是只有笼统的"未发布有效结果"。
+        error.Message.Should().Contain("分析未发布有效结果：");
+        error.Message.Should().Contain("模型响应未能完成");
+    }
+
+    private sealed class FailingClient : IModelClient
+    {
+        public async IAsyncEnumerable<ModelStreamEvent> StreamAsync(ModelRequest request, [EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.Yield();
+            if (request.Messages.Count < 0) yield return new TextDeltaEvent("");
+            throw new ModelClientException("模型响应无效或流未完整结束。 [stream-end]", ModelErrorKind.Unknown);
+        }
     }
 
     private sealed class ScriptedClient : IModelClient

@@ -145,13 +145,15 @@ public sealed class DiskAssistantService
                 ? "\n用户本轮选择的技能（只应用与当前任务相关的步骤）：\n" + string.Join("\n", skills.Select(s => s.Prompt)) : string.Empty;
             var input = $"回答语言：{options.Language}。" + (options.FocusPath is { Length: > 0 } focus ? $"本轮分析范围：{focus}。" : "") + "\n" + message + skillText;
             var text = new System.Text.StringBuilder();
+            string? failureDetail = null;
             await foreach (var activity in loop.RunAsync(runSession, input, linked.Token).ConfigureAwait(false))
             {
                 if (activity.Kind == AgentEventKind.TextDelta) text.Append(activity.Text);
+                else if (activity.Kind == AgentEventKind.TaskFailed) failureDetail = activity.Detail;
                 Activity?.Invoke(activity);
                 onActivity?.Invoke(activity);
             }
-            return new(text.ToString(), runSession.State, LastAnalysisResult);
+            return new(text.ToString(), runSession.State, LastAnalysisResult, failureDetail);
         }
         finally { activeCancellation = null; runGate.Release(); RunFinished?.Invoke(); }
     }
@@ -178,7 +180,7 @@ public sealed class DiskAssistantService
                     {
                         var result = await handler(args, ct).ConfigureAwait(false);
                         if (result["cancelled"]?.GetValue<bool>() == true) declinedOperations.Add(name);
-                        return result["ok"]?.GetValue<bool>() == false ? ToolResult.SafeFail(result.ToJsonString()) : ToolResult.Ok(result.ToJsonString());
+                        return result["ok"]?.GetValue<bool>() == false ? ToolResult.SafeFail(result.ToJsonString(AgentJson.Options)) : ToolResult.Ok(result.ToJsonString(AgentJson.Options));
                     }
                     catch (OperationCanceledException) { throw; }
                     catch (UserDecisionValidationException ex)

@@ -10,6 +10,9 @@ using Message = TinyHarness.ChatMessage;
 
 namespace SpaceMonger.Core.Tests;
 
+// LlmStreamDiagnostics 的转储目录是进程级静态配置；两个客户端测试类必须串行执行，
+// 避免转储测试互相覆盖目录。同一集合内的测试与类按顺序运行。
+[Collection("ModelClientSequential")]
 public sealed class AnthropicModelClientTests
 {
     private const string Key = "tiny-secret-key";
@@ -296,6 +299,49 @@ public sealed class AnthropicModelClientTests
         Assert.Equal(ModelErrorKind.InvalidRequest, error.Kind);
         Assert.False(sent);
         Assert.DoesNotContain(Key, error.ToString());
+    }
+
+    [Fact]
+    public async Task max_tokens截断但工具块完整时按有效完成收尾()
+    {
+        using var http = TextHttp(Start + ToolBlock(0, "t-1", "publish_recommendations")
+            + Delta(0, "input_json_delta", "partial_json", "{\"recommendations\":[]}")
+            + StopBlock(0)
+            + Sse(new { type = "message_delta", delta = new { stop_reason = "max_tokens" } })
+            + Sse(new { type = "message_stop" }));
+        var events = await Collect(Client(http), Request);
+        Assert.Equal(new ToolCall("t-1", "publish_recommendations", "{\"recommendations\":[]}"),
+            Assert.Single(events.OfType<ModelToolCallEvent>()).ToolCall);
+        Assert.Equal("max_tokens", Assert.Single(events.OfType<ModelCompletedEvent>()).FinishReason);
+    }
+
+    [Fact]
+    public async Task 流被切断时把原始帧转储到诊断目录并带站点标记()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "smc-llm-diagnostics-" + Guid.NewGuid().ToString("N"));
+        LlmStreamDiagnostics.Configure(root);
+        var directory = Path.Combine(root, "llm-streams");
+        try
+        {
+            // 正文增量已送达，但流在 message_delta/message_stop 之前结束。
+            using var http = TextHttp(Start + Block(0, "text") + Delta(0, "text_delta", "text", "部分输出"));
+            var error = await Assert.ThrowsAsync<ModelClientException>(() => Collect(Client(http), Request));
+            Assert.Contains("[stream-end]", error.Message);
+            // 其他测试类可能并发触发转储，按本类独有的模型名过滤。
+            var dump = Assert.Single(Directory.EnumerateFiles(directory, "llm-stream-*.txt")
+                .Where(file => File.ReadAllText(file).Contains("claude-test")));
+            var content = File.ReadAllText(dump);
+            Assert.Contains("anthropic", content);
+            Assert.Contains("stream-end", content);
+            // 帧由 JsonSerializer 生成，非 ASCII 会被转义，因此断言帧类型标记而非字面中文。
+            Assert.Contains("text_delta", content);
+            Assert.DoesNotContain(Key, content);
+        }
+        finally
+        {
+            LlmStreamDiagnostics.Configure(null);
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 
     private sealed class BrokenStream : MemoryStream

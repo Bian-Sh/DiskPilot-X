@@ -8,6 +8,8 @@ using Message = TinyHarness.ChatMessage;
 
 namespace SpaceMonger.Core.Tests;
 
+// 与 AnthropicModelClientTests 共用串行集合：转储测试依赖进程级静态目录配置。
+[Collection("ModelClientSequential")]
 public sealed class OpenAiModelClientTests
 {
     private const string Key = "tiny-secret-key";
@@ -180,6 +182,34 @@ public sealed class OpenAiModelClientTests
         var error = await Assert.ThrowsAsync<ModelClientException>(() => Collect(ChatClient(http), Request));
         Assert.Equal(kind, error.Kind);
         Assert.DoesNotContain(Key, error.ToString());
+    }
+
+    [Fact]
+    public async Task 流被切断时把原始帧转储到诊断目录并带站点标记()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "smc-llm-diagnostics-" + Guid.NewGuid().ToString("N"));
+        LlmStreamDiagnostics.Configure(root);
+        var directory = Path.Combine(root, "llm-streams");
+        try
+        {
+            // 收到正文增量，但流在 finish_reason 与 [DONE] 之前结束。
+            using var http = new HttpClient(new FakeHandler(_ => Response("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"部分输出\"}}]}\n\n")));
+            var error = await Assert.ThrowsAsync<ModelClientException>(() => Collect(ChatClient(http), Request));
+            Assert.Contains("[stream-end-without-completion]", error.Message);
+            // 其他测试类可能并发触发转储，按本类独有的模型名过滤。
+            var dump = Assert.Single(Directory.EnumerateFiles(directory, "llm-stream-*.txt")
+                .Where(file => File.ReadAllText(file).Contains("chat-model")));
+            var content = File.ReadAllText(dump);
+            Assert.Contains("openai", content);
+            Assert.Contains("stream-end-without-completion", content);
+            Assert.Contains("部分输出", content);
+            Assert.DoesNotContain(Key, content);
+        }
+        finally
+        {
+            LlmStreamDiagnostics.Configure(null);
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 
     private static OpenAiModelClient ChatClient(HttpClient http, ThinkingLevel thinking = ThinkingLevel.Off, CliIdentityKind identity = CliIdentityKind.None) =>

@@ -190,7 +190,19 @@ public sealed class JsonDetailConverter : IValueConverter
 {
     public object Convert(object value,Type targetType,object parameter,CultureInfo culture)
     {
-        return ChatSegment.FormatJson(value as string ?? "");
+        var text = value as string ?? "";
+        try
+        {
+            using var json = System.Text.Json.JsonDocument.Parse(text);
+            if (json.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                json.RootElement.TryGetProperty("tree", out var tree) && tree.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                var metadata = json.RootElement.EnumerateObject().Where(p => p.Name != "tree").ToDictionary(p => p.Name, p => p.Value);
+                return ChatSegment.FormatJson(System.Text.Json.JsonSerializer.Serialize(metadata)) + "\n\n" + tree.GetString();
+            }
+            return ChatSegment.FormatJson(text);
+        }
+        catch (System.Text.Json.JsonException) { return text; }
     }
     public object ConvertBack(object value,Type targetType,object parameter,CultureInfo culture)=>throw new NotSupportedException();
 }

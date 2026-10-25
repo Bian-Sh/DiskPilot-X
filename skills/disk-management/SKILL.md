@@ -8,7 +8,7 @@
 
 - get_copilot_context：读取当前 root、current_path、选择项和 scan_id。
 - resolve_path、scan_path：校验范围、扫描并等待真实结果。先有证据再分析。
-- find_by_name、find_by_path、list_children、summarize_subtree、find_large_files：查询当前扫描树。
+- find_by_name、find_by_path、list_children、summarize_subtree、find_large_files：查询当前扫描树。列表中的 path 相对本次结果的 base_path（list_children 和 summarize_subtree 使用顶层 path）；后续查询、导航或提交清理候选前先拼成完整路径。需要修改时间等元数据时传 details=true；深层结果可选 format=tree，#序号保留原始大小排名，目录标签为 JSON 字符串，单子目录链使用 / 合并。truncated=true 表示结果尚未列全，不应据此断定其他文件不存在。
 - navigate_path、set_view：在磁盘主工作区定位并切换 treemap/tree。
 - get_analysis_evidence、publish_recommendations：分析证据并发布通过本地校验的建议，按路径清理时遵循 path-cleanup-recommendation 技能。
 - list_recommendations、select_recommendations：读取当前建议 ID、清单版本并更新选择。

@@ -178,4 +178,3 @@ public class ChatInteractionTests
     private static AgentEvent Event(AgentEventKind kind, string? text = null) =>
         new("会话", kind, new DateTimeOffset(2026, 10, 26, 9, 0, 12, TimeSpan.FromHours(8))) { Text = text };
 }
-
