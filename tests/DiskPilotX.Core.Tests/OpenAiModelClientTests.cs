@@ -212,6 +212,50 @@ public sealed class OpenAiModelClientTests
         }
     }
 
+    [Fact]
+    public async Task ChatCompletions保留结束后的独立用量帧()
+    {
+        using var http = new HttpClient(new FakeHandler(async request =>
+        {
+            var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            Assert.True(body.RootElement.GetProperty("stream_options").GetProperty("include_usage").GetBoolean());
+            return Response("data: {\"choices\":[{\"delta\":{\"content\":\"答\"},\"finish_reason\":\"stop\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":20,\"total_tokens\":120,\"prompt_tokens_details\":{\"cached_tokens\":80},\"completion_tokens_details\":{\"reasoning_tokens\":5}}}\n\ndata: [DONE]\n\n");
+        }));
+        var completed = Assert.Single((await Collect(ChatClient(http), Request)).OfType<ModelCompletedEvent>());
+        var json = JsonSerializer.SerializeToElement(completed);
+        Assert.Equal(80, json.GetProperty("Usage").GetProperty("CachedInputTokens").GetInt64());
+        Assert.Equal(120, json.GetProperty("Usage").GetProperty("TotalTokens").GetInt64());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task 两种OpenAI格式均保留流式或完整JSON用量(bool responses, bool json)
+    {
+        var usage = responses
+            ? "\"usage\":{\"input_tokens\":100,\"output_tokens\":20,\"total_tokens\":120,\"input_tokens_details\":{\"cached_tokens\":80},\"output_tokens_details\":{\"reasoning_tokens\":5}}"
+            : "\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":20,\"total_tokens\":120,\"prompt_tokens_details\":{\"cached_tokens\":80},\"completion_tokens_details\":{\"reasoning_tokens\":5}}";
+        var body = json
+            ? responses ? "{\"output\":[]," + usage + "}" : "{\"choices\":[{\"message\":{\"content\":\"答\"},\"finish_reason\":\"stop\"}]," + usage + "}"
+            : responses ? "data: {\"type\":\"response.completed\",\"response\":{" + usage + "}}\n\n"
+                : "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]," + usage + "}\n\ndata: [DONE]\n\n";
+        using var http = new HttpClient(new FakeHandler(_ => json ? JsonHttp(body) : Response(body)));
+        var completed = Assert.Single((await Collect(responses ? ResponsesClient(http) : ChatClient(http), Request)).OfType<ModelCompletedEvent>());
+        Assert.Equal(new ModelTokenUsage(100, 20, 120, 80, null, 5), completed.Usage);
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("{}")]
+    [InlineData("{\"prompt_tokens\":-1,\"completion_tokens\":\"20\",\"total_tokens\":1.5}")]
+    public async Task 缺失或无效统计不伪造零值(string usage)
+    {
+        using var http = new HttpClient(new FakeHandler(_ => JsonHttp("{\"choices\":[{\"message\":{\"content\":\"答\"}}],\"usage\":" + usage + "}")));
+        Assert.Null(Assert.Single((await Collect(ChatClient(http), Request)).OfType<ModelCompletedEvent>()).Usage);
+    }
+
     private static OpenAiModelClient ChatClient(HttpClient http, ThinkingLevel thinking = ThinkingLevel.Off, CliIdentityKind identity = CliIdentityKind.None) =>
         new(http, Key, "https://relay.example/v1", "chat-model", LlmApiFormat.OpenAiChatCompletions, thinking, identity);
     private static OpenAiModelClient ResponsesClient(HttpClient http, ThinkingLevel thinking = ThinkingLevel.Off, CliIdentityKind identity = CliIdentityKind.None) =>

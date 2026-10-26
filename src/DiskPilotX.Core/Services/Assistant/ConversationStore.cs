@@ -19,18 +19,18 @@ public sealed record SavedChatSegment(ChatSegmentKind Kind, string Text, string?
 /// <summary>只保存展示数据，不序列化磁盘对象、交互确认或凭据配置。</summary>
 public sealed record SavedChatMessage(Guid Id, ChatSender Sender, string Text, string Thinking, DateTime Timestamp,
     string CompletedAtText, bool IsError, IReadOnlyList<SavedChatSegment> Segments,
-    DateTime? CompletedAt = null, ChatSegmentStatus? ProcessStatus = null)
+    DateTime? CompletedAt = null, ChatSegmentStatus? ProcessStatus = null, ModelTokenUsage? Usage = null)
 {
     public static SavedChatMessage Capture(Message message) => new(message.Id, message.Sender, message.Text,
         message.Thinking, message.Timestamp, message.CompletedAtText, message.IsError,
         message.Segments.Select(segment => new SavedChatSegment(segment.Kind, segment.Text, segment.Detail,
             segment.ToolName, segment.ToolCallId, segment.Status, segment.IsSummary, segment.IsFinal)).ToArray(),
-        message.CompletedAt, message.ProcessStatus);
+        message.CompletedAt, message.ProcessStatus, message.Usage);
 
     public Message Restore(ChatSegmentStatus? sessionStatus = null)
     {
         var message = new Message { Id = Id, Sender = Sender, Text = Text, Thinking = Thinking,
-            Timestamp = Timestamp, CompletedAtText = CompletedAtText, IsError = IsError };
+            Timestamp = Timestamp, CompletedAtText = CompletedAtText, IsError = IsError, Usage = Usage };
         foreach (var segment in Segments)
             message.Segments.Add(new ChatSegment(segment.Kind) { Text = segment.Text, Detail = segment.Detail,
                 ToolName = segment.ToolName, ToolCallId = segment.ToolCallId, IsSummary = segment.IsSummary, IsFinal = segment.IsFinal,
