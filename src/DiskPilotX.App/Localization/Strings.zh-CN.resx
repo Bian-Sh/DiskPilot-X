@@ -923,7 +923,7 @@
   <data name="CopilotModelFilterPlaceholder" xml:space="preserve"><value>搜索或输入自定义模型名，回车应用</value></data>
   <data name="ComposerModelsSectionLabel" xml:space="preserve"><value>模型</value></data>
   <data name="CopilotChooseModel" xml:space="preserve"><value>选择模型</value></data>
-  <data name="SettingsModelListEmpty" xml:space="preserve"><value>尚未获取模型，请在 AI 设置中刷新模型列表。</value></data>
+  <data name="SettingsModelListEmpty" xml:space="preserve"><value>配置接口地址和 API Key 后，完成编辑即可自动获取模型。</value></data>
   <data name="SettingsModelsUrlLabel" xml:space="preserve"><value>模型获取 URL</value></data>
   <data name="SettingsModelsUrlHint" xml:space="preserve"><value>填写完整 HTTP(S) URL；留空使用当前接口的默认模型列表地址。</value></data>
   <data name="SettingsRefreshCliIdentityHint" xml:space="preserve"><value>刷新此 CLI 的最新指纹</value></data>
@@ -935,5 +935,16 @@
   <data name="ChatNewSessionDividerDescription" xml:space="preserve">
     <value>新会话已开始。之前的消息仍然可见，但不会再作为上下文发送。</value>
   </data>
+  <data name="SettingsModelDiscoveryFailedTitle" xml:space="preserve"><value>未能获取模型列表</value></data>
+  <data name="SettingsModelDiscoveryExhaustedMessage" xml:space="preserve"><value>已尝试所有候选模型列表地址，仍未获取有效模型。请向服务商确认完整的 HTTP(S) 模型列表链接，填入“模型获取 URL”，确认代理设置后再点击刷新。已有模型列表已保留，详细原因可在 App 控制台查看。</value></data>
+  <data name="SettingsModelRefreshFailedDetailFormat" xml:space="preserve"><value>模型列表获取失败：{0} 详细原因请查看控制台。</value></data>
+  <data name="SettingsModelDragHint" xml:space="preserve"><value>拖动排序（Alt+↑/↓）</value></data>
+  <data name="SettingsModelRemoveHint" xml:space="preserve"><value>从聊天模型列表移除</value></data>
+  <data name="SettingsModelListEditHint" xml:space="preserve"><value>拖动左侧抓手排序，移入模型行可移除。刷新保留排序，重新发现项追加末尾。</value></data>
+  <data name="SettingsModelConfigIncomplete" xml:space="preserve"><value>请填写接口地址和 API Key，完成编辑后将自动获取模型。</value></data>
+  <data name="SettingsModelBaseUrlInvalid" xml:space="preserve"><value>接口地址需要有效的 HTTP(S) URL。</value></data>
+  <data name="SettingsModelUrlInvalid" xml:space="preserve"><value>模型获取 URL 需要完整的 HTTP(S) 地址。</value></data>
+  <data name="SettingsModelProxyIncomplete" xml:space="preserve"><value>请完善代理地址和有效端口，完成编辑后将自动重试。</value></data>
+  <data name="SettingsModelAutoFetchFailed" xml:space="preserve"><value>无法获取模型列表，请配置代理或自定义模型获取 URL。</value></data>
   <data name="CopilotSubmitAnswers" xml:space="preserve"><value>提交回答</value></data>
 </root>
