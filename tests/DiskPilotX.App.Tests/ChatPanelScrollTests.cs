@@ -112,8 +112,66 @@ public sealed class ChatPanelScrollTests
         Assert.True(scroll.ScrollableHeight > 24);
         Assert.InRange(scroll.ScrollableHeight - scroll.VerticalOffset, 0, 1);
         Assert.Equal(Visibility.Collapsed, jump.Visibility);
+        验证问答展示(panel, vm);
+        验证问答替换输入区(panel, vm);
         application.Shutdown();
     });
+
+    private static void 验证问答展示(ChatPanel panel, ChatViewModel vm)
+    {
+        vm.Messages.Clear();
+        var message = new ChatMessage { Sender = DiskPilotX.Core.Enums.ChatSender.Assistant };
+        var segment = new ChatSegment(ChatSegmentKind.Tool)
+        {
+            ToolName = "ask_user", Status = ChatSegmentStatus.Completed,
+            Detail = "参数：\n" + """{"title":"确认","question":"保留哪些内容？","fields":[{"id":"scope","label":"保留哪些内容？","type":"text"}]}""",
+            Text = """{"cancelled":false,"values":{"scope":"保留用户资料"},"custom_inputs":{}}"""
+        };
+        message.Segments.Add(segment);
+        vm.Messages.Add(message);
+        Layout(panel);
+        var expander = Visuals<Expander>(panel).Single(e => ReferenceEquals(e.DataContext, segment) && e.Visibility == Visibility.Visible);
+        expander.IsExpanded = true;
+        Layout(panel);
+        Assert.Contains(Visuals<TextBlock>(expander), t => t.Text == "保留哪些内容？" && t.IsVisible);
+        Assert.Contains(Visuals<TextBlock>(expander), t => t.Text == "保留用户资料" && t.IsVisible);
+        Assert.DoesNotContain(Visuals<TextBox>(expander), t => t.IsVisible);
+        Assert.DoesNotContain(Visuals<TextBlock>(expander), t => t.Text == "ask_user" && t.IsVisible);
+        // 普通工具依然可查看原有 JSON 结果。
+        segment.ToolName = "scan_path";
+        Layout(panel);
+        Assert.Contains(Visuals<TextBox>(expander), t => t.IsVisible);
+    }
+
+    private static void 验证问答替换输入区(ChatPanel panel, ChatViewModel vm)
+    {
+        var input = (Border)panel.FindName("InputCard");
+        var send = (Button)panel.FindName("SendButton");
+        var before = send.TransformToAncestor(panel).Transform(new Point());
+        var inputBottom = input.TransformToAncestor(panel).Transform(new Point(0, input.ActualHeight)).Y;
+        var waiting = vm.AskUserAsync(System.Text.Json.Nodes.JsonNode.Parse("""{"title":"确认","question":"请填写保留范围","fields":[{"id":"scope","label":"保留范围","type":"text","is_required":true,"default_text":"用户资料"}]}"""), CancellationToken.None);
+        vm.IsOperationRunning = true;
+        Layout(panel);
+        var card = Assert.Single(Visuals<AskUserCard>(panel));
+        Assert.Equal(Visibility.Collapsed, input.Visibility);
+        Assert.Same(send, panel.FindName("SendButton"));
+        Assert.Equal(before, send.TransformToAncestor(panel).Transform(new Point()));
+        Assert.Equal(inputBottom, card.TransformToAncestor(panel).Transform(new Point(0, card.ActualHeight)).Y, 1);
+        var next = (Button)card.FindName("NextButton");
+        Assert.Equal(send.ActualHeight, next.ActualHeight);
+        Assert.Equal(send.TransformToAncestor(panel).Transform(new Point()).Y, next.TransformToAncestor(panel).Transform(new Point()).Y, 1);
+        Assert.Equal("提交回答", send.ToolTip);
+        var glyphs = Visuals<System.Windows.Shapes.Path>(send).ToArray();
+        Assert.Equal(Visibility.Visible, glyphs[0].Visibility);
+        Assert.Equal(Visibility.Collapsed, glyphs[1].Visibility);
+        send.Command.Execute(null);
+        for (var i = 0; i < 100 && !waiting.IsCompleted; i++) { Layout(panel); Thread.Sleep(5); }
+        Assert.True(waiting.IsCompletedSuccessfully);
+        Layout(panel);
+        Assert.Null(vm.PendingAskUser);
+        Assert.Equal(Visibility.Visible, input.Visibility);
+        vm.IsOperationRunning = false;
+    }
 
     private static void Layout(ChatPanel panel)
     {

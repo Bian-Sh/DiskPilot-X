@@ -4,7 +4,10 @@ using DiskPilotX.Core.Models;
 namespace DiskPilotX.App.ViewModels;
 public partial class ChatViewModel
 {
-    [ObservableProperty] private AskUserDialogViewModel? _pendingAskUser;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsAskingUser), nameof(SendButtonText))]
+    private AskUserDialogViewModel? _pendingAskUser;
+    public bool IsAskingUser => PendingAskUser is not null;
     public void CancelPendingInteractions() { pendingDecision?.TrySetResult(false); PendingAskUser?.Cancel(); }
     public async Task<JsonNode> AskUserAsync(JsonNode? arguments,CancellationToken ct)
     {

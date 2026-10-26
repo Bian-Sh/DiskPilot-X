@@ -946,4 +946,5 @@
   <data name="SettingsModelUrlInvalid" xml:space="preserve"><value>The Models URL must be a complete HTTP(S) URL.</value></data>
   <data name="SettingsModelProxyIncomplete" xml:space="preserve"><value>Complete the proxy address and valid port to retry automatically.</value></data>
   <data name="SettingsModelAutoFetchFailed" xml:space="preserve"><value>Unable to get the model list. Configure a proxy or a custom Models URL.</value></data>
+  <data name="CopilotSubmitAnswers" xml:space="preserve"><value>Submit answers</value></data>
 </root>
