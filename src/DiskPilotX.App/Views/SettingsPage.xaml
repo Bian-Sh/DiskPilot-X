@@ -76,7 +76,7 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid x:Name="RootGrid" Background="{DynamicResource VP.OverlayBrush}" MouseLeftButtonDown="RootGrid_MouseLeftButtonDown">
+    <Grid x:Name="RootGrid" Background="Transparent" MouseLeftButtonDown="RootGrid_MouseLeftButtonDown">
         <!-- Centered card -->
         <Border x:Name="CardBorder" Background="{DynamicResource VP.BackgroundAltBrush}"
                 BorderBrush="{DynamicResource VP.BorderLightBrush}"
@@ -87,6 +87,13 @@
                 VerticalAlignment="Center"
                 Padding="0"
                 CornerRadius="10">
+            <Border.Effect>
+                <DropShadowEffect Color="Black"
+                                  BlurRadius="32"
+                                  ShadowDepth="6"
+                                  Opacity="0.3"
+                                  RenderingBias="Quality" />
+            </Border.Effect>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="124" />
