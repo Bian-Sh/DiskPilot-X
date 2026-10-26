@@ -32,6 +32,32 @@ public class ChatMessage : INotifyPropertyChanged
     private bool _isProcessExpanded = true;
     private DateTime _timestamp = DateTime.Now;
     private TimeSpan _elapsed;
+    private ModelTokenUsage? _usage;
+    private readonly HashSet<string> _usageMessageIds = new(StringComparer.Ordinal);
+
+    public ModelTokenUsage? Usage
+    {
+        get => _usage;
+        set { if (_usage == value) return; _usage = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasUsage)); OnPropertyChanged(nameof(UsageText)); OnPropertyChanged(nameof(UsageSummary)); OnPropertyChanged(nameof(UsageDetails)); }
+    }
+    public bool HasUsage => Usage is not null;
+    public string UsageSummary => Usage?.TotalTokens is { } total
+        ? (total >= 1_000_000 ? $"{total / 1_000_000d:0.#}M" : total >= 1_000 ? $"{total / 1_000d:0.#}K" : total.ToString("N0")) + " tokens"
+        : "Token 用量";
+    public IReadOnlyList<KeyValuePair<string, string>> UsageDetails
+    {
+        get
+        {
+            var rows = new List<KeyValuePair<string, string>>();
+            if (Usage is not { } usage) return rows;
+            void Add(string label, long? count) { if (count.HasValue) rows.Add(new(label, count.Value.ToString("N0"))); }
+            Add("缓存读取", usage.CachedInputTokens); Add("缓存写入", usage.CacheCreationTokens);
+            Add("输入", usage.InputTokens); Add("输出", usage.OutputTokens); Add("推理", usage.ReasoningTokens); Add("合计", usage.TotalTokens);
+            return rows;
+        }
+    }
+    public string UsageText => Usage is null ? string.Empty
+        : "已报告 Token · " + string.Join(" · ", UsageDetails.Select(row => $"{row.Key} {row.Value}"));
 
     public ChatMessage() => Segments.CollectionChanged += (_, _) => RefreshSegmentBindings();
 
@@ -144,6 +170,8 @@ public class ChatMessage : INotifyPropertyChanged
                 try { using var json = JsonDocument.Parse(result.Content ?? ""); if(json.RootElement.ValueKind == JsonValueKind.Object && json.RootElement.TryGetProperty("cancelled",out var cancelled) && cancelled.ValueKind == JsonValueKind.True) resultSegment.Status = ChatSegmentStatus.Cancelled; } catch(JsonException) { }
                 break;
             case AgentEventKind.MessageCompleted when activity.Message?.Role == ChatRole.Assistant:
+                if (activity.Message.Usage is { } usage && _usageMessageIds.Add(activity.Message.Id))
+                    Usage = Usage is null ? usage : Usage.Add(usage);
                 // 完整消息是流式内容的快照；仅在没有增量时用于补齐内容。
                 if (!_hasStepDeltas)
                 {
