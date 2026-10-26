@@ -190,12 +190,12 @@
                 </DockPanel>
             </Border>
 
-            <Grid Grid.Row="2" Grid.Column="0">
+            <Grid x:Name="ContentGrid" Grid.Row="2" Grid.Column="0" SizeChanged="ContentGrid_SizeChanged">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" MinHeight="220" />
                         <RowDefinition Height="Auto" />
-                        <RowDefinition x:Name="RecommendationsPanelRow" Height="340" MinHeight="120" />
+                        <RowDefinition x:Name="RecommendationsPanelRow" Height="340" MinHeight="160" />
                     </Grid.RowDefinitions>
 
                     <!-- View mode tab bar (Treemap / TreeView) -->
@@ -237,6 +237,7 @@
                                   Grid.Row="2"
                                   Style="{DynamicResource VP.GridSplitterH}"
                                   Margin="8,4"
+                                  ShowsPreview="False"
                                   Visibility="Visible" />
 
                     <!-- Bottom tool window: Chrome-style tabs + content -->
@@ -247,7 +248,8 @@
                         </Grid.RowDefinitions>
 
                         <!-- Tab bar (outside container border, Chrome-style) -->
-                        <Border Grid.Row="0"
+                        <Border x:Name="BottomTabBar"
+                                Grid.Row="0"
                                 Background="{DynamicResource VP.SurfaceBrush}"
                                 CornerRadius="{DynamicResource VP.CardTopCornerRadius}"
                                 Margin="0,0,0,-0.5">
@@ -331,7 +333,7 @@
                                                   Opacity="0.3"
                                                   Direction="270" />
                             </Border.Effect>
-                            <Grid MinHeight="120">
+                            <Grid x:Name="BottomContentGrid" MinHeight="120">
                                 <!-- Recommendations panel content -->
                                 <views:RecommendationsPanel x:Name="RecommendationsPanel"
                                                             Visibility="Visible" />
