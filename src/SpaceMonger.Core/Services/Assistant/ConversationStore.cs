@@ -49,6 +49,7 @@ public sealed record ConversationSnapshot(string Id, DateTimeOffset UpdatedAt, s
     AgentSessionState State, IReadOnlyList<ModelMessage> ModelMessages, IReadOnlyList<SavedChatMessage> Messages)
 {
     public int Version { get; init; } = 1;
+    public string? Title { get; init; }
 }
 
 /// <summary>每会话一个本地快照；先写同目录临时文件，再原子替换，避免中断破坏上一份记录。</summary>
@@ -94,8 +95,8 @@ public sealed class ConversationStore(string rootDirectory)
                 var first = snapshot.Messages.FirstOrDefault(message => message.Sender == ChatSender.User)?.Text
                     ?? snapshot.Messages.FirstOrDefault()?.Text
                     ?? "";
-                var title = string.Join(' ', first.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-                if (title.Length > 40) title = title[..40] + "…";
+                var title = snapshot.Title ?? string.Join(' ', first.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+                if (snapshot.Title is null && title.Length > 40) title = title[..40] + "…";
                 summaries.Add(new(snapshot.Id, title, snapshot.UpdatedAt, snapshot.Messages.Count));
             }
             catch (Exception exception) when (IsStorageError(exception)) { /* 单个损坏文件不影响其他会话。 */ }

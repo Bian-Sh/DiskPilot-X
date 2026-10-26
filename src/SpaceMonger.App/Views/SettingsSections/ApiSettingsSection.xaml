@@ -66,6 +66,34 @@
                         <ColumnDefinition Width="170" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:Loc SettingsBaseUrlLabel}"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               ToolTip="{loc:Loc SettingsBaseUrlHint}" />
+                    <TextBox Grid.Column="1" Style="{DynamicResource VP.TextBox}"
+                             Text="{Binding AnthropicBaseUrl, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
+                <Separator Margin="14,0" />
+                <Grid Margin="14,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:Loc SettingsApiFormatLabel}"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               ToolTip="{loc:Loc SettingsApiFormatHint}" />
+                    <ComboBox Grid.Column="1"
+                              Style="{DynamicResource VP.ComboBox}"
+                              ItemsSource="{Binding ApiFormatOptions}"
+                              SelectedValue="{Binding SelectedApiFormat}"
+                              SelectedValuePath="Value"
+                              DisplayMemberPath="Label" />
+                </Grid>
+                <Separator Margin="14,0" />
+                <Grid Margin="14,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
                     <TextBlock Text="API Key"
                                Style="{StaticResource SettingsLabelStyle}"
                                ToolTip="{loc:Loc ApiKeyToolTip}" />
@@ -107,34 +135,6 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </StackPanel>
-                </Grid>
-                <Separator Margin="14,0" />
-                <Grid Margin="14,12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="170" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="{loc:Loc SettingsBaseUrlLabel}"
-                               Style="{StaticResource SettingsLabelStyle}"
-                               ToolTip="{loc:Loc SettingsBaseUrlHint}" />
-                    <TextBox Grid.Column="1" Style="{DynamicResource VP.TextBox}"
-                             Text="{Binding AnthropicBaseUrl, UpdateSourceTrigger=PropertyChanged}" />
-                </Grid>
-                <Separator Margin="14,0" />
-                <Grid Margin="14,12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="170" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="{loc:Loc SettingsApiFormatLabel}"
-                               Style="{StaticResource SettingsLabelStyle}"
-                               ToolTip="{loc:Loc SettingsApiFormatHint}" />
-                    <ComboBox Grid.Column="1"
-                              Style="{DynamicResource VP.ComboBox}"
-                              ItemsSource="{Binding ApiFormatOptions}"
-                              SelectedValue="{Binding SelectedApiFormat}"
-                              SelectedValuePath="Value"
-                              DisplayMemberPath="Label" />
                 </Grid>
                 <Separator Margin="14,0" />
                 <Grid Margin="14,12">

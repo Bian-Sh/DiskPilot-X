@@ -1,12 +1,12 @@
 schema: comet.native.v4
 name: chat-model-list-identity
 language: zh-CN
-phase: build
-status: active
-state_version: 14
+phase: verify
+status: await-user
+state_version: 23
 brief: brief.md
 document_constraints_version: 3
-shape_confirmation_hash: 6684513f19cbd3f6b7612b9e1f6afceb45ec9af9391306fd953dccbdea51dcc5
+shape_confirmation_hash: 84406179944de15071e697eac4c06295ee3e79ee775a7fd0f0ac73319937178a
 spec_changes:
   - capability: model-list-identity
     operation: create
@@ -17,60 +17,121 @@ workspace:
   target_branch: main
   finish: null
 loop:
-  stage: repairing
-  goal_cycle: 1
-  iteration: 5
-  attempt: 0
+  stage: await-user
+  goal_cycle: 2
+  iteration: 1
+  attempt: 1
   retry_epoch: 0
-  failed_iteration_count: 2
+  failed_iteration_count: 0
   no_progress_count: 0
   execution_failure_count: 0
-  previous_unresolved_ids:
-    - A6
-  next_action: submit-builder-candidate
+  previous_unresolved_ids: []
+  next_action: confirm-skill-coordinated-pass
 acceptance:
   - id: A1
     source: brief.md
-    text: AC1：空态问题默认有紧凑胶囊背景，悬停可辨，两端半圆。
-    result: pending
-    reason: null
+    text: AC1：空态问题默认有紧凑背景、半圆两端和可辨悬停。
+    result: passed
+    reason:
+      text: 独立核对 ChatPanel.xaml 的
+        EmptyStatePromptButton：默认常驻背景、左侧紧凑宽度、Padding=10,2、CornerRadius=10、悬停切换
+        SurfaceActiveBrush；本轮 01-empty-state.png 与 UIA 印证胶囊形态。
+      truncated: false
   - id: A2
     source: brief.md
-    text: AC2：模型缓存为空或已选模型不在缓存时，chat 显示选择模型提示；真实候选可选并持久化。
-    result: pending
-    reason: null
+    text: AC2：模型缓存为空或原选择失效时提示选择模型，真实候选可选并持久化。
+    result: passed
+    reason:
+      text: 独立核对
+        ChatViewModel.RefreshSettings/OnSelectedChatModelChanged：候选仅来自非空去重缓存，空缓存或失效选择显示选择模型，真实候选选择持久化。复用当前
+        App 96 项检查内 ChatDiscoveryTests 及此前模型弹窗、final-result-settings.json 的匹配证据。
+      truncated: false
   - id: A3
     source: brief.md
-    text: AC3：模型列表使用刷新图标和 ToolTip；可保存完整 HTTP(S) 获取 URL，留空沿用协议默认路径，复用凭据和代理。
-    result: pending
-    reason: null
+    text: AC3：模型列表使用刷新图标和 ToolTip；完整获取 URL 可保存，留空沿用默认路径，复用凭据和代理。
+    result: passed
+    reason:
+      text: 独立核对设置页刷新图标和 ToolTip、ModelsUrl 双向绑定与持久化、ModelCatalogService.GetModelsUri
+        完整 URL/默认路径以及凭据、CLI头和 ModelHttpClientFactory
+        代理复用；ModelCatalogEndpointTests、SettingsModelListTests
+        已纳入当前绑定检查。先前受控目录请求保留 /custom-models?scope=qa 和测试凭据匹配记录。
+      truncated: false
   - id: A4
     source: brief.md
-    text: AC4：AI 设置显示模型列表，不再提供独立对话模型输入框。
-    result: pending
-    reason: null
+    text: AC4：设置仅管理模型列表，无独立对话模型输入；API Key 位于接口格式之后。
+    result: passed
+    reason:
+      text: 独立核对 ApiSettingsSection.xaml：接口格式控件后紧接 API Key
+        行，模型区域仅展示列表与刷新/URL，无独立对话模型输入，符合本轮后续要求。
+      truncated: false
   - id: A5
     source: brief.md
-    text: AC5：CLI 下拉项右侧有刷新入口，Claude/Codex 手动刷新可重复执行，失败保留旧值；Grok 明确使用内置指纹，与 Loom-X 一致。
-    result: pending
-    reason: null
+    text: AC5：CLI 菜单逐项刷新可重复，失败保留旧值；Grok 明确采用与 Loom-X 一致的内置指纹。
+    result: passed
+    reason:
+      text: 独立核对 CLI 下拉每项刷新按钮、None项隐藏、RefreshCliIdentityAsync 可重复执行；CliIdentityService
+        刷新失败保留版本、Grok 无远程源返回失败并在界面解释内置指纹。复用当前相关回归与此前
+        cli-refresh-uia.json、受控目录身份头证据。
+      truncated: false
   - id: A6
     source: brief.md
-    text: AC6：CLI 菜单和当前选择展示身份与版本，chat 仅在启用身份时展示，刷新后请求头与展示一致。
-    result: pending
-    reason: null
+    text: AC6：设置显示身份与版本、后台/手动刷新后与请求头同步；chat 模型按钮只显示模型名与思考等级，无 CLI 和末尾标记。
+    result: passed
+    reason:
+      text: 独立核对设置身份摘要及 VersionChanged 更新链、请求使用同一
+        CliIdentityService.BuildHeaders；模型按钮实际内容仅 ModelDisplayName 与
+        ThinkingPickerLabel，PickerToggle 模板无额外标记。当前 GUI 截图/UIA 无 CLI
+        或尾标；此前刷新后设置版本与真实请求头一致。源码有残留旧注释但不影响实际控件内容。
+      truncated: false
   - id: A7
     source: brief.md
-    text: AC7：针对状态、请求地址、指纹刷新做回归，cua-driver 验收应用窗口，outputs 生成上海时间命名自包含包。
-    result: pending
-    reason: null
+    text: AC7：相关回归、GUI 验收通过，outputs 生成上海时间命名的自包含包，保留其他会话产物。
+    result: passed
+    reason:
+      text: 核对当前 Runtime state.json 的 candidateId 与本候选一致，app-scan-rule-web 和
+        core-scan-rule-web 正式记录均 passed、exitCode=0；读取对应日志为 App 96/96、Core
+        361/361。发布包 outputs/SpaceMonger-Copilot_2026-10-26_09-27-47 包含
+        exe、coreclr/hostfxr 与 includedFrameworks；App/Core SHA256 分别为
+        4BADDC361610E89CF32CED59986FD2CB37BCE9DEED203D7983205D58D80820F3、5DB4C98F54BBBA7C8F51E8F8CA85916960683DF3E7159A59E52F810FDFB8A7A4。复用匹配
+        GUI，不清理其他会话产物。
+      truncated: false
+  - id: A8
+    source: brief.md
+    text: AC8：入口和无障碍名称为“新增一个新的扫描规则”，引导可提供链接/粘贴资料，旧入口文案及冗余末尾提示均删除。
+    result: passed
+    reason:
+      text: 独立核对 ChatPanel.xaml 内容、AutomationProperties.Name 均为新增一个新的扫描规则，命令/ToolTip
+        引导链接和粘贴资料；旧末尾提示已移除。本轮 01-empty-state.png 和 UIA 与源码一致，02-rule-link-guide
+        及保存会话印证资料引导。
+      truncated: false
+  - id: A9
+    source: brief.md
+    text: AC9：通过当前模型和已配置接口的原生搜索读取公开网络资料，保留实际来源；明确不支持时在界面直接提示，仍可使用已有公开链接导入。不把鉴权、限流、联网失败或缺少搜索证据一概说成模型不支持。
+    result: passed
+    reason:
+      text: 独立核对 NativeWebSearchService、应用 DI、DiskAssistantService 工具注册和 ChatViewModel
+        user_notice 消费：使用当前 options.Endpoint
+        与既有工厂/凭据/代理/CLI头，独立非流式发起三协议原生搜索；来源只接受协议引用或检索来源并过滤含凭据及非HTTP链接；Anthropic
+        pause_turn
+        原样续接最多3次并聚合前阶段来源；ChatCompletions普通回答不算成功。明确拒绝、HTTP失败和无证据分别处理。保存会话存在失败/成功真实工具结果，03/04截图与UIA印证确定性不支持通知、来源链接及后续清除旧错误。skill-creator保留import_reference降级与引用非授权约束。
+      truncated: false
+  - id: A10
+    source: brief.md
+    text: AC10：覆盖各协议请求、真实来源提取、暂停续接、不支持/鉴权/空结果、取消和 UI 提示；普通流式聊天与既有引用导入保持可用。
+    result: passed
+    reason:
+      text: 独立阅读 NativeWebSearchTests 的19个案例和 WebSearchNoticeTests
+        的4个案例，覆盖协议、模型/凭据/CLI头、真实引用、错误分类、取消、响应上限、暂停续接及累计来源、模型不解释时仍显示提示；核对先红日志缺少服务/参数导致失败，当前正式
+        App/Core 完整检查通过。普通聊天继续使用现有流式客户端，原引用导入注册与授权/清理链路保留。未重复全量运行。
+      truncated: false
 builder_handoff:
-  candidate_id: 8b378878-acf5-4fff-9dbc-263d19778d29
+  candidate_id: 7a219290-da11-4654-85ce-5a06d4b9bf69
   identity_provider: skill-coordinated
-  builder_execution_ref: skill-coordinated:builder:07f259f0-bfb6-492d-9b47-2309f34304c9
-  iteration: 4
+  builder_execution_ref: skill-coordinated:builder:f92f32a5-a8ca-4c63-a5d1-758748f0e1c8
+  iteration: 1
   summary:
-    text: 六项改进完成，后台与手动指纹更新通知均已修复；上轮独立只读核对A1-A7全通过，因其他会话写入导致候选绑定失效，现重新绑定稳定源码。最新App全量89/89、Core342/342均已通过，历史恢复失败已解除。
+    text: 完成连续交互调整：新入口“新增一个新的扫描规则”，支持链接/粘贴资料，使用当前模型原生搜索并保留实际来源，明确能力拒绝由界面直接提示；删除冗余末尾提示。已有API
+      Key顺序、模型按钮仅模型与思考等级均保留。
     truncated: false
   addressed_acceptance_ids:
     - A1
@@ -80,105 +141,190 @@ builder_handoff:
     - A5
     - A6
     - A7
+    - A8
+    - A9
+    - A10
   acceptance_review:
     - id: A1
       status: implemented-with-evidence
       evidence:
-        - .planning/chat-model-list-identity-20261026
-        - 空态专用按钮默认背景与半圆样式；01-chat-empty.png
-      note: 空态专用按钮默认背景与半圆样式；01-chat-empty.png
+        - .planning/scan-rule-web-20261026
+        - ChatPanel.xaml 常驻紧凑胶囊及01-empty-state.png。
+      note: ChatPanel.xaml 常驻紧凑胶囊及01-empty-state.png。
     - id: A2
       status: implemented-with-evidence
       evidence:
-        - .planning/chat-model-list-identity-20261026
-        - 空缓存不推断模型，候选选择持久化；ChatDiscoveryTests、final-settings.json
-      note: 空缓存不推断模型，候选选择持久化；ChatDiscoveryTests、final-settings.json
+        - .planning/scan-rule-web-20261026
+        - 模型缓存和选择回归保留，现有ChatDiscoveryTests覆盖。
+      note: 模型缓存和选择回归保留，现有ChatDiscoveryTests覆盖。
     - id: A3
       status: implemented-with-evidence
       evidence:
-        - .planning/chat-model-list-identity-20261026
-        - 完整 URL 与默认路径、请求认证与身份头；ModelCatalogEndpointTests、SettingsModelListTests
-      note: 完整 URL 与默认路径、请求认证与身份头；ModelCatalogEndpointTests、SettingsModelListTests
+        - .planning/scan-rule-web-20261026
+        - 模型目录与获取URL、刷新图标保留，ModelCatalogEndpointTests及ApiSettingsSection.xaml。
+      note: 模型目录与获取URL、刷新图标保留，ModelCatalogEndpointTests及ApiSettingsSection.xaml。
     - id: A4
       status: implemented-with-evidence
       evidence:
-        - .planning/chat-model-list-identity-20261026
-        - 设置页改为只读模型列表与图标刷新；03-settings.png、05-models-fetched.png
-      note: 设置页改为只读模型列表与图标刷新；03-settings.png、05-models-fetched.png
+        - .planning/scan-rule-web-20261026
+        - ApiSettingsSection.xaml顺序为接口地址、接口格式、API Key；模型列表无独立对话模型输入。
+      note: ApiSettingsSection.xaml顺序为接口地址、接口格式、API Key；模型列表无独立对话模型输入。
     - id: A5
       status: implemented-with-evidence
       evidence:
-        - .planning/chat-model-list-identity-20261026
-        - 逐项可重复刷新，失败保留指纹；ModelCatalogEndpointTests、cli-refresh-uia.json
-      note: 逐项可重复刷新，失败保留指纹；ModelCatalogEndpointTests、cli-refresh-uia.json
+        - .planning/scan-rule-web-20261026
+        - CliIdentityService及设置菜单逐项刷新行为未改，已有回归保留。
+      note: CliIdentityService及设置菜单逐项刷新行为未改，已有回归保留。
     - id: A6
       status: implemented-with-evidence
       evidence:
-        - src/SpaceMonger.Core/Services/Llm/CliIdentityService.cs
-        - src/SpaceMonger.App/ViewModels/ChatViewModel.cs
-        - src/SpaceMonger.App/ViewModels/SettingsViewModel.cs
-        - tests/SpaceMonger.App.Tests/ChatDiscoveryTests.cs
-        - tests/SpaceMonger.App.Tests/SettingsModelListTests.cs
-        - .planning/chat-model-list-identity-20261026/background-refresh-green.log
-      note: VersionChanged 覆盖后台与手动刷新；变更立即同步 chat 标签/头提示及设置选项
-        DisplayLabel/摘要；模拟远端版本的两项回归先红后绿。
+        - .planning/scan-rule-web-20261026
+        - ChatPanel.xaml模型按钮仅两项信息，无CLI或尾随标记；后台版本通知回归保留。
+      note: ChatPanel.xaml模型按钮仅两项信息，无CLI或尾随标记；后台版本通知回归保留。
     - id: A7
       status: implemented-with-evidence
       evidence:
-        - .planning/chat-model-list-identity-20261026/latest-full-app.log
-        - .planning/chat-model-list-identity-20261026/15-repaired-release-chat.png
-        - .planning/chat-model-list-identity-20261026/16-repaired-release-settings.png
-        - D:\AppData\Visual
-          Studio\Projects\SpaceMonger-Copilot\outputs\SpaceMonger-Copilot_2026-10-26_07-41-38
-      note: 本轮重新执行App/Core完整回归。UI改进与修复包已GUI验收；历史恢复失败已被并行会话修复，最新全量89项通过。
+        - .planning/scan-rule-web-20261026
+        - 新功能专项已通过，GUI在独立配置验收；发布到outputs的自包含包已构建。
+      note: 新功能专项已通过，GUI在独立配置验收；发布到outputs的自包含包已构建。
+    - id: A8
+      status: implemented-with-evidence
+      evidence:
+        - .planning/scan-rule-web-20261026
+        - 新入口文案、无障碍名、参考链接引导及冗余提示删除均由01-empty-state-uia.json和01-empty-state.png确认。
+      note: 新入口文案、无障碍名、参考链接引导及冗余提示删除均由01-empty-state-uia.json和01-empty-state.png确认。
+    - id: A9
+      status: implemented-with-evidence
+      evidence:
+        - .planning/scan-rule-web-20261026
+        - NativeWebSearchService与web_search工具使用同一配置模型/代理/凭据；不支持、未确认、鉴权及限流分开；03/04界面与受控请求验证。
+      note: NativeWebSearchService与web_search工具使用同一配置模型/代理/凭据；不支持、未确认、鉴权及限流分开；03/04界面与受控请求验证。
+    - id: A10
+      status: implemented-with-evidence
+      evidence:
+        - .planning/scan-rule-web-20261026
+        - NativeWebSearchTests共19项及WebSearchNoticeTests共4项专项通过，含来源、跨pause保留、3次续接上限、消息拒绝分类、2MiB限制、取消和确定性UI提示。
+      note: NativeWebSearchTests共19项及WebSearchNoticeTests共4项专项通过，含来源、跨pause保留、3次续接上限、消息拒绝分类、2MiB限制、取消和确定性UI提示。
   checks:
     - name:
-        text: 模型与身份专项
+        text: 原生搜索专项
         truncated: false
       result: passed
       note:
-        text: 21项；新增后台指纹通知两项先红后绿
+        text: 19项，含先红后绿的常见错误措辞、引用位置、跨暂停来源保留
         truncated: false
     - name:
-        text: App完整回归
+        text: 界面能力提示专项
         truncated: false
       result: passed
       note:
-        text: 89/89，上次历史恢复失败已解除
+        text: 4项端到端，模型忽略错误时界面仍明确提示
         truncated: false
     - name:
-        text: Core完整回归
+        text: GUI与实际请求
         truncated: false
       result: passed
       note:
-        text: 342/342
+        text: cua-driver操作入口与输入，受控服务验证成功/能力拒绝；应用自身RenderTarget截图避免后台黑帧，只截目标应用
         truncated: false
     - name:
-        text: 发布
+        text: 自包含发布
         truncated: false
       result: passed
       note:
-        text: D:\AppData\Visual
-          Studio\Projects\SpaceMonger-Copilot\outputs\SpaceMonger-Copilot_2026-10-26_07-41-38
+        text: outputs/SpaceMonger-Copilot_2026-10-26_09-27-47
         truncated: false
   checks_truncated: false
   known_limits:
-    - text: Grok 与 Loom-X 相同，仅内置指纹，无远程版本源；界面明确提示。
+    - text: 原生搜索是否可用取决于所选模型、接口和账户。明确能力拒绝才提示不支持；没有搜索证据不冒充已联网。
       truncated: false
-    - text: 上游版本查询失败时保留当前指纹；使用受控HttpClient验证变化通知。
+    - text: 保留原资料导入支持范围：可读取公开HTTP(S)文本、网页及txt/md/json；不自动跟随跳转。
       truncated: false
-    - text: 工作区其他会话改动已保留。既有NU1701及编译器警告未扩展治理。
+    - text: 全部开发与GUI使用受控协议及独立测试配置，未调用真实付费AI模型或修改用户真实设置。
+      truncated: false
+    - text: Grok内置指纹及既有NU1701/编译器警告保留。
       truncated: false
   known_limits_truncated: false
-  review:
-    status: passed
-    summary:
-      text: 独立核对A1-A7通过；真实WPF Dispatcher通知与并发版本不回退均验证通过。未对失效候选提交结果，现按稳定源码重新绑定。
+  review: null
+  submitted_at: 2026-10-26T01:30:48.944Z
+blockers:
+  - owner: user
+    reason:
+      text: The generic Skill bridge cannot prove an independent Verifier execution;
+        user confirmation is required before Archive.
       truncated: false
-    reviewer_execution_ref: agent:01a17567-8f32-7932-9181-7a0e7ad7133e
-  submitted_at: 2026-10-25T23:41:44.412Z
-blockers: []
-verification: null
+    acceptance_ids: []
+    resolution_action: await-user
+verification:
+  candidate_id: 7a219290-da11-4654-85ce-5a06d4b9bf69
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:eff83290-bb5d-40fc-ae84-4ee927b0b671
+  iteration: 1
+  attempt: 1
+  assurance: skill-coordinated
+  verdict: pass
+  checks:
+    - id: app-scan-rule-web
+      name:
+        text: 扫描规则资料改进后的App完整回归
+        truncated: false
+      argv_display:
+        - text: test
+          truncated: false
+        - text: tests/SpaceMonger.App.Tests/SpaceMonger.App.Tests.csproj
+          truncated: false
+        - text: --artifacts-path
+          truncated: false
+        - text: .planning/scan-rule-web-20261026/test-build
+          truncated: false
+        - text: --nologo
+          truncated: false
+        - text: -v
+          truncated: false
+        - text: quiet
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 11265
+    - id: core-scan-rule-web
+      name:
+        text: 扫描规则资料改进后的Core完整回归
+        truncated: false
+      argv_display:
+        - text: test
+          truncated: false
+        - text: tests/SpaceMonger.Core.Tests/SpaceMonger.Core.Tests.csproj
+          truncated: false
+        - text: --artifacts-path
+          truncated: false
+        - text: .planning/scan-rule-web-20261026/test-build
+          truncated: false
+        - text: --nologo
+          truncated: false
+        - text: -v
+          truncated: false
+        - text: quiet
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 8759
+  summary:
+    text: 独立只读Verifier已逐项核对当前候选A1-A10，10项passed，无阻断功能缺陷。复用候选绑定的App 96项/Core
+      361项正式成功检查及匹配GUI/协议工具消息证据，核验最终自包含包哈希。本次仅登记启动、写临时验收JSON并提交Runtime结果；未改源码/需求/设计，未创建子agent，未接受用户结果或归档。
+    truncated: false
+  risks:
+    - text: 验证基于当前候选绑定的Runtime检查、独立源码审查和匹配的受控API/GUI/保存会话证据；本Verifier未访问真实付费AI、真实用户密钥或对各服务商账户做在线能力认证。实际原生搜索可用性仍由接口、模型和账户决定。
+      truncated: false
+    - text: 公开网址资料导入保持既有限制：受支持HTTP(S)文本/网页及txt、md、json，不自动跟随跳转；网页引用不构成执行或清理授权。
+      truncated: false
+    - text: Grok继续沿用既有内置指纹策略；保留现有NU1701与编译器警告。后台cua-driver黑帧的GUI证据由应用RenderTargetBitmap补足，仅截目标应用。
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-10-26T01:44:37.697Z
 history:
   - goal_cycle: 1
     iteration: 1
@@ -220,6 +366,36 @@ history:
       text: Observed implementation write before .gitignore
       truncated: false
     completed_at: 2026-10-25T23:42:09.484Z
+  - goal_cycle: 1
+    iteration: 5
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 当前候选 A1-A7 全部通过；已独立只读核对关键源码、Loom-X 参考、测试断言、先红后绿日志、GUI/UIA 和实际请求证据、正式
+        Runtime App92/Core342 记录及最终发布包 SHA256。未发现真实未解决缺陷。未修改源代码、需求或设计，未创建子
+        agent，未重复正式检查；仅提交验收结果，不执行用户接受或归档。
+      truncated: false
+    completed_at: 2026-10-25T23:54:24.011Z
+  - goal_cycle: 1
+    iteration: 5
+    attempt: 1
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: 用户新增扫描规则入口及链接/Web搜索需求，并明确调整模型按钮仅显示模型与思考等级、API Key位于接口格式之后，按当前要求更新同一改动。
+      truncated: false
+    completed_at: 2026-10-26T00:15:25.996Z
+  - goal_cycle: 2
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 独立只读Verifier已逐项核对当前候选A1-A10，10项passed，无阻断功能缺陷。复用候选绑定的App 96项/Core
+        361项正式成功检查及匹配GUI/协议工具消息证据，核验最终自包含包哈希。本次仅登记启动、写临时验收JSON并提交Runtime结果；未改源码/需求/设计，未创建子agent，未接受用户结果或归档。
+      truncated: false
+    completed_at: 2026-10-26T01:44:37.697Z
 history_overflow:
   dropped_entries: 0
   first_dropped_at: null
@@ -230,7 +406,7 @@ history_overflow:
     blocked: 0
     execution-error: 0
     recovery: 0
-verification_result: pending
-verification_report: null
+verification_result: pass
+verification_report: verification.md
 archived: false
 created_at: 2026-10-25T22:30:49.428Z

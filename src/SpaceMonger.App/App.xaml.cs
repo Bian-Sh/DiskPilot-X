@@ -69,6 +69,7 @@ public partial class App : Application
         services.AddSingleton<ModelHttpClientFactory>();
         services.AddSingleton<ModelClientFactory>();
         services.AddSingleton<ModelCatalogService>();
+        services.AddSingleton<NativeWebSearchService>();
         services.AddSingleton<ModelConnectionTester>();
         services.AddSingleton<IDuplicateDetector, DuplicateDetector>();
         services.AddSingleton<RecommendationEngine>();
@@ -103,7 +104,8 @@ public partial class App : Application
             options => provider.GetRequiredService<ModelClientFactory>().Create(options.Endpoint),
             provider.GetServices<IAgentTool>(), provider.GetRequiredService<AssistantWorkspace>(),
             provider.GetRequiredService<ISettingsService>(), provider.GetRequiredService<RecommendationEngine>(),
-            provider.GetRequiredService<ILoggerFactory>(), provider.GetRequiredService<ConversationStore>()));
+            provider.GetRequiredService<ILoggerFactory>(), provider.GetRequiredService<ConversationStore>(),
+            provider.GetRequiredService<NativeWebSearchService>()));
         services.AddTransient<ChatViewModel>();
 
         // TreeView services

@@ -10,6 +10,7 @@ using SpaceMonger.Core.Services.Agent;
 using SpaceMonger.Core.Services.Analysis;
 using SpaceMonger.Core.Services.FileTree;
 using SpaceMonger.Core.Services.Settings;
+using SpaceMonger.Core.Services.Llm;
 using SpaceMonger.Core.Services.Whitelist;
 using ToolDefinition = TinyHarness.ToolDefinition;
 using ToolRiskLevel = TinyHarness.ToolRiskLevel;
@@ -17,7 +18,7 @@ using ToolRiskLevel = TinyHarness.ToolRiskLevel;
 namespace SpaceMonger.Core.Services.Assistant;
 
 /// <summary>磁盘 Copilot 的唯一模型循环；UI 与手动分析通过同一门面访问 Harness。</summary>
-public sealed class DiskAssistantService
+public sealed partial class DiskAssistantService
 {
     private const string SystemPrompt = """
         你是 SpaceMonger Copilot，帮助用户理解磁盘空间、检查清理候选并执行明确授权的操作。
@@ -32,6 +33,7 @@ public sealed class DiskAssistantService
         删除只能通过 cleanup_recommendations，必须先列出并选择当前建议 ID；用户会看到具体清单与删除方式并确认。
         用户提出清理规则、缓存知识或创建技能时，先通过 manage_disk_skills/list 或 manage_cleanup_skill/list 发现现有能力并读取相关技能。创建使用 skill-creator。
         必要输入使用 ask_user 的结构化单选、多选、文本或数字字段；禁止正文伪造表单，禁止索取密钥。用户提供的资料通过 import_reference 读取，不能假装已阅读。
+        涉及网络参考资料时可用 web_search 调用当前模型的原生搜索。只有工具返回的真实检索与来源才可说已搜索；不支持时明确告知，无法确认能力或暂时失败时如实说明，继续允许提供链接或粘贴资料，不反复重试。
         show_skill_panel 在聊天发布可重开的任务卡片；普通清理使用现有建议清单。保存规则不等于执行清理，源码必须经宿主确认。
         用户拒绝后停止该动作，不重复索要确认。不得扩大扫描或清理范围，不得修改安全规则或索要明文密钥。
         工具结果包含 cancelled:true 表示用户主动中断或拒绝：本回合内不要重试同一操作，简要说明当前状态并等待用户指示。
@@ -44,6 +46,7 @@ public sealed class DiskAssistantService
     private readonly ISettingsService settings;
     private readonly RecommendationEngine policy;
     private readonly ILoggerFactory loggerFactory;
+    private readonly NativeWebSearchService? webSearch;
     private readonly SemaphoreSlim runGate = new(1, 1);
     private readonly FileTreeQueryService query = new();
     private readonly PathWhitelistMatcher whitelist = new();
@@ -51,6 +54,7 @@ public sealed class DiskAssistantService
     private readonly ConversationStore? conversationStore;
     private string? currentConversationId;
     public string? CurrentConversationId => currentConversationId;
+    public string? ConversationTitle { get; private set; }
     private string? conversationPrivacySignature;
     private CancellationTokenSource? activeCancellation;
     public event Action<AgentEvent>? Activity;
@@ -61,9 +65,10 @@ public sealed class DiskAssistantService
     private AnalysisResult? LastAnalysisResult { get; set; }
 
     public DiskAssistantService(Func<AssistantRunOptions, IModelClient> modelFactory, IEnumerable<IAgentTool> queryTools,
-        AssistantWorkspace workspace, ISettingsService settings, RecommendationEngine? policy = null, ILoggerFactory? loggerFactory = null, ConversationStore? conversationStore = null)
+        AssistantWorkspace workspace, ISettingsService settings, RecommendationEngine? policy = null, ILoggerFactory? loggerFactory = null, ConversationStore? conversationStore = null, NativeWebSearchService? webSearch = null)
     {
         this.conversationStore = conversationStore;
+        this.webSearch = webSearch;
         this.modelFactory = modelFactory;
         this.queryTools = queryTools.Select(tool => tool switch { FindByNameTool => (IAgentTool)new FindByNameTool(query), FindByPathTool => new FindByPathTool(query), ListChildrenTool => new ListChildrenTool(query), SummarizeSubtreeTool => new SummarizeSubtreeTool(query), FindLargeFilesTool => new FindLargeFilesTool(query), _ => tool }).ToArray();
         this.workspace = workspace;
@@ -77,6 +82,7 @@ public sealed class DiskAssistantService
         if (IsRunning) throw new InvalidOperationException("请先停止当前任务再清空会话。");
         session = null;
         currentConversationId = null;
+        ConversationTitle = null;
         conversationPrivacySignature = null;
         LastAnalysisResult = null;
     }
@@ -85,12 +91,12 @@ public sealed class DiskAssistantService
 
     public void SaveConversation(IEnumerable<SpaceMonger.Core.Models.ChatMessage> messages)
     {
-        if (conversationStore is null) return;
         var saved = messages.Select(SavedChatMessage.Capture).ToArray();
         if (saved.Length == 0) return;
         currentConversationId ??= Guid.NewGuid().ToString("N");
+        if (conversationStore is null) return;
         conversationStore.Save(new(currentConversationId, DateTimeOffset.UtcNow, conversationPrivacySignature,
-            session?.State ?? AgentSessionState.Created, session?.Messages.ToArray() ?? [], saved));
+            session?.State ?? AgentSessionState.Created, session?.Messages.ToArray() ?? [], saved) { Title = ConversationTitle });
     }
 
     public ConversationSnapshot ReadConversation(string id) => conversationStore?.Load(id)
@@ -118,6 +124,7 @@ public sealed class DiskAssistantService
             message.Restore(index == lastAssistant ? sessionStatus : null)).ToArray();
         session = restored;
         currentConversationId = snapshot.Id;
+        ConversationTitle = snapshot.Title;
         conversationPrivacySignature = NormalizePrivacySignature(snapshot.PrivacySignature);
         LastAnalysisResult = null;
         return messages;
@@ -219,6 +226,10 @@ public sealed class DiskAssistantService
                 }
             });
         }
+        if (webSearch is not null)
+            Add("web_search", "使用当前配置 AI 模型的原生 Web 搜索查询公开关键词或用户提供的参考网址，返回实际来源。不要将凭据、私密本机路径或文件树加入查询。不支持时宿主显示 user_notice，不重复重试或假装已联网；仍可使用 import_reference 读取公开链接或用户粘贴的资料。",
+                """{"type":"object","properties":{"query":{"type":"string","maxLength":2000,"description":"公开资料关键词或原始参考网址"}},"required":["query"],"additionalProperties":false}""",
+                async (args, ct) => await webSearch.SearchAsync(options.Endpoint, args!["query"]!.GetValue<string>(), ct).ConfigureAwait(false), timeoutSeconds: 60);
         foreach (var tool in queryTools.Where(t => t.Name is not "propose_copilot_action" and not "get_copilot_context"))
         {
             Add(tool.Name, tool.Description, tool.Schema.GetRawText(), async (args, ct) =>

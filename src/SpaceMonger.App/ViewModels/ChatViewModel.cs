@@ -72,10 +72,11 @@ public partial class ChatViewModel : ObservableObject
         _logger = logger ?? NullLogger<ChatViewModel>.Instance;
         RefreshSkills();
         FilteredSkillMentionSuggestions = new(SkillMentionSuggestions);
-        Messages.CollectionChanged += (_, _) => HasMessages = Messages.Count > 0;
+        Messages.CollectionChanged += (_, _) => { HasMessages = Messages.Count > 0; OnPropertyChanged(nameof(HeaderText)); };
         assistant.Activity += activity => OnUi(() => ApplyActivity(activity));
         assistant.RunFinished += () => OnUi(RefreshConversationCommands);
         L.LanguageChanged += RefreshSlashCommandSuggestions;
+        L.LanguageChanged += () => OnPropertyChanged(nameof(HeaderText));
         L.LanguageChanged += () => OnPropertyChanged(nameof(ThinkingLevelOptions));
         L.LanguageChanged += () => OnPropertyChanged(nameof(ThinkingPickerLabel));
         CliIdentityService.VersionChanged += _ => OnUi(() => RefreshCliIdentityDisplay(_settingsService.LoadSettings()));
@@ -207,9 +208,13 @@ public partial class ChatViewModel : ObservableObject
     {
         Messages.Add(message);
         SaveCurrentConversation();
+        var conversationId = CurrentConversationId;
         try
         {
-            return await assistant.RunAsync(message.Text, options, null, CancellationToken.None);
+            var result = await assistant.RunAsync(message.Text, options, null, CancellationToken.None);
+            if (result.State == AgentSessionState.Completed && !string.IsNullOrWhiteSpace(result.Text))
+                OnUi(() => { if (CurrentConversationId == conversationId) StartConversationTitle(options, message.Text, result.Text); });
+            return result;
         }
         catch (OperationCanceledException) { StatusText = L.Text("CopilotStopped"); }
         catch (Exception ex)
@@ -228,6 +233,17 @@ public partial class ChatViewModel : ObservableObject
             Messages.Add(displayMessage); ModelDisplayName = assistant.ActiveModel ?? ModelDisplayName; IsOperationRunning = true; ErrorMessage = null; StatusText = L.Text("CopilotWorking");
         }
         displayMessage?.ApplyActivity(activity);
+        if (activity.Kind == AgentEventKind.MessageCompleted && activity.Message is { Role: ChatRole.Tool, ToolName: "web_search" } searchResult)
+        {
+            try
+            {
+                using var result = System.Text.Json.JsonDocument.Parse(searchResult.Content ?? "");
+                if (result.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                    && result.RootElement.TryGetProperty("user_notice", out var notice) && notice.ValueKind == System.Text.Json.JsonValueKind.String
+                    && !string.IsNullOrWhiteSpace(notice.GetString())) ErrorMessage = notice.GetString();
+            }
+            catch (System.Text.Json.JsonException) { }
+        }
         if (activity.Kind == AgentEventKind.ToolCallStarted) StatusText = "正在执行 · " + activity.ToolName;
         if (activity.Kind is AgentEventKind.TaskCompleted or AgentEventKind.TaskFailed or AgentEventKind.TaskCancelled)
         {

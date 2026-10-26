@@ -164,6 +164,12 @@ public sealed class ConversationHistoryTests : IDisposable
         public ModelRequest? Request { get; private set; }
         public async IAsyncEnumerable<ModelStreamEvent> StreamAsync(ModelRequest request, [EnumeratorCancellation] CancellationToken ct)
         {
+            // 历史测试只驱动主对话；标题生成由独立测试控制，避免后台写入干扰快照断言。
+            if (request.Messages.First().Content?.StartsWith("请为对话生成标题") == true)
+            {
+                yield return new ModelCompletedEvent("end_turn");
+                yield break;
+            }
             Request = request;
             await Task.Yield();
             yield return new TextDeltaEvent("已完成");

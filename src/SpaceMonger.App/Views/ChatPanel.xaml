@@ -210,7 +210,7 @@
     <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
       <Grid Margin="16,11,10,10">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-        <StackPanel Margin="0,0,8,0"><TextBlock Text="Copilot" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource VP.TextPrimaryBrush}"/><TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource VP.TextTertiaryBrush}" FontSize="10" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
+        <StackPanel Margin="0,0,8,0"><TextBlock Text="Copilot" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource VP.TextPrimaryBrush}"/><TextBlock x:Name="ConversationTitleText" Text="{Binding HeaderText}" Foreground="{DynamicResource VP.TextTertiaryBrush}" FontSize="10" Margin="0,3,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTipService.InitialShowDelay="300" AutomationProperties.Name="{Binding HeaderText}"><TextBlock.ToolTip><ToolTip MaxWidth="480" DataContext="{Binding PlacementTarget.DataContext,RelativeSource={RelativeSource Self}}"><TextBlock Text="{Binding HeaderText}" TextWrapping="Wrap"/></ToolTip></TextBlock.ToolTip></TextBlock></StackPanel>
         <Border Grid.Column="1" CornerRadius="8" VerticalAlignment="Center" Background="{DynamicResource VP.SurfaceBrush}">
           <Grid x:Name="ConversationButton" Width="40" Height="26">
             <Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="12"/></Grid.ColumnDefinitions>
@@ -288,8 +288,8 @@
               </Style>
             </StackPanel.Resources>
             <TextBlock Text="从一个小问题开始" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource VP.TextPrimaryBrush}" Margin="0,12,0,8"/>
-            <TextBlock Text="检查空间，也可以教我清理一种新缓存。" FontSize="12" Foreground="{DynamicResource VP.TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,20"/>
-            <Button Content="＋  教我清理一种新缓存" Command="{Binding ExplorePromptCommand}" CommandParameter="@skill-creator 我想创建自定义清理规则，请通过提问了解我要清理的数据、需要保留的内容，并参考我提供的资料。" Style="{StaticResource EmptyStatePromptButton}" HorizontalContentAlignment="Left" AutomationProperties.Name="教我清理一种新缓存"/>
+            <TextBlock Text="检查空间，也可以提供参考链接新增扫描规则。" FontSize="12" Foreground="{DynamicResource VP.TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,20"/>
+            <Button Content="＋  新增一个新的扫描规则" Command="{Binding ExplorePromptCommand}" CommandParameter="@skill-creator 我想新增一个新的扫描规则，可以提供参考链接或粘贴资料。" Style="{StaticResource EmptyStatePromptButton}" HorizontalContentAlignment="Left" AutomationProperties.Name="新增一个新的扫描规则" ToolTip="可提供参考链接或直接粘贴资料"/>
             <Button Content="查看我的清理规则" Command="{Binding ExplorePromptCommand}" CommandParameter="请列出我现在可以使用的清理规则，区分内置规则和我自己创建的规则，告诉我如何使用。" Style="{StaticResource EmptyStatePromptButton}" HorizontalContentAlignment="Left"/>
             <Button Content="哪些文件占用了空间？" Command="{Binding ExplorePromptCommand}" CommandParameter="帮我检查哪些文件占用了空间。请先让我选择扫描范围，再根据真实扫描结果分析。" Style="{StaticResource EmptyStatePromptButton}" HorizontalContentAlignment="Left"/>
             <TextBlock Text="试试已有规则" FontSize="11" Foreground="{DynamicResource VP.TextTertiaryBrush}" Margin="10,22,0,8"/>
@@ -300,7 +300,6 @@
                 </Button>
               </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
             </ScrollViewer>
-            <TextBlock Text="先检查、再选择；清理前会请你确认。" FontSize="10" Foreground="{DynamicResource VP.TextTertiaryBrush}" Margin="10,18,0,0" TextWrapping="Wrap"/>
           </StackPanel>
         </ScrollViewer>
         <Button x:Name="JumpButton" Content="{loc:Loc CopilotJumpLatest}" Click="Jump_Click" Style="{StaticResource QuietButton}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,18,8" Background="{DynamicResource VP.SurfaceActiveBrush}" Visibility="Collapsed"/>
@@ -325,8 +324,6 @@
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="{Binding ModelDisplayName}" TextTrimming="CharacterEllipsis" MaxWidth="160" VerticalAlignment="Center"/>
               <TextBlock Text="{Binding ThinkingPickerLabel}" Margin="6,0,0,0" Opacity="0.85" VerticalAlignment="Center"/>
-              <TextBlock Text="{Binding CliIdentityDisplayName}" ToolTip="{Binding CliIdentityToolTip}" Visibility="{Binding CliIdentityDisplayName,Converter={StaticResource NullVis}}" Margin="6,0,0,0" MaxWidth="118" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-              <TextBlock Text="▾" FontSize="8" Margin="4,2,0,0" Opacity="0.7" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
           <Popup IsOpen="{Binding IsChecked,ElementName=ModelPickerToggle,Mode=TwoWay}" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" Placement="Top" PlacementTarget="{Binding ElementName=ModelPickerToggle}" VerticalOffset="-4">

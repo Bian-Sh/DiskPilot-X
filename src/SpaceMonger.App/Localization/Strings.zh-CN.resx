@@ -931,4 +931,5 @@
   <data name="SettingsCliIdentityRefreshSuccess" xml:space="preserve"><value>已更新为最新指纹</value></data>
   <data name="SettingsCliIdentityRefreshFailed" xml:space="preserve"><value>获取失败，已保留当前指纹；点击可重试。</value></data>
   <data name="SettingsCliIdentityBuiltIn" xml:space="preserve"><value>Grok 使用内置指纹，暂无远程版本源。</value></data>
+  <data name="CopilotTool_web_search" xml:space="preserve"><value>联网搜索</value></data>
 </root>

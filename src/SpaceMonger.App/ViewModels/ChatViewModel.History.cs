@@ -12,6 +12,42 @@ public partial class ChatViewModel
     [ObservableProperty] private ObservableCollection<ConversationSummary> _conversationHistory = [];
     [ObservableProperty] private bool _isHistoryOpen;
     public string? CurrentConversationId => assistant.CurrentConversationId;
+    public string HeaderText => assistant.ConversationTitle
+        ?? (Messages.FirstOrDefault()?.Text is { Length: > 0 } text
+            ? string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+            : L.Text("CopilotReady"));
+    private CancellationTokenSource? titleCancellation;
+    private Task titleGenerationTask = Task.CompletedTask;
+
+    private void StartConversationTitle(AssistantRunOptions options, string userText, string assistantText)
+    {
+        if (assistant.ConversationTitle is not null || titleCancellation is not null || CurrentConversationId is not { } id) return;
+        var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        titleCancellation = cancellation;
+        titleGenerationTask = GenerateAsync();
+        async Task GenerateAsync()
+        {
+            try
+            {
+                var title = await assistant.GenerateConversationTitleAsync(options, userText, assistantText, cancellation.Token);
+                await OnUiAsync(() =>
+                {
+                    if (cancellation.IsCancellationRequested || !ReferenceEquals(titleCancellation, cancellation)
+                        || !assistant.SetConversationTitle(id, title)) return;
+                    OnPropertyChanged(nameof(HeaderText));
+                    SaveCurrentConversation();
+                    RefreshConversationHistory();
+                });
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception)
+            {
+                _logger.LogDebug("对话标题生成未完成 {ExceptionType}", exception.GetType().Name);
+            }
+            finally { cancellation.Dispose(); }
+        }
+    }
+
     public bool HasConversationHistory => ConversationHistory.Count > 0;
     public bool CanChangeConversation => !IsOperationRunning && !assistant.IsRunning;
 
@@ -86,6 +122,12 @@ public partial class ChatViewModel
 
     private void ResetConversationUi()
     {
+        if (titleCancellation is { } cancellation)
+        {
+            titleCancellation = null;
+            try { cancellation.Cancel(); } catch (ObjectDisposedException) { }
+        }
+        OnPropertyChanged(nameof(HeaderText));
         displayMessage = null;
         InputText = null;
         PendingInteractionCard = null;
