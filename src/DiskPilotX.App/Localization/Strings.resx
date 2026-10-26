@@ -926,7 +926,7 @@
   <data name="CopilotModelFilterPlaceholder" xml:space="preserve"><value>Search or type a custom model name, Enter to apply</value></data>
   <data name="ComposerModelsSectionLabel" xml:space="preserve"><value>Models</value></data>
   <data name="CopilotChooseModel" xml:space="preserve"><value>Select model</value></data>
-  <data name="SettingsModelListEmpty" xml:space="preserve"><value>No models fetched. Refresh the model list in AI settings.</value></data>
+  <data name="SettingsModelListEmpty" xml:space="preserve"><value>Configure the base URL and API Key to load models automatically when editing is complete.</value></data>
   <data name="SettingsModelsUrlLabel" xml:space="preserve"><value>Models URL</value></data>
   <data name="SettingsModelsUrlHint" xml:space="preserve"><value>Enter a full HTTP(S) URL; leave blank to use the default models endpoint.</value></data>
   <data name="SettingsRefreshCliIdentityHint" xml:space="preserve"><value>Refresh the latest CLI fingerprint</value></data>
@@ -935,4 +935,15 @@
   <data name="SettingsCliIdentityRefreshFailed" xml:space="preserve"><value>Refresh failed. The current fingerprint is preserved; click to retry.</value></data>
   <data name="SettingsCliIdentityBuiltIn" xml:space="preserve"><value>Grok uses a built-in fingerprint; no remote version source is available.</value></data>
   <data name="CopilotTool_web_search" xml:space="preserve"><value>Web search</value></data>
+  <data name="SettingsModelDiscoveryFailedTitle" xml:space="preserve"><value>Unable to discover models</value></data>
+  <data name="SettingsModelDiscoveryExhaustedMessage" xml:space="preserve"><value>All candidate model-list addresses were tried, but no valid models were returned. Enter a complete HTTP(S) Models URL supplied by your provider, check the proxy settings, and refresh again. Your existing model list has been kept. See the app console for details.</value></data>
+  <data name="SettingsModelRefreshFailedDetailFormat" xml:space="preserve"><value>Model discovery failed: {0} See the app console for details.</value></data>
+  <data name="SettingsModelDragHint" xml:space="preserve"><value>Drag to reorder (Alt+↑/↓)</value></data>
+  <data name="SettingsModelRemoveHint" xml:space="preserve"><value>Remove from chat model list</value></data>
+  <data name="SettingsModelListEditHint" xml:space="preserve"><value>Drag the left handle to reorder; hover a row to remove it. Refresh keeps your order and appends rediscovered models.</value></data>
+  <data name="SettingsModelConfigIncomplete" xml:space="preserve"><value>Enter the base URL and API Key. Models load automatically when editing is complete.</value></data>
+  <data name="SettingsModelBaseUrlInvalid" xml:space="preserve"><value>The base URL must be a valid HTTP(S) URL.</value></data>
+  <data name="SettingsModelUrlInvalid" xml:space="preserve"><value>The Models URL must be a complete HTTP(S) URL.</value></data>
+  <data name="SettingsModelProxyIncomplete" xml:space="preserve"><value>Complete the proxy address and valid port to retry automatically.</value></data>
+  <data name="SettingsModelAutoFetchFailed" xml:space="preserve"><value>Unable to get the model list. Configure a proxy or a custom Models URL.</value></data>
 </root>
