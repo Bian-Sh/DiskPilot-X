@@ -63,7 +63,7 @@ public partial class ChatViewModel : ObservableObject
     public bool IsSending => IsOperationRunning;
     public bool HasPendingInteractionCard => PendingInteractionCard is not null;
     public bool IsCompletionMenuOpen => IsSlashCommandMenuOpen || IsSkillMentionMenuOpen;
-    public string SendButtonText => IsOperationRunning ? L.Text("CopilotStop") : L.Text("SendButton");
+    public string SendButtonText => IsAskingUser ? L.Text("CopilotSubmitAnswers") : IsOperationRunning ? L.Text("CopilotStop") : L.Text("SendButton");
     public event Action? ClearConsoleRequested;
 
     public ChatViewModel(DiskAssistantService assistant, ISettingsService settingsService, IAiSkillRouter skillRouter, ILogger<ChatViewModel>? logger = null)
@@ -164,8 +164,10 @@ public partial class ChatViewModel : ObservableObject
     [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task SubmitOrStopAsync()
     {
+        // 提问期间复用发送按钮提交答案，优先于模型停止逻辑。
+        if (PendingAskUser is { } decision) { decision.TryCompleteSubmission(); return; }
         if (assistant.IsRunning) { assistant.CancelCurrentRun(); return; }
-        if (HasPendingInteractionCard || PendingAskUser is not null) { ErrorMessage="请先完成或取消当前选择。"; return; }
+        if (HasPendingInteractionCard) { ErrorMessage="请先完成或取消当前选择。"; return; }
         if (string.IsNullOrWhiteSpace(InputText)) return;
         var text = InputText.Trim();
         if (TryExecuteSlashCommand(text)) { InputText = null; return; }

@@ -935,4 +935,5 @@
   <data name="ChatNewSessionDividerDescription" xml:space="preserve">
     <value>新会话已开始。之前的消息仍然可见，但不会再作为上下文发送。</value>
   </data>
+  <data name="CopilotSubmitAnswers" xml:space="preserve"><value>提交回答</value></data>
 </root>

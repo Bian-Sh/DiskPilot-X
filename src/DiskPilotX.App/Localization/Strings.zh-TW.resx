@@ -935,4 +935,5 @@
   <data name="ChatNewSessionDividerDescription" xml:space="preserve">
     <value>新工作階段已開始。先前的訊息仍然可見，但不會再作為內容傳送。</value>
   </data>
+  <data name="CopilotSubmitAnswers" xml:space="preserve"><value>提交回答</value></data>
 </root>

@@ -935,4 +935,5 @@
   <data name="SettingsCliIdentityRefreshFailed" xml:space="preserve"><value>Refresh failed. The current fingerprint is preserved; click to retry.</value></data>
   <data name="SettingsCliIdentityBuiltIn" xml:space="preserve"><value>Grok uses a built-in fingerprint; no remote version source is available.</value></data>
   <data name="CopilotTool_web_search" xml:space="preserve"><value>Web search</value></data>
+  <data name="CopilotSubmitAnswers" xml:space="preserve"><value>Submit answers</value></data>
 </root>

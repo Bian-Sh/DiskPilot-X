@@ -18,6 +18,8 @@ public sealed class ChatSegment(ChatSegmentKind kind) : INotifyPropertyChanged
     private string? _toolName;
     private bool _isExpanded;
     private ChatSegmentStatus _status = ChatSegmentStatus.Running;
+    private bool _askUserTranscriptDirty = true;
+    private IReadOnlyList<AskUserTranscriptEntry>? _askUserEntries;
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public ChatSegmentKind Kind { get; } = kind;
@@ -29,25 +31,46 @@ public sealed class ChatSegment(ChatSegmentKind kind) : INotifyPropertyChanged
     public bool IsFailed => Status == ChatSegmentStatus.Failed;
     public bool HasText => !string.IsNullOrWhiteSpace(Text);
     public bool HasDetail => !string.IsNullOrWhiteSpace(Detail);
+
+    /// <summary>ask_user 调用展示为问答而不是原始 JSON。</summary>
+    public bool IsAskUser => IsTool && ToolName == "ask_user";
+
+    /// <summary>友好问答投影；非 ask_user 或解析失败为 null，界面显示简短状态。</summary>
+    public IReadOnlyList<AskUserTranscriptEntry>? AskUserEntries
+    {
+        get
+        {
+            if (!IsAskUser) return null;
+            if (_askUserTranscriptDirty)
+            {
+                _askUserTranscriptDirty = false;
+                _askUserEntries = AskUserTranscript.TryCreate(Detail, Text, Status);
+            }
+            return _askUserEntries;
+        }
+    }
+
+    public bool HasAskUserEntries => AskUserEntries is { Count: > 0 };
+
     public bool IsSummary { get; set; }
     public bool IsFinal { get; set; }
 
     public string Text
     {
         get => _text;
-        set { if (_text == value) return; _text = value; Notify(); Notify(nameof(HasText)); Notify(nameof(Preview)); }
+        set { if (_text == value) return; _text = value; Notify(); Notify(nameof(HasText)); Notify(nameof(Preview)); InvalidateAskUserTranscript(); }
     }
 
     public string? ToolName
     {
         get => _toolName;
-        set { if (_toolName == value) return; _toolName = value; Notify(); }
+        set { if (_toolName == value) return; _toolName = value; Notify(); Notify(nameof(IsAskUser)); InvalidateAskUserTranscript(); }
     }
 
     public string? Detail
     {
         get => _detail;
-        set { if (_detail == value) return; _detail = value; Notify(); Notify(nameof(HasDetail)); }
+        set { if (_detail == value) return; _detail = value; Notify(); Notify(nameof(HasDetail)); InvalidateAskUserTranscript(); }
     }
 
     public bool IsExpanded
@@ -59,7 +82,7 @@ public sealed class ChatSegment(ChatSegmentKind kind) : INotifyPropertyChanged
     public ChatSegmentStatus Status
     {
         get => _status;
-        set { if (_status == value) return; _status = value; Notify(); Notify(nameof(IsRunning)); Notify(nameof(IsFailed)); }
+        set { if (_status == value) return; _status = value; Notify(); Notify(nameof(IsRunning)); Notify(nameof(IsFailed)); InvalidateAskUserTranscript(); }
     }
 
     public string Preview
@@ -115,6 +138,14 @@ public sealed class ChatSegment(ChatSegmentKind kind) : INotifyPropertyChanged
             readable.Append(json[i]);
         }
         return readable.ToString();
+    }
+
+    private void InvalidateAskUserTranscript()
+    {
+        _askUserTranscriptDirty = true;
+        if (!IsAskUser) return;
+        Notify(nameof(AskUserEntries));
+        Notify(nameof(HasAskUserEntries));
     }
 
     private void Notify([CallerMemberName] string? name = null) =>

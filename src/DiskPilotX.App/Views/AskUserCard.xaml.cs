@@ -13,15 +13,8 @@ public partial class AskUserCard : UserControl
     private AskUserDialogViewModel? ViewModel => DataContext as AskUserDialogViewModel;
 
     private void Previous_OnClick(object sender, RoutedEventArgs e) => ViewModel?.MovePrevious();
-    private void Next_OnClick(object sender, RoutedEventArgs e) => ViewModel?.MoveNextWithoutValidation();
+    private void Next_OnClick(object sender, RoutedEventArgs e) => ViewModel?.TryAdvanceCurrentField();
     private void Cancel_OnClick(object sender, RoutedEventArgs e) => ViewModel?.TryCancel();
-    private void Primary_OnClick(object sender, RoutedEventArgs e) => AdvanceOrSubmit();
-
-    private void Skip_OnClick(object sender, RoutedEventArgs e)
-    {
-        if (ViewModel is { } vm && vm.TrySkipCurrentField(out var submit) && submit)
-            vm.TryCompleteSubmission();
-    }
 
     private async void SingleChoice_OnClick(object sender, RoutedEventArgs e)
     {

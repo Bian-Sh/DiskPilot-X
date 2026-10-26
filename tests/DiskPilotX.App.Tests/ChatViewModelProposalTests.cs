@@ -106,6 +106,36 @@ public class ChatViewModelProposalTests
         result.Should().NotBeNull();
         vm.IsOperationRunning.Should().BeFalse();
     }
+    [Fact]
+    public async Task 提问期间发送按钮提交全部答案并恢复普通输入状态()
+    {
+        var vm = Create(_ => new TextClient());
+        vm.InputText = "暂存的草稿";
+        var waiting = vm.AskUserAsync(System.Text.Json.Nodes.JsonNode.Parse("""{"title":"确认","question":"保留哪些内容？","fields":[{"id":"scope","label":"保留范围","type":"text","is_required":true,"default_text":"用户资料"}]}"""), CancellationToken.None);
+        vm.SendButtonText.Should().Be("提交回答");
+        await vm.SubmitOrStopCommand.ExecuteAsync(null);
+        var result = await waiting.WaitAsync(TimeSpan.FromSeconds(2));
+        result["values"]!["scope"]!.GetValue<string>().Should().Be("用户资料");
+        result["cancelled"]!.GetValue<bool>().Should().BeFalse();
+        vm.PendingAskUser.Should().BeNull();
+        vm.InputText.Should().Be("暂存的草稿");
+        vm.Messages.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task 提交缺失答案时保持卡片并定位到需要补充的问题()
+    {
+        var vm = Create(_ => new TextClient());
+        var waiting = vm.AskUserAsync(System.Text.Json.Nodes.JsonNode.Parse("""{"title":"确认","question":"请补充信息","fields":[{"id":"first","label":"第一题","type":"text","is_required":true},{"id":"second","label":"第二题","type":"text","is_required":true,"default_text":"已有答案"}]}"""), CancellationToken.None);
+        vm.PendingAskUser!.MoveNextWithoutValidation();
+        await vm.SubmitOrStopCommand.ExecuteAsync(null);
+        waiting.IsCompleted.Should().BeFalse();
+        vm.PendingAskUser.CurrentFieldIndex.Should().Be(0);
+        vm.PendingAskUser.CurrentField.HasError.Should().BeTrue();
+        vm.PendingAskUser.TryCancel();
+        (await waiting)["cancelled"]!.GetValue<bool>().Should().BeTrue();
+    }
+
     private static ChatViewModel Create(Func<AssistantRunOptions,IModelClient> factory,Action<DiskAssistantService>? observe=null)
     {
         var settings=Substitute.For<ISettingsService>();var saved=new AppSettings{ChatModelName="configured-model",DiscoveredModels=["configured-model"]};
