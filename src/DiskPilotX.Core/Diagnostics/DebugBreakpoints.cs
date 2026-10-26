@@ -28,7 +28,7 @@ internal static class DebugBreakpoints
 
     private static bool IsEnabled(string name)
     {
-        var raw = Environment.GetEnvironmentVariable(BreakpointsVariable);
+        var raw = DiskPilotX.Core.AppCompatibility.GetEnvironmentVariable(BreakpointsVariable);
         if (string.IsNullOrWhiteSpace(raw))
             return false;
 
@@ -40,7 +40,7 @@ internal static class DebugBreakpoints
 
     private static bool IsLaunchEnabled()
     {
-        var raw = Environment.GetEnvironmentVariable(LaunchVariable);
+        var raw = DiskPilotX.Core.AppCompatibility.GetEnvironmentVariable(LaunchVariable);
         return string.Equals(raw, "1", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(raw, "yes", StringComparison.OrdinalIgnoreCase);

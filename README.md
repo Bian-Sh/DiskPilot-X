@@ -87,6 +87,10 @@ dotnet test DiskPilotX.sln
 
 ## Configuration
 
+### 更名兼容
+
+程序与工程已更名为 DiskPilot-X / DiskPilotX。设置、历史对话和自定义清理规则优先使用 `DiskPilot-X` 数据目录；新版对应文件或目录不存在时，继续使用旧版 `SpaceMonger` 数据，不自动搬移或覆盖。旧版 `SPACEMONGER_*` 环境变量仍兼容，新版 `DISKPILOT_X_*` 同名配置优先。
+
 ### Anthropic base URL override
 
 By default the app uses `https://api.anthropic.com`. To point DiskPilot-X at another Anthropic-compatible endpoint, enter an Anthropic Base URL in **Settings**. Leave the field empty to use the built-in endpoint. Environment variables are still supported as a fallback before launching the app:

@@ -76,17 +76,27 @@ public partial class ChatPanel : UserControl
         QueueScroll();
     }
     private void MessageChanged(object? sender, PropertyChangedEventArgs e) => QueueScroll();
+    private bool IsNearLatest => MessagesScrollViewer.ScrollableHeight - MessagesScrollViewer.VerticalOffset < 24;
+    private void UpdateJumpButton() => JumpButton.Visibility = !followTail && !IsNearLatest && viewModel?.HasMessages == true
+        ? Visibility.Visible : Visibility.Collapsed;
     private void QueueScroll()
     {
         if(scrollQueued || !IsLoaded) return; scrollQueued=true;
-        _=Dispatcher.InvokeAsync(()=> { scrollQueued=false; if(followTail) MessagesScrollViewer.ScrollToEnd(); JumpButton.Visibility=!followTail && MessagesScrollViewer.ScrollableHeight > 24 && viewModel?.HasMessages==true?Visibility.Visible:Visibility.Collapsed; }, DispatcherPriority.Background);
+        _=Dispatcher.InvokeAsync(() =>
+        {
+            scrollQueued=false;
+            // 布局稳定后重新核对位置；详情折叠到全部可见时恢复跟随。
+            if(IsNearLatest) followTail=true;
+            if(followTail) MessagesScrollViewer.ScrollToEnd();
+            UpdateJumpButton();
+        }, DispatcherPriority.Background);
     }
     private void Messages_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
         if (!ReferenceEquals(e.OriginalSource, MessagesScrollViewer)) return;
-        if(e.ExtentHeightChange==0 && e.ViewportHeightChange==0) followTail=MessagesScrollViewer.ScrollableHeight-MessagesScrollViewer.VerticalOffset<24;
+        if(IsNearLatest || e.ExtentHeightChange==0 && e.ViewportHeightChange==0) followTail=IsNearLatest;
         else if(followTail) QueueScroll();
-        JumpButton.Visibility=!followTail && MessagesScrollViewer.ScrollableHeight > 24 && viewModel?.HasMessages==true?Visibility.Visible:Visibility.Collapsed;
+        UpdateJumpButton();
     }
     private void ProcessHeader_PreviewMouseDown(object sender, MouseButtonEventArgs e) { holdReading = true; followTail = false; }
     private void ProcessHeader_PreviewKeyDown(object sender, KeyEventArgs e)

@@ -51,15 +51,15 @@ internal sealed class AcceptanceAutomationServer : IDisposable
 
     internal static bool IsEnabled()
     {
-        var value = Environment.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_PIPE")
-            ?? Environment.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_SERVER");
+        var value = DiskPilotX.Core.AppCompatibility.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_PIPE")
+            ?? DiskPilotX.Core.AppCompatibility.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_SERVER");
         return string.Equals(value, "1", StringComparison.OrdinalIgnoreCase)
             || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
     }
 
     private static int GetPort()
     {
-        var configured = Environment.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_PORT");
+        var configured = DiskPilotX.Core.AppCompatibility.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_PORT");
         return int.TryParse(configured, out var port) && port is > 0 and < 65536
             ? port
             : 39187;

@@ -98,7 +98,7 @@ public partial class MainWindow
 
     internal object AcceptanceCapture(string? outputPath,string? captureTarget=null)
     {
-        var settingsPath = Environment.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_SETTINGS");
+        var settingsPath = DiskPilotX.Core.AppCompatibility.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_SETTINGS");
         if (string.IsNullOrWhiteSpace(settingsPath) || string.IsNullOrWhiteSpace(outputPath)) throw new InvalidOperationException("验收截图需要独立设置目录。");
         var allowedRoot = Path.GetFullPath(Path.GetDirectoryName(settingsPath)!).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         var target = Path.GetFullPath(outputPath);

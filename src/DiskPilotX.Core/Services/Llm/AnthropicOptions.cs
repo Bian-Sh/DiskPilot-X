@@ -9,7 +9,7 @@ public static class AnthropicOptions
     public static Uri GetBaseUri(string? configuredBaseUrl = null)
     {
         configuredBaseUrl = string.IsNullOrWhiteSpace(configuredBaseUrl)
-            ? Environment.GetEnvironmentVariable(DiskPilotXBaseUrlEnvironmentVariable)
+            ? DiskPilotX.Core.AppCompatibility.GetEnvironmentVariable(DiskPilotXBaseUrlEnvironmentVariable)
             : configuredBaseUrl;
 
         if (string.IsNullOrWhiteSpace(configuredBaseUrl))

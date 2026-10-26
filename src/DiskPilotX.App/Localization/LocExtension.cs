@@ -100,7 +100,7 @@ public static class L
 
     static L()
     {
-        var configuredLanguage = Environment.GetEnvironmentVariable(LanguageEnvironmentVariable);
+        var configuredLanguage = DiskPilotX.Core.AppCompatibility.GetEnvironmentVariable(LanguageEnvironmentVariable);
 
         SetLanguage(configuredLanguage);
     }

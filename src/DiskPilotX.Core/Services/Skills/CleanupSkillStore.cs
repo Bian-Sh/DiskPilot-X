@@ -7,7 +7,7 @@ namespace DiskPilotX.Core.Services.Skills;
 /// <summary>用户清理包存储。完整版本先落盘，再原子替换 current.json；失败时旧指针仍有效。</summary>
 public sealed class CleanupSkillStore
 {
-    public static string DefaultUserRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DiskPilot-X", "cleanup-skills");
+    public static string DefaultUserRoot => AppCompatibility.ResolveDataPath(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "cleanup-skills");
     public string UserRoot { get; }
     private readonly string[] builtInRoots;
     private const int MaxPackageBytes = 4 * 1024 * 1024;

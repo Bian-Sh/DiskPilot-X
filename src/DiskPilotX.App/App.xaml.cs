@@ -65,7 +65,7 @@ public partial class App : Application
 
         // US2 services
         services.AddSingleton<ISettingsService>(_ => new SettingsService(AcceptanceAutomationServer.IsEnabled()
-            ? Environment.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_SETTINGS") : null));
+            ? DiskPilotX.Core.AppCompatibility.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_SETTINGS") : null));
         services.AddSingleton<ModelHttpClientFactory>();
         services.AddSingleton<ModelClientFactory>();
         services.AddSingleton<ModelCatalogService>();
@@ -86,7 +86,7 @@ public partial class App : Application
         services.AddSingleton<IAgentTool, ResolvePathTool>();
         services.AddSingleton<IAgentTool, ReadUnityRegistryContextTool>();
         services.AddSingleton<IAgentTool, ManageDiskSkillsTool>();
-        services.AddSingleton(_ => new DiskPilotX.Core.Services.Skills.CleanupSkillStore(AcceptanceAutomationServer.IsEnabled() && Environment.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_SETTINGS") is { Length: > 0 } acceptanceSettings
+        services.AddSingleton(_ => new DiskPilotX.Core.Services.Skills.CleanupSkillStore(AcceptanceAutomationServer.IsEnabled() && DiskPilotX.Core.AppCompatibility.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_SETTINGS") is { Length: > 0 } acceptanceSettings
             ? System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(acceptanceSettings))!,"skills") : null));
         services.AddSingleton<DiskPilotX.Core.Services.Skills.CleanupSkillSourceService>();
         services.AddSingleton<IAgentTool, CleanupSkillTool>();
@@ -94,11 +94,12 @@ public partial class App : Application
         services.AddSingleton(_ =>
         {
             var acceptanceSettings = AcceptanceAutomationServer.IsEnabled()
-                ? Environment.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_SETTINGS") : null;
+                ? DiskPilotX.Core.AppCompatibility.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_SETTINGS") : null;
             var directory = !string.IsNullOrWhiteSpace(acceptanceSettings)
                 ? System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(acceptanceSettings))!
-                : System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DiskPilot-X");
-            return new ConversationStore(System.IO.Path.Combine(directory, "Conversations"));
+                : null;
+            return new ConversationStore(directory is not null ? System.IO.Path.Combine(directory, "Conversations")
+                : DiskPilotX.Core.AppCompatibility.ResolveDataPath(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Conversations"));
         });
         services.AddSingleton<DiskAssistantService>(provider => new DiskAssistantService(
             options => provider.GetRequiredService<ModelClientFactory>().Create(options.Endpoint),

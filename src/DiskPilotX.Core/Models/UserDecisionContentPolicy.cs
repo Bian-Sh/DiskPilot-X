@@ -100,6 +100,7 @@ internal static class UserDecisionContentPolicy
         && (SecretValuePattern.IsMatch(content)
             || content.Contains("LOOMX_CREDENTIAL_", StringComparison.OrdinalIgnoreCase)
             || content.Contains("DISKPILOT_X_CREDENTIAL_", StringComparison.OrdinalIgnoreCase)
+            || content.Contains("SPACEMONGER_CREDENTIAL_", StringComparison.OrdinalIgnoreCase)
             || RequestsCredentialValue(content)
             || Regex.IsMatch(content, @"(?i)\b(?:api[_\s-]*key|token|password|secret|authorization|credentials?)\s*[:=]\s*\S+|\bbearer\s+\S+", RegexOptions.CultureInvariant));
     private static bool RequestsCredentialValue(string content)

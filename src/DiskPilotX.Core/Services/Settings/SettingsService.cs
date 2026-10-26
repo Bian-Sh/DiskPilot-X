@@ -7,10 +7,8 @@ namespace DiskPilotX.Core.Services.Settings;
 
 public class SettingsService : ISettingsService
 {
-    private readonly string SettingsFilePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "DiskPilot-X",
-        "settings.dat");
+    private readonly string SettingsFilePath = AppCompatibility.ResolveDataPath(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "settings.dat");
 
     public SettingsService(string? settingsFilePath = null)
     {
