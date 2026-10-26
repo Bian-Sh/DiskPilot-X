@@ -1,0 +1,98 @@
+﻿<UserControl x:Class="DiskPilotX.App.Views.CleanupSummaryDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:loc="clr-namespace:DiskPilotX.App.Localization"
+             mc:Ignorable="d"
+             FontFamily="{DynamicResource VP.FontFamily}">
+    <Grid MinWidth="420" MaxHeight="560">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Title -->
+        <TextBlock Grid.Row="0"
+                   Text="{loc:Loc CleanupSummaryTitle}"
+                   FontSize="18"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource VP.TextPrimaryBrush}"
+                   TextWrapping="Wrap"
+                   Margin="24,22,24,12" />
+
+        <!-- Content -->
+        <StackPanel Grid.Row="1"
+                    Margin="24,0,24,20"
+                    VerticalAlignment="Center">
+            <TextBlock x:Name="SuccessSummary"
+                       FontSize="17"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource VP.SuccessBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,12" />
+
+            <TextBlock x:Name="AlreadyRemovedText"
+                       Foreground="{DynamicResource VP.TextSecondaryBrush}"
+                       FontSize="13"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,8" />
+
+            <Border x:Name="SkippedGroup"
+                    Background="{DynamicResource VP.SurfaceHoverBrush}"
+                    BorderBrush="{DynamicResource VP.BorderSubtleBrush}"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Padding="14,10"
+                    Margin="0,0,0,8">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock x:Name="SkippedGroupHeader"
+                               Grid.Row="0"
+                               Foreground="{DynamicResource VP.TextSecondaryBrush}"
+                               FontSize="12"
+                               FontWeight="Medium"
+                               Margin="0,0,0,6" />
+                    <ListView x:Name="SkippedItemsList"
+                              Grid.Row="1"
+                              MaxHeight="280"
+                              Style="{DynamicResource VP.ListView}">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="{loc:Loc PathColumn}" Width="240"
+                                                DisplayMemberBinding="{Binding Path}" />
+                                <GridViewColumn Header="{loc:Loc ReasonColumn}" Width="160"
+                                                DisplayMemberBinding="{Binding Reason}" />
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </Grid>
+            </Border>
+
+            <TextBlock x:Name="TotalRecovered"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource VP.TextPrimaryBrush}"
+                       FontSize="13"
+                       TextWrapping="Wrap"
+                       Margin="0,4,0,0" />
+        </StackPanel>
+
+        <!-- Button group -->
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Margin="24,0,24,22">
+            <Button Content="{loc:Loc OkButton}"
+                    Style="{DynamicResource VP.AccentButton}"
+                    Width="84" Height="32"
+                    VerticalAlignment="Center"
+                    IsDefault="True"
+                    Click="OkButton_Click" />
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -1,0 +1,938 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppTitle" xml:space="preserve">
+    <value>DiskPilot-X</value>
+  </data>
+  <data name="ThisPCLabel" xml:space="preserve">
+    <value>此电脑</value>
+  </data>
+  <data name="ToolbarNavigation" xml:space="preserve">
+    <value>导航</value>
+  </data>
+  <data name="PathSelectorToolTip" xml:space="preserve">
+    <value>选择要扫描的磁盘或文件夹，也可以输入/粘贴路径</value>
+  </data>
+  <data name="BrowseButton" xml:space="preserve">
+    <value>浏览...</value>
+  </data>
+  <data name="BrowseButtonToolTip" xml:space="preserve">
+    <value>选择要扫描的文件夹</value>
+  </data>
+  <data name="ScanButton" xml:space="preserve">
+    <value>扫描</value>
+  </data>
+  <data name="ScanButtonToolTip" xml:space="preserve">
+    <value>开始扫描选中的磁盘或文件夹</value>
+  </data>
+  <data name="CancelButton" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="CancelScanToolTip" xml:space="preserve">
+    <value>取消当前扫描</value>
+  </data>
+  <data name="RecommendCleanupButton" xml:space="preserve">
+    <value>推荐清理</value>
+  </data>
+  <data name="RecommendCleanupToolTip" xml:space="preserve">
+    <value>使用 AI 分析当前视图，并推荐可安全移除以释放磁盘空间的文件和文件夹。这里只显示可删除项，被认为重要的文件不会列出。</value>
+  </data>
+  <data name="AnalyzeChatPrompt" xml:space="preserve">
+    <value>【应用操作】用户点击了「分析」按钮，请求对当前范围执行清理推荐分析并发布建议。范围：{0}</value>
+  </data>
+  <data name="ChatAppMessageBadge" xml:space="preserve">
+    <value>应用操作</value>
+  </data>
+  <data name="AnalyzeButton" xml:space="preserve">
+    <value>分析</value>
+  </data>
+  <data name="AnalysisInProgressToolTip" xml:space="preserve">
+    <value>分析中请等待</value>
+  </data>
+  <data name="ChatButton" xml:space="preserve">
+    <value>聊天</value>
+  </data>
+  <data name="ChatToggleToolTip" xml:space="preserve">
+    <value>切换 AI 聊天面板</value>
+  </data>
+  <data name="SettingsButtonToolTip" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="CapacityLabel" xml:space="preserve">
+    <value>容量：</value>
+  </data>
+  <data name="UsedLabel" xml:space="preserve">
+    <value>已用：</value>
+  </data>
+  <data name="FreeLabel" xml:space="preserve">
+    <value>可用：</value>
+  </data>
+  <data name="FilesLabel" xml:space="preserve">
+    <value>文件：</value>
+  </data>
+  <data name="FoldersLabel" xml:space="preserve">
+    <value>文件夹：</value>
+  </data>
+  <data name="AnalyzeNoScanMessage" xml:space="preserve">
+    <value>请先完成扫描再进行分析。</value>
+  </data>
+  <data name="AnalyzeNoScanTitle" xml:space="preserve">
+    <value>没有扫描数据</value>
+  </data>
+  <data name="ApiKeyRequiredMessage" xml:space="preserve">
+    <value>AI 分析需要 Anthropic API key。是否打开设置进行配置？</value>
+  </data>
+  <data name="ApiKeyRequiredTitle" xml:space="preserve">
+    <value>需要 API Key</value>
+  </data>
+  <data name="CleaningStatus" xml:space="preserve">
+    <value>正在清理：{0}/{1} — {2}</value>
+  </data>
+  <data name="CleanupCompleteStatus" xml:space="preserve">
+    <value>清理完成：已移除 {0} 项（释放 {1}）</value>
+  </data>
+  <data name="CleanupPartialTitle" xml:space="preserve">
+    <value>清理完成但存在错误</value>
+  </data>
+  <data name="CleanupPartialMessage" xml:space="preserve">
+    <value>清理已完成，但有 {0} 项无法移除。请查看摘要了解详情。</value>
+  </data>
+  <data name="SettingsTitle" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="AnthropicApiKeyHeader" xml:space="preserve">
+    <value>AI 设置</value>
+  </data>
+  <data name="ApiKeyToolTip" xml:space="preserve">
+    <value>Enter your Anthropic API key. The key will be encrypted at rest.</value>
+  </data>
+  <data name="ValidateButton" xml:space="preserve">
+    <value>验证</value>
+  </data>
+  <data name="DefaultDeletionModeHeader" xml:space="preserve">
+    <value>默认删除模式</value>
+  </data>
+  <data name="DataPrivacyHeader" xml:space="preserve">
+    <value>数据隐私</value>
+  </data>
+  <data name="DataPrivacyText" xml:space="preserve">
+    <value>使用 AI 功能时，文件元数据（路径、大小、类型和日期）会发送到 Anthropic 云服务进行分析。文件内容绝不会被传输。</value>
+  </data>
+  <data name="SaveButton" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="ApiKeyEmptyMessage" xml:space="preserve">
+    <value>请先输入 API Key。</value>
+  </data>
+  <data name="ApiKeyInvalidMessage" xml:space="preserve">
+    <value>API Key 无效。</value>
+  </data>
+  <data name="ValidationFailedMessage" xml:space="preserve">
+    <value>验证失败：{0}</value>
+  </data>
+  <data name="SettingsSavedToast" xml:space="preserve">
+    <value>Settings saved</value>
+  </data>
+  <data name="UpButton" xml:space="preserve">
+    <value>Up</value>
+  </data>
+  <data name="NavigateUpToolTip" xml:space="preserve">
+    <value>向上导航一级</value>
+  </data>
+  <data name="NavigateBackToolTip" xml:space="preserve">
+    <value>后退</value>
+  </data>
+  <data name="NavigateForwardToolTip" xml:space="preserve">
+    <value>前进</value>
+  </data>
+  <data name="NoSubfoldersText" xml:space="preserve">
+    <value>（无子文件夹）</value>
+  </data>
+  <data name="PropertiesTitle" xml:space="preserve">
+    <value>属性 - {0}</value>
+  </data>
+  <data name="PropertiesPath" xml:space="preserve">
+    <value>Path:</value>
+  </data>
+  <data name="PropertiesType" xml:space="preserve">
+    <value>Type:</value>
+  </data>
+  <data name="PropertiesSize" xml:space="preserve">
+    <value>Size:</value>
+  </data>
+  <data name="PropertiesFiles" xml:space="preserve">
+    <value>Files:</value>
+  </data>
+  <data name="PropertiesFolders" xml:space="preserve">
+    <value>Folders:</value>
+  </data>
+  <data name="PropertiesCreated" xml:space="preserve">
+    <value>Created:</value>
+  </data>
+  <data name="PropertiesModified" xml:space="preserve">
+    <value>Modified:</value>
+  </data>
+  <data name="PropertiesUnknown" xml:space="preserve">
+    <value>未知</value>
+  </data>
+  <data name="OkButton" xml:space="preserve">
+    <value>确定</value>
+  </data>
+  <data name="ErrorTitle" xml:space="preserve">
+    <value>错误</value>
+  </data>
+  <data name="OpenFailedMessage" xml:space="preserve">
+    <value>无法打开路径：{0}</value>
+  </data>
+  <data name="PropertiesFailedMessage" xml:space="preserve">
+    <value>无法显示属性：{0}</value>
+  </data>
+  <data name="ChatConfigureApiKey" xml:space="preserve">
+    <value>请先在设置中配置模型 API Key，再使用对话功能</value>
+  </data>
+  <data name="OpenSettingsButton" xml:space="preserve">
+    <value>打开设置</value>
+  </data>
+  <data name="SendButton" xml:space="preserve">
+    <value>发送</value>
+  </data>
+  <data name="ClearContextToolTip" xml:space="preserve">
+    <value>清除关联上下文</value>
+  </data>
+  <data name="ChatContextLabel" xml:space="preserve">
+    <value>上下文：</value>
+  </data>
+  <data name="RecommendationsTitle" xml:space="preserve">
+    <value>清理推荐</value>
+  </data>
+  <data name="RecommendationsEmpty" xml:space="preserve">
+    <value>No cleanup recommendations yet. Run analysis to get suggestions.</value>
+  </data>
+  <data name="SelectAllButton" xml:space="preserve">
+    <value>全选</value>
+  </data>
+  <data name="SelectNoneButton" xml:space="preserve">
+    <value>全不选</value>
+  </data>
+  <data name="SelectedLabel" xml:space="preserve">
+    <value>已选：</value>
+  </data>
+  <data name="ItemsLabel" xml:space="preserve">
+    <value> 项</value>
+  </data>
+  <data name="RecoverableLabel" xml:space="preserve">
+    <value>可释放：</value>
+  </data>
+  <data name="CleanUpButton" xml:space="preserve">
+    <value>清理</value>
+  </data>
+  <data name="CleanUpToolTip" xml:space="preserve">
+    <value>执行选中推荐的清理操作</value>
+  </data>
+  <data name="CopyButton" xml:space="preserve">
+    <value>复制</value>
+  </data>
+  <data name="NoItemsSelectedMessage" xml:space="preserve">
+    <value>未选择任何推荐项。请勾选要清理的项目。</value>
+  </data>
+  <data name="NoItemsSelectedTitle" xml:space="preserve">
+    <value>未选择项目</value>
+  </data>
+  <data name="NoItemsSelectedForCleanupToolTip" xml:space="preserve">
+    <value>未选择要清理的项目</value>
+  </data>
+  <data name="CleanupFailedMessage" xml:space="preserve">
+    <value>清理失败：{0}</value>
+  </data>
+  <data name="CleanupErrorTitle" xml:space="preserve">
+    <value>清理错误</value>
+  </data>
+  <data name="OpenInExplorerMenu" xml:space="preserve">
+    <value>Open in Explorer</value>
+  </data>
+  <data name="CopyPathMenu" xml:space="preserve">
+    <value>Copy Path</value>
+  </data>
+  <data name="PropertiesMenu" xml:space="preserve">
+    <value>Properties</value>
+  </data>
+  <data name="OpenExplorerFailedMessage" xml:space="preserve">
+    <value>无法打开资源管理器：
+{0}</value>
+  </data>
+  <data name="CopyPathFailedMessage" xml:space="preserve">
+    <value>无法复制路径到剪贴板：
+{0}</value>
+  </data>
+  <data name="FolderType" xml:space="preserve">
+    <value>Folder</value>
+  </data>
+  <data name="FileType" xml:space="preserve">
+    <value>File</value>
+  </data>
+  <data name="FileTypeFormat" xml:space="preserve">
+    <value>{0} File</value>
+  </data>
+  <data name="CloseRecommendationsToolTip" xml:space="preserve">
+    <value>关闭推荐面板</value>
+  </data>
+  <data name="FilterByLabel" xml:space="preserve">
+    <value>筛选：</value>
+  </data>
+  <data name="AllCategoriesOption" xml:space="preserve">
+    <value>所有类别</value>
+  </data>
+  <data name="AllRatingsOption" xml:space="preserve">
+    <value>所有评级</value>
+  </data>
+  <data name="SelectAllSafeButton" xml:space="preserve">
+    <value>全选安全项</value>
+  </data>
+  <data name="DeselectAllCautionButton" xml:space="preserve">
+    <value>取消选择谨慎项</value>
+  </data>
+  <data name="AnalyzingFilesText" xml:space="preserve">
+    <value>正在分析文件...</value>
+  </data>
+  <data name="AnalysisMayTakeText" xml:space="preserve">
+    <value>这可能需要一些时间</value>
+  </data>
+  <data name="ConfirmCleanupTitle" xml:space="preserve">
+    <value>确认清理</value>
+  </data>
+  <data name="ConfirmCleanupPrompt" xml:space="preserve">
+    <value>⚠ 确定要继续吗？</value>
+  </data>
+  <data name="ConfirmCleanupMessage" xml:space="preserve">
+    <value>将清理 {0} 个已选项目，预计释放 {1}。删除模式：{2}。是否继续？</value>
+  </data>
+  <data name="DeletionModeHeader" xml:space="preserve">
+    <value>删除模式</value>
+  </data>
+  <data name="MoveToRecycleBinOption" xml:space="preserve">
+    <value>Move to Recycle Bin</value>
+  </data>
+  <data name="PermanentlyDeleteOption" xml:space="preserve">
+    <value>Permanently Delete</value>
+  </data>
+  <data name="PermanentDeleteWarning" xml:space="preserve">
+    <value>Warning: Files cannot be recovered!</value>
+  </data>
+  <data name="ConfirmButton" xml:space="preserve">
+    <value>确认</value>
+  </data>
+  <data name="CleanupSummaryTitle" xml:space="preserve">
+    <value>清理摘要</value>
+  </data>
+  <data name="SkippedItemsHeader" xml:space="preserve">
+    <value>跳过项目</value>
+  </data>
+  <data name="PathColumn" xml:space="preserve">
+    <value>路径</value>
+  </data>
+  <data name="ReasonColumn" xml:space="preserve">
+    <value>原因</value>
+  </data>
+  <data name="TooltipSize" xml:space="preserve">
+    <value>Size: {0}</value>
+  </data>
+  <data name="TooltipType" xml:space="preserve">
+    <value>Type: {0}</value>
+  </data>
+  <data name="TooltipModified" xml:space="preserve">
+    <value>Modified: {0}</value>
+  </data>
+  <data name="AccessDenied" xml:space="preserve">
+    <value>Access Denied</value>
+  </data>
+  <data name="ChatErrorAppend" xml:space="preserve">
+    <value>
+
+[Error: {0}]</value>
+  </data>
+  <data name="ScanningStatus" xml:space="preserve">
+    <value>正在扫描...</value>
+  </data>
+  <data name="ScanProgressStatus" xml:space="preserve">
+    <value>{0} — {1:N0} 个文件，{2:N0} 个文件夹</value>
+  </data>
+  <data name="ScanCancelledStatus" xml:space="preserve">
+    <value>扫描已取消。</value>
+  </data>
+  <data name="ItemsToRemove" xml:space="preserve">
+    <value>Items to remove: {0}</value>
+  </data>
+  <data name="SpaceToFree" xml:space="preserve">
+    <value>Space to free: {0}</value>
+  </data>
+  <data name="CleanupSummarySuccess" xml:space="preserve">
+    <value>已移除 {0} 项（释放 {1}）</value>
+  </data>
+  <data name="CleanupSummaryAlreadyRemoved" xml:space="preserve">
+    <value>{0} 项已经被移除</value>
+  </data>
+  <data name="SkippedItemsWithCount" xml:space="preserve">
+    <value>跳过项目（跳过 {0} 项）</value>
+  </data>
+  <data name="TotalSpaceRecovered" xml:space="preserve">
+    <value>总释放空间：{0}</value>
+  </data>
+  <data name="PropertiesName" xml:space="preserve">
+    <value>Name:</value>
+  </data>
+  <data name="AnthropicBaseUrlHeader" xml:space="preserve">
+    <value>Anthropic 接口地址</value>
+  </data>
+  <data name="AnthropicBaseUrlToolTip" xml:space="preserve">
+    <value>可选。留空则使用内置 Anthropic endpoint。</value>
+  </data>
+  <data name="AnthropicBaseUrlHint" xml:space="preserve">
+    <value>Leave empty to use the built-in endpoint. Enter an absolute http(s) URL to override it.</value>
+  </data>
+  <data name="OpenConsoleToolTip" xml:space="preserve">
+    <value>打开控制台</value>
+  </data>
+  <data name="RecommendationsTabHeader" xml:space="preserve">
+    <value>推荐清理</value>
+  </data>
+  <data name="ConsoleTabHeader" xml:space="preserve">
+    <value>控制台</value>
+  </data>
+  <data name="ConsoleFilterToolTip" xml:space="preserve">
+    <value>筛选控制台日志</value>
+  </data>
+  <data name="TreemapNoDataText" xml:space="preserve">
+    <value>无数据可供展示，请扫描~</value>
+  </data>
+  <data name="TreemapEmptyTitle" xml:space="preserve">
+    <value>待扫描</value>
+  </data>
+  <data name="TreemapEmptyHint" xml:space="preserve">
+    <value />
+  </data>
+  <data name="TreemapAnalysisRequiredTitle" xml:space="preserve">
+    <value>待扫描</value>
+  </data>
+  <data name="TreemapAnalysisRequiredHint" xml:space="preserve">
+    <value />
+  </data>
+  <data name="TreemapNoChildDataTitle" xml:space="preserve">
+    <value>待扫描</value>
+  </data>
+  <data name="TreemapNoChildDataHint" xml:space="preserve">
+    <value />
+  </data>
+  <data name="SlashCommandNewDescription" xml:space="preserve">
+    <value>&#x65B0;&#x5EFA;&#x4F1A;&#x8BDD;&#xFF0C;&#x6E05;&#x7A7A;&#x5F53;&#x524D;&#x804A;&#x5929;&#x4E0A;&#x4E0B;&#x6587;</value>
+  </data>
+  <data name="SlashCommandClearDescription" xml:space="preserve">
+    <value>&#x6E05;&#x9664;&#x5F53;&#x524D;&#x5BF9;&#x8BDD;&#xFF0C;&#x4E0D;&#x5F71;&#x54CD;&#x626B;&#x63CF;&#x6570;&#x636E;</value>
+  </data>
+  <data name="SlashCommandClearConsoleDescription" xml:space="preserve">
+    <value>&#x6E05;&#x7A7A;&#x5E94;&#x7528;&#x5185;&#x663E;&#x793A;&#x7684; console &#x65E5;&#x5FD7;</value>
+  </data>
+  <data name="ChatEmptyTitle" xml:space="preserve">
+    <value>聊天助手待命</value>
+  </data>
+  <data name="ChatEmptyDescription" xml:space="preserve">
+    <value>扫描后可询问当前磁盘占用、清理建议，或选中文件夹后让助手解释风险。</value>
+  </data>
+  <data name="RecommendationsEmptyTitle" xml:space="preserve">
+    <value>暂时没有可推荐的清理项</value>
+  </data>
+  <data name="RecommendationsEmptyDescription" xml:space="preserve">
+    <value>可以切换到控制台查看分析过程，或调整筛选条件后重试。</value>
+  </data>
+  <data name="RecommendationsWaitingForAiTitle" xml:space="preserve">
+    <value>AI正在分析中，请稍后...</value>
+  </data>
+  <data name="RecommendationsWaitingForAiDescription" xml:space="preserve">
+    <value></value>
+  </data>
+  <data name="AiScanTitleFormat" xml:space="preserve">
+    <value>AI正在扫描{0}，请稍后...</value>
+  </data>
+  <data name="AiExternalAnalysisWaitMessage" xml:space="preserve">
+    <value>AI正在分析中，请稍后！</value>
+  </data>
+  <data name="SettingsBackToAppButton" xml:space="preserve">
+    <value>返回应用</value>
+  </data>
+  <data name="SettingsSearchPlaceholder" xml:space="preserve">
+    <value>Search settings...</value>
+  </data>
+  <data name="SettingsPersonalGroup" xml:space="preserve">
+    <value>Personal</value>
+  </data>
+  <data name="SettingsGeneralNav" xml:space="preserve">
+    <value>常规</value>
+  </data>
+  <data name="SettingsAiGroup" xml:space="preserve">
+    <value>AI</value>
+  </data>
+  <data name="SettingsModelInterfaceNav" xml:space="preserve">
+    <value>Models &amp; API</value>
+  </data>
+  <data name="SettingsCleanupPolicyNav" xml:space="preserve">
+    <value>清理策略</value>
+  </data>
+  <data name="SettingsAiApiSection" xml:space="preserve">
+    <value>AI API</value>
+  </data>
+  <data name="SettingsApiKeyEncryptedHint" xml:space="preserve">
+    <value>The key is encrypted and stored on this device</value>
+  </data>
+  <data name="SettingsBaseUrlExample" xml:space="preserve">
+    <value>Example: https://api.example.com/anthropic</value>
+  </data>
+  <data name="SettingsModelsSection" xml:space="preserve">
+    <value>Models</value>
+  </data>
+  <data name="SettingsChatModelLabel" xml:space="preserve">
+    <value>模型列表</value>
+  </data>
+  <data name="SettingsChatModelHint" xml:space="preserve">
+    <value>从服务商获取的可用模型，具体对话模型在 chat 输入区选择。</value>
+  </data>
+  <data name="SettingsThinkingLabel" xml:space="preserve">
+    <value>启用思考</value>
+  </data>
+  <data name="SettingsThinkingHint" xml:space="preserve">
+    <value>关闭后请求模型跳过思考输出，降低 JSON 截断概率</value>
+  </data>
+  <data name="SettingsAllowThinkingOption" xml:space="preserve">
+    <value>允许模型思考</value>
+  </data>
+  <data name="SettingsLanguageLabel" xml:space="preserve">
+    <value>语言</value>
+  </data>
+  <data name="SettingsLanguageHint" xml:space="preserve">
+    <value>应用与 AI 提示使用的语言</value>
+  </data>
+  <data name="SettingsLanguageSimplifiedChinese" xml:space="preserve">
+    <value>Simplified Chinese</value>
+  </data>
+  <data name="SettingsLanguageEnglish" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="SettingsLanguageAuto" xml:space="preserve">
+    <value>Auto detect</value>
+  </data>
+  <data name="SettingsDefaultCleanupModeLabel" xml:space="preserve">
+    <value>默认清理方式</value>
+  </data>
+  <data name="SettingsDefaultCleanupModeHint" xml:space="preserve">
+    <value>选择清理文件时使用的移除方式</value>
+  </data>
+  <data name="SettingsDisclaimerNav" xml:space="preserve">
+    <value>免责声明</value>
+  </data>
+  <data name="SettingsDisclaimerIntro" xml:space="preserve">
+    <value>使用本应用前，请了解以下说明。本应用用于辅助你查看本地存储占用、理解文件分布并整理磁盘空间，所有扫描、分析、建议和清理结果都应作为辅助信息，而不是对文件价值或可删除性的最终判断。</value>
+  </data>
+  <data name="SettingsDisclaimerPrivacy" xml:space="preserve">
+    <value>应用只会扫描你主动选择的本地路径，并在界面中展示相关文件或目录的名称、路径、大小、层级关系等信息。若你启用 AI 分析或 AI 对话，为生成清理建议或回答问题，应用可能会把必要的文件树摘要、路径、大小、推荐结果和上下文发送给你配置的模型服务；第三方模型服务对这些数据的处理方式由其自身条款和隐私政策约束。</value>
+  </data>
+  <data name="SettingsDisclaimerRisk" xml:space="preserve">
+    <value>由于文件用途、业务场景和用户习惯无法被完全自动判断，扫描结果、规则分析、清理推荐和 AI 回答都可能存在遗漏、误判或过期信息。删除、移动或清理文件可能影响软件运行、项目构建、同步备份或业务流程，且永久删除可能造成无法恢复的数据损失。</value>
+  </data>
+  <data name="SettingsDisclaimerResponsibility" xml:space="preserve">
+    <value>你应在执行清理前自行核对目标文件、确认推荐依据、评估影响范围，并根据需要提前备份重要数据。实际删除、移动或清理操作由你确认并执行，相关后果由你自行承担；开发者不对误删、数据丢失、业务中断、第三方模型服务行为或不当使用造成的损失承担责任。</value>
+  </data>
+  <data name="SettingsDisclaimerRecommendation" xml:space="preserve">
+    <value>建议先从低风险项目开始清理，优先使用回收站模式或其他可恢复的移动方式；对工作资料、项目文件、系统目录、同步盘和不熟悉的路径，应先备份或暂缓处理，确认无误后再继续。</value>
+  </data>
+  <data name="SettingsValidationValidating" xml:space="preserve">
+    <value>验证中...</value>
+  </data>
+  <data name="SettingsValidationValid" xml:space="preserve">
+    <value>✓ 有效</value>
+  </data>
+  <data name="SettingsValidationInvalid" xml:space="preserve">
+    <value>✕ 无效</value>
+  </data>
+  <data name="CloseAppTitle" xml:space="preserve">
+    <value>关闭 DiskPilot-X？</value>
+  </data>
+  <data name="CloseAppMessage" xml:space="preserve">
+    <value>当前扫描和分析状态将关闭，确定要退出吗？</value>
+  </data>
+  <data name="TreemapTabHeader" xml:space="preserve">
+    <value>树状图</value>
+  </data>
+  <data name="TreeViewTabHeader" xml:space="preserve">
+    <value>树形列表</value>
+  </data>
+  <data name="TreeViewNameHeader" xml:space="preserve">
+    <value>名称</value>
+  </data>
+  <data name="TreeViewSizeHeader" xml:space="preserve">
+    <value>大小</value>
+  </data>
+  <data name="TreeViewTypeHeader" xml:space="preserve">
+    <value>类型</value>
+  </data>
+  <data name="TreeViewModifiedHeader" xml:space="preserve">
+    <value>修改日期</value>
+  </data>
+  <data name="SortByNameToolTip" xml:space="preserve">
+    <value>按名称排序</value>
+  </data>
+  <data name="SortBySizeToolTip" xml:space="preserve">
+    <value>按大小排序</value>
+  </data>
+  <data name="SortByTypeToolTip" xml:space="preserve">
+    <value>按类型排序</value>
+  </data>
+  <data name="SortByModifiedToolTip" xml:space="preserve">
+    <value>按修改日期排序</value>
+  </data>
+  <data name="ThinkingLabel" xml:space="preserve">
+    <value>思考中</value>
+  </data>
+  <data name="ThinkingText" xml:space="preserve">
+    <value>思考中...</value>
+  </data>
+  <data name="CopyMessageToolTip" xml:space="preserve">
+    <value>复制消息</value>
+  </data>
+  <data name="MinimizeToolTip" xml:space="preserve">
+    <value>最小化</value>
+  </data>
+  <data name="MaximizeToolTip" xml:space="preserve">
+    <value>最大化</value>
+  </data>
+  <data name="CloseToolTip" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="CollapseChatPanelToolTip" xml:space="preserve">
+    <value>收起聊天面板</value>
+  </data>
+  <data name="ExpandChatPanelToolTip" xml:space="preserve">
+    <value>展开聊天面板</value>
+  </data>
+  <data name="RestoreToolTip" xml:space="preserve">
+    <value>还原</value>
+  </data>
+  <data name="AboutTabHeader" xml:space="preserve">
+    <value>关于</value>
+  </data>
+  <data name="VersionLabel" xml:space="preserve">
+    <value>版本 </value>
+  </data>
+  <data name="CurrentVersionFormat" xml:space="preserve">
+    <value>当前版本：{0}</value>
+  </data>
+  <data name="UpToDateStatus" xml:space="preserve">
+    <value>当前已是最新版本</value>
+  </data>
+  <data name="UpdateAvailableTitle" xml:space="preserve">
+    <value>发现新版本 {0}</value>
+  </data>
+  <data name="DownloadUpdateButton" xml:space="preserve">
+    <value>下载更新（{0}）</value>
+  </data>
+  <data name="DownloadingStatus" xml:space="preserve">
+    <value>正在下载 v{0}...</value>
+  </data>
+  <data name="DownloadCompleteStatus" xml:space="preserve">
+    <value>✅ v{0} 已下载完成</value>
+  </data>
+  <data name="InstallButton" xml:space="preserve">
+    <value>立即安装</value>
+  </data>
+  <data name="ReDownloadButton" xml:space="preserve">
+    <value>重新下载</value>
+  </data>
+  <data name="ReleaseNotesHeader" xml:space="preserve">
+    <value>更新日志</value>
+  </data>
+  <data name="UpdateAvailableFormat" xml:space="preserve">
+    <value>(发现新版本👉{0})</value>
+  </data>
+  <data name="DownloadingFormat" xml:space="preserve">
+    <value>(新版本{0}下载中：{1}%)</value>
+  </data>
+  <data name="DownloadReadyFormat" xml:space="preserve">
+    <value>(新版本{0} 已就绪)</value>
+  </data>
+  <data name="AboutDescription" xml:space="preserve">
+    <value>一款快速、现代的磁盘空间分析工具，通过 MFT 级扫描和 AI 智能推荐，帮助你可视化并清理存储空间。</value>
+  </data>
+  <data name="BuyMeCoffee" xml:space="preserve">
+    <value>投喂作者</value>
+  </data>
+  <data name="DonateDialogTitle" xml:space="preserve">
+    <value>投喂作者</value>
+  </data>
+  <data name="DonateAlipayLabel" xml:space="preserve">
+    <value>支付宝</value>
+  </data>
+  <data name="DonateWeChatLabel" xml:space="preserve">
+    <value>微信</value>
+  </data>
+  <data name="DonateThankYou" xml:space="preserve">
+    <value>感谢您的支持 </value>
+  </data>
+  <data name="GithubLabel" xml:space="preserve">
+    <value>GitHub</value>
+  </data>
+  <data name="VersionDisplayToolTip" xml:space="preserve">
+    <value>关于页面</value>
+  </data>
+  <data name="ThemeSectionLabel" xml:space="preserve">
+    <value>主题</value>
+  </data>
+  <data name="ThemePresetsLabel" xml:space="preserve">
+    <value>预设</value>
+  </data>
+  <data name="ThemeAccentColorLabel" xml:space="preserve">
+    <value>强调色</value>
+  </data>
+  <data name="ThemeAccentColorHint" xml:space="preserve">
+    <value>输入十六进制颜色值（例如 #FF2562A7）</value>
+  </data>
+  <data name="ThemeApplyButton" xml:space="preserve">
+    <value>应用</value>
+  </data>
+  <data name="ThemeAppliedToast" xml:space="preserve">
+    <value>主题已应用</value>
+  </data>
+  <data name="ThemeGlassLabel" xml:space="preserve">
+    <value>毛玻璃</value>
+  </data>
+  <data name="ThemeGlassHint" xml:space="preserve">
+    <value>启用窗口毛玻璃 / 亚克力效果</value>
+  </data>
+  <data name="ThemeGlassOption" xml:space="preserve">
+    <value>启用毛玻璃效果</value>
+  </data>
+  <data name="ThemeBackdropTypeLabel" xml:space="preserve">
+    <value>背景材质</value>
+  </data>
+  <data name="ThemeBackdropTypeHint" xml:space="preserve">
+    <value>选择背景材质类型：无、Mica 或 Acrylic</value>
+  </data>
+  <data name="ThemeBackdropNone" xml:space="preserve">
+    <value>无</value>
+  </data>
+  <data name="ThemeBlurLabel" xml:space="preserve">
+    <value>高斯模糊</value>
+  </data>
+  <data name="ThemeBlurHint" xml:space="preserve">
+    <value>毛玻璃面板模糊半径（0 = 关闭，最大 = 60）</value>
+  </data>
+  <data name="ThemeOpacityLabel" xml:space="preserve">
+    <value>不透明度</value>
+  </data>
+  <data name="ThemeOpacityHint" xml:space="preserve">
+    <value>毛玻璃面板不透明度（0.1 几乎透明，1.0 完全不透明）</value>
+  </data>
+  <data name="ThemeAutoContrastLabel" xml:space="preserve">
+    <value>自动对比</value>
+  </data>
+  <data name="ThemeAutoContrastHint" xml:space="preserve">
+    <value>根据背景亮度自动计算文字颜色，保证可读性</value>
+  </data>
+  <data name="ThemeAutoContrastOption" xml:space="preserve">
+    <value>自动调整文字对比度</value>
+  </data>
+  <data name="SettingsBaseUrlLabel" xml:space="preserve">
+    <value>接口地址</value>
+  </data>
+  <data name="SettingsBaseUrlHint" xml:space="preserve">
+    <value>可选。留空时使用内置接口；填写绝对 http(s) URL 可覆盖。</value>
+  </data>
+  <data name="ValidateButtonLabel" xml:space="preserve">
+    <value>验证</value>
+  </data>
+  <data name="SettingsWhitelistNav" xml:space="preserve">
+    <value>白名单</value>
+  </data>
+  <data name="SettingsWhitelistDescription" xml:space="preserve">
+    <value>白名单表示排除/保护：扫描跳过、清理推荐不推荐、AI 对话不查询也不暴露匹配路径。</value>
+  </data>
+  <data name="SettingsWhitelistScanTitle" xml:space="preserve">
+    <value>扫描白名单</value>
+  </data>
+  <data name="SettingsWhitelistScanHint" xml:space="preserve">
+    <value>普通扫描和 NTFS 快速扫描都会跳过；如果扫描目标本身被排除，将阻止扫描。</value>
+  </data>
+  <data name="SettingsWhitelistCleanupTitle" xml:space="preserve">
+    <value>清理推荐白名单</value>
+  </data>
+  <data name="SettingsWhitelistCleanupHint" xml:space="preserve">
+    <value>构造模型输入前过滤，模型返回结果后再次过滤，避免受保护路径进入推荐列表。</value>
+  </data>
+  <data name="SettingsWhitelistAiTitle" xml:space="preserve">
+    <value>AI 对话白名单</value>
+  </data>
+  <data name="SettingsWhitelistAiHint" xml:space="preserve">
+    <value>从上下文摘要、选中项、推荐关联项和只读文件树工具中隐藏。</value>
+  </data>
+  <data name="SettingsWhitelistPathPlaceholder" xml:space="preserve">
+    <value>路径</value>
+  </data>
+  <data name="SettingsWhitelistDescriptionPlaceholder" xml:space="preserve">
+    <value>备注</value>
+  </data>
+  <data name="SettingsWhitelistBrowse" xml:space="preserve">
+    <value>选择文件夹</value>
+  </data>
+  <data name="SettingsWhitelistAdd" xml:space="preserve">
+    <value>添加</value>
+  </data>
+  <data name="SettingsWhitelistDelete" xml:space="preserve">
+    <value>删除</value>
+  </data>
+  <data name="SettingsWhitelistCopyJson" xml:space="preserve">
+    <value>复制 JSON</value>
+  </data>
+  <data name="SettingsWhitelistPasteJson" xml:space="preserve">
+    <value>粘贴 JSON</value>
+  </data>
+  <data name="SettingsWhitelistPasteInvalidJson" xml:space="preserve">
+    <value>剪贴板内容不是有效的白名单 JSON 数组。</value>
+  </data>
+  <data name="ScanTargetExcludedByWhitelist" xml:space="preserve">
+    <value>所选扫描目标已被白名单设置排除。</value>
+  </data>
+  <data name="AiWhitelistHiddenPathMessage" xml:space="preserve">
+    <value>该路径已按白名单设置隐藏，AI 对话不能查询或暴露它。</value>
+  </data>
+  <data name="CopilotCardRunning" xml:space="preserve">
+    <value>正在执行...</value>
+  </data>
+  <data name="CopilotCardCancelled" xml:space="preserve">
+    <value>已取消，未改变当前数据。</value>
+  </data>
+  <data name="CopilotCardDefaultTitle" xml:space="preserve">
+    <value>确认操作</value>
+  </data>
+  <data name="CopilotCardDefaultConfirm" xml:space="preserve">
+    <value>确认</value>
+  </data>
+  <data name="CopilotCardDefaultCancel" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="ChatOperationRunningStatus" xml:space="preserve">
+    <value>已处理 {0}</value>
+  </data>
+  <data name="ChatOperationCompleteStatus" xml:space="preserve">
+    <value>完成，耗时 {0}</value>
+  </data>
+  <data name="ChatOperationStoppedStatus" xml:space="preserve">
+    <value>已停止，耗时 {0}</value>
+  </data>
+  <data name="ChatOperationFailedStatus" xml:space="preserve">
+    <value>失败，耗时 {0}</value>
+  </data>
+  <data name="CopilotCardUserNotesLabel" xml:space="preserve">
+    <value>补充说明（可选）</value>
+  </data>
+  <data name="CopilotStartTitle" xml:space="preserve"><value>从哪里开始检查？</value></data>
+  <data name="CopilotStartDescription" xml:space="preserve"><value>告诉我想检查的目录，我可以扫描、解释空间占用，并准备可复核的清理建议。</value></data>
+  <data name="CopilotPlaceholder" xml:space="preserve"><value>描述任务，或输入 @ 选择技能</value></data>
+  <data name="CopilotNewConversation" xml:space="preserve"><value>新建会话</value></data>
+  <data name="CopilotChooseSkill" xml:space="preserve"><value>选择技能</value></data>
+  <data name="CopilotJumpLatest" xml:space="preserve"><value>↓ 回到最新</value></data>
+  <data name="CopilotCopy" xml:space="preserve"><value>复制</value></data>
+  <data name="CopilotInputLabel" xml:space="preserve"><value>Copilot 输入</value></data>
+  <data name="CopilotReady" xml:space="preserve"><value>准备就绪</value></data>
+  <data name="CopilotWorking" xml:space="preserve"><value>正在处理</value></data>
+  <data name="CopilotCompleted" xml:space="preserve"><value>已完成</value></data>
+  <data name="CopilotStopped" xml:space="preserve"><value>已停止</value></data>
+  <data name="CopilotFailed" xml:space="preserve"><value>执行失败</value></data>
+  <data name="CopilotWaiting" xml:space="preserve"><value>等待你的确认</value></data>
+  <data name="CopilotStop" xml:space="preserve"><value>停止</value></data>
+  <data name="CopilotStatus_Running" xml:space="preserve"><value>进行中</value></data>
+  <data name="CopilotStatus_Completed" xml:space="preserve"><value>完成</value></data>
+  <data name="CopilotStatus_Failed" xml:space="preserve"><value>失败</value></data>
+  <data name="CopilotStatus_Cancelled" xml:space="preserve"><value>已停止</value></data>
+  <data name="CopilotStatus_WaitingForUser" xml:space="preserve"><value>等待确认</value></data>
+  <data name="CopilotTool_get_copilot_context" xml:space="preserve"><value>了解当前工作区</value></data>
+  <data name="CopilotTool_scan_path" xml:space="preserve"><value>扫描目录</value></data>
+  <data name="CopilotTool_get_analysis_evidence" xml:space="preserve"><value>检查分析证据</value></data>
+  <data name="CopilotTool_publish_recommendations" xml:space="preserve"><value>发布清理建议</value></data>
+  <data name="CopilotTool_navigate_path" xml:space="preserve"><value>定位文件树</value></data>
+  <data name="CopilotTool_set_view" xml:space="preserve"><value>切换磁盘视图</value></data>
+  <data name="CopilotTool_find_by_name" xml:space="preserve"><value>按名称查找</value></data>
+  <data name="CopilotTool_find_by_path" xml:space="preserve"><value>查询路径</value></data>
+  <data name="CopilotTool_list_children" xml:space="preserve"><value>查看目录内容</value></data>
+  <data name="CopilotTool_summarize_subtree" xml:space="preserve"><value>汇总空间占用</value></data>
+  <data name="CopilotTool_find_large_files" xml:space="preserve"><value>查找大文件</value></data>
+  <data name="CopilotTool_resolve_path" xml:space="preserve"><value>校验目标路径</value></data>
+  <data name="CopilotTool_list_recommendations" xml:space="preserve"><value>读取清理清单</value></data>
+  <data name="CopilotTool_select_recommendations" xml:space="preserve"><value>更新清理选择</value></data>
+  <data name="CopilotTool_cleanup_recommendations" xml:space="preserve"><value>执行确认的清理</value></data>
+  <data name="CopilotTool_ask_user" xml:space="preserve"><value>请求必要输入</value></data>
+  <data name="CopilotTool_manage_disk_skills" xml:space="preserve"><value>管理磁盘技能</value></data>
+  <data name="CopilotTool_read_unity_registry_context" xml:space="preserve"><value>核对 Unity 环境</value></data>
+  <data name="CopilotTool_manage_cleanup_skill" xml:space="preserve"><value>管理清理规则</value></data>
+  <data name="CopilotTool_show_skill_panel" xml:space="preserve"><value>准备任务面板</value></data>
+  <data name="CopilotTool_run_skill_source" xml:space="preserve"><value>运行自定义识别</value></data>
+  <data name="CopilotConversationHistory" xml:space="preserve"><value>历史对话</value></data>
+  <data name="CopilotNoConversationHistory" xml:space="preserve"><value>暂无历史对话</value></data>
+  <data name="CopilotHistoryLoadFailed" xml:space="preserve"><value>无法读取历史对话，请检查文件或访问权限。当前对话已保留。</value></data>
+  <data name="CopilotHistorySaveFailed" xml:space="preserve"><value>对话保存失败，请检查磁盘空间或访问权限。当前对话尚未保存。</value></data>
+  <data name="SettingsApiFormatLabel" xml:space="preserve"><value>接口格式</value></data>
+  <data name="SettingsApiFormatHint" xml:space="preserve"><value>与模型服务通信使用的线上协议</value></data>
+  <data name="SettingsCliIdentityLabel" xml:space="preserve"><value>客户端指纹</value></data>
+  <data name="SettingsCliIdentityHint" xml:space="preserve"><value>模拟 CLI 客户端的 User-Agent 与特征头，避免按客户端放行的中转站拦截请求</value></data>
+  <data name="SettingsThinkingLevelLabel" xml:space="preserve"><value>思考等级</value></data>
+  <data name="SettingsThinkingLevelHint" xml:space="preserve"><value>等级越高推理越充分但响应更慢；Anthropic 格式的最低档按低档处理</value></data>
+  <data name="SettingsProxyModeLabel" xml:space="preserve"><value>代理</value></data>
+  <data name="SettingsProxyModeHint" xml:space="preserve"><value>部分中转站需要通过代理才能访问</value></data>
+  <data name="SettingsProxyAddressLabel" xml:space="preserve"><value>代理地址</value></data>
+  <data name="SettingsProxyAddressHint" xml:space="preserve"><value>HTTP(S) 代理主机，例如 http://127.0.0.1</value></data>
+  <data name="SettingsProxyPortLabel" xml:space="preserve"><value>端口</value></data>
+  <data name="SettingsProxyPasswordLabel" xml:space="preserve"><value>代理密码（可选）</value></data>
+  <data name="SettingsRefreshModelsButton" xml:space="preserve"><value>刷新模型列表</value></data>
+  <data name="SettingsModelRefreshRunning" xml:space="preserve"><value>正在获取模型列表…</value></data>
+  <data name="SettingsModelRefreshFailed" xml:space="preserve"><value>模型列表获取失败，请检查地址、密钥、格式与代理设置。</value></data>
+  <data name="SettingsModelRefreshSuccessFormat" xml:space="preserve"><value>已发现 {0} 个模型。</value></data>
+  <data name="ThinkingLevelOffLabel" xml:space="preserve"><value>关闭</value></data>
+  <data name="ThinkingLevelMinimalLabel" xml:space="preserve"><value>最低</value></data>
+  <data name="ThinkingLevelLowLabel" xml:space="preserve"><value>低</value></data>
+  <data name="ThinkingLevelMediumLabel" xml:space="preserve"><value>中</value></data>
+  <data name="ThinkingLevelHighLabel" xml:space="preserve"><value>高</value></data>
+  <data name="ApiFormatAnthropicLabel" xml:space="preserve"><value>Anthropic Messages</value></data>
+  <data name="ApiFormatResponsesLabel" xml:space="preserve"><value>OpenAI Responses</value></data>
+  <data name="ApiFormatChatCompletionsLabel" xml:space="preserve"><value>OpenAI Chat Completions</value></data>
+  <data name="CliIdentityNoneLabel" xml:space="preserve"><value>不模拟</value></data>
+  <data name="CliIdentityClaudeCodeLabel" xml:space="preserve"><value>Claude Code</value></data>
+  <data name="CliIdentityCodexLabel" xml:space="preserve"><value>Codex CLI</value></data>
+  <data name="CliIdentityGrokLabel" xml:space="preserve"><value>Grok CLI</value></data>
+  <data name="ProxyModeSystemLabel" xml:space="preserve"><value>跟随系统代理</value></data>
+  <data name="ProxyModeDirectLabel" xml:space="preserve"><value>直连（不走代理）</value></data>
+  <data name="ProxyModeCustomLabel" xml:space="preserve"><value>自定义</value></data>
+  <data name="CopilotModelSelectorLabel" xml:space="preserve"><value>聊天模型</value></data>
+  <data name="CopilotThinkingSelectorLabel" xml:space="preserve"><value>思考等级</value></data>
+  <data name="CopilotThinkingSelectorToolTip" xml:space="preserve"><value>下一条消息使用的思考等级</value></data>
+  <data name="CopilotModelFilterPlaceholder" xml:space="preserve"><value>搜索或输入自定义模型名，回车应用</value></data>
+  <data name="ComposerModelsSectionLabel" xml:space="preserve"><value>模型</value></data>
+  <data name="CopilotChooseModel" xml:space="preserve"><value>选择模型</value></data>
+  <data name="SettingsModelListEmpty" xml:space="preserve"><value>尚未获取模型，请在 AI 设置中刷新模型列表。</value></data>
+  <data name="SettingsModelsUrlLabel" xml:space="preserve"><value>模型获取 URL</value></data>
+  <data name="SettingsModelsUrlHint" xml:space="preserve"><value>填写完整 HTTP(S) URL；留空使用当前接口的默认模型列表地址。</value></data>
+  <data name="SettingsRefreshCliIdentityHint" xml:space="preserve"><value>刷新此 CLI 的最新指纹</value></data>
+  <data name="SettingsCliIdentityRefreshRunning" xml:space="preserve"><value>正在获取最新指纹…</value></data>
+  <data name="SettingsCliIdentityRefreshSuccess" xml:space="preserve"><value>已更新为最新指纹</value></data>
+  <data name="SettingsCliIdentityRefreshFailed" xml:space="preserve"><value>获取失败，已保留当前指纹；点击可重试。</value></data>
+  <data name="SettingsCliIdentityBuiltIn" xml:space="preserve"><value>Grok 使用内置指纹，暂无远程版本源。</value></data>
+  <data name="CopilotTool_web_search" xml:space="preserve"><value>联网搜索</value></data>
+  <data name="ChatNewSessionDividerDescription" xml:space="preserve">
+    <value>新会话已开始。之前的消息仍然可见，但不会再作为上下文发送。</value>
+  </data>
+</root>

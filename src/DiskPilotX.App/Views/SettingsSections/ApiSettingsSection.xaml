@@ -1,0 +1,285 @@
+<UserControl x:Class="DiskPilotX.App.Views.SettingsSections.ApiSettingsSection"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:loc="clr-namespace:DiskPilotX.App.Localization"
+             xmlns:vm="clr-namespace:DiskPilotX.App.ViewModels"
+             xmlns:c="clr-namespace:DiskPilotX.App.Converters"
+             xmlns:llm="clr-namespace:DiskPilotX.Core.Services.Llm;assembly=DiskPilotX.Core"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel, IsDesignTimeCreatable=False}"
+             FontFamily="{DynamicResource VP.FontFamily}">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="SettingsSharedResources.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <c:BoolToVisibilityConverter x:Key="BoolVis" />
+            <c:NullToVisibilityConverter x:Key="NullVis" />
+            <Style x:Key="ApiPasswordBox" TargetType="PasswordBox">
+                <Setter Property="FontFamily" Value="{DynamicResource VP.FontFamily}" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
+                <Setter Property="CaretBrush" Value="{DynamicResource VP.TextPrimaryBrush}" />
+                <Setter Property="Background" Value="{DynamicResource VP.SurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderLightBrush}" />
+                <Setter Property="Padding" Value="10,8" />
+                <Setter Property="SelectionBrush" Value="{DynamicResource VP.AccentBrush}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="PasswordBox">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="0.5"
+                                    CornerRadius="6"
+                                    SnapsToDevicePixels="True">
+                                <ScrollViewer x:Name="PART_ContentHost" Margin="0" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsFocused" Value="True">
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource VP.AccentBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <TextBlock x:Name="ApiSectionAnchor" Text="{loc:Loc AnthropicApiKeyHeader}"
+                   FontSize="15" FontWeight="SemiBold"
+                   Foreground="{DynamicResource VP.TextSecondaryBrush}"
+                   Margin="0,0,0,10" />
+        <Border x:Name="ApiSection" Background="{DynamicResource VP.SettingsCardBrush}"
+                BorderBrush="{DynamicResource VP.BorderSubtleBrush}"
+                BorderThickness="1" CornerRadius="10">
+            <StackPanel>
+                <Grid Margin="14,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:Loc SettingsBaseUrlLabel}"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               ToolTip="{loc:Loc SettingsBaseUrlHint}" />
+                    <TextBox Grid.Column="1" Style="{DynamicResource VP.TextBox}"
+                             Text="{Binding AnthropicBaseUrl, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
+                <Separator Margin="14,0" />
+                <Grid Margin="14,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:Loc SettingsApiFormatLabel}"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               ToolTip="{loc:Loc SettingsApiFormatHint}" />
+                    <ComboBox Grid.Column="1"
+                              Style="{DynamicResource VP.ComboBox}"
+                              ItemsSource="{Binding ApiFormatOptions}"
+                              SelectedValue="{Binding SelectedApiFormat}"
+                              SelectedValuePath="Value"
+                              DisplayMemberPath="Label" />
+                </Grid>
+                <Separator Margin="14,0" />
+                <Grid Margin="14,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="API Key"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               ToolTip="{loc:Loc ApiKeyToolTip}" />
+                    <StackPanel Grid.Column="1">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox Style="{DynamicResource VP.TextBox}"
+                                     Width="240"
+                                     Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Content="{loc:Loc ValidateButton}"
+                                    Style="{DynamicResource VP.AccentButton}"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding ValidateCommand}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding ValidationStatusText}"
+                                   Margin="0,6,0,0"
+                                   FontSize="12"
+                                   TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                    <Setter Property="Foreground" Value="{DynamicResource VP.TextTertiaryBrush}" />
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ValidationState}"
+                                                     Value="{x:Static vm:ValidationState.Validating}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ValidationState}"
+                                                     Value="{x:Static vm:ValidationState.Valid}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Setter Property="Foreground" Value="{DynamicResource VP.SuccessBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ValidationState}"
+                                                     Value="{x:Static vm:ValidationState.Invalid}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Setter Property="Foreground" Value="{DynamicResource VP.DangerBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Grid>
+                <Separator Margin="14,0" />
+                <Grid Margin="14,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:Loc SettingsCliIdentityLabel}"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               ToolTip="{loc:Loc SettingsCliIdentityHint}" />
+                    <StackPanel Grid.Column="1">
+                        <ComboBox x:Name="CliIdentityPicker" Style="{DynamicResource VP.ComboBox}"
+                                  ItemsSource="{Binding CliIdentityOptions}" SelectedValue="{Binding SelectedCliIdentity}" SelectedValuePath="Value"
+                                  AutomationProperties.Name="{loc:Loc SettingsCliIdentityLabel}">
+                            <ComboBox.ItemContainerStyle><Style TargetType="ComboBoxItem" BasedOn="{StaticResource {x:Type ComboBoxItem}}"><Setter Property="HorizontalContentAlignment" Value="Stretch"/></Style></ComboBox.ItemContainerStyle>
+                            <ComboBox.ItemTemplate><DataTemplate>
+                                <Grid MinWidth="260" ToolTip="{Binding Fingerprint}">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding DisplayLabel}" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="1" Width="26" Height="24" Margin="8,0,0,0"
+                                            Command="{Binding RefreshCommand}" CommandParameter="{Binding}" IsEnabled="{Binding CanRefresh}"
+                                            ToolTip="{Binding RefreshToolTip}" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="{loc:Loc SettingsRefreshCliIdentityHint}"
+                                            PreviewMouseLeftButtonDown="CliIdentityRefresh_PreviewMouseLeftButtonDown">
+                                        <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="13"/>
+                                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource VP.ButtonIcon}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsVisible,RelativeSource={RelativeSource AncestorType=ComboBoxItem},FallbackValue=False}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger><DataTrigger Binding="{Binding Value}" Value="{x:Static llm:CliIdentityKind.None}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Button.Style>
+                                    </Button>
+                                </Grid>
+                            </DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock Text="{Binding CliIdentitySummary}" ToolTip="{Binding CliIdentityFingerprint}" Margin="0,6,0,0" FontSize="11"
+                                   Foreground="{DynamicResource VP.TextTertiaryBrush}" Visibility="{Binding CliIdentitySummary,Converter={StaticResource NullVis}}"/>
+                    </StackPanel>
+                </Grid>
+                <Separator Margin="14,0" />
+                <Grid Margin="14,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:Loc SettingsChatModelLabel}"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               ToolTip="{loc:Loc SettingsChatModelHint}" />
+                    <StackPanel Grid.Column="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <Border Padding="8" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource VP.BorderLightBrush}">
+                                <Grid>
+                                    <TextBlock Text="{loc:Loc SettingsModelListEmpty}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource VP.TextTertiaryBrush}">
+                                        <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding ModelCandidates.Count}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                                    </TextBlock>
+                                    <ScrollViewer MaxHeight="132" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                        <ItemsControl ItemsSource="{Binding ModelCandidates}" AutomationProperties.Name="{loc:Loc SettingsChatModelLabel}"><ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" Margin="2,3" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource VP.TextPrimaryBrush}"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Border>
+                            <Button Grid.Column="1" Width="32" Height="32" VerticalAlignment="Top" Style="{DynamicResource VP.ButtonIcon}" Margin="8,0,0,0"
+                                    ToolTip="{loc:Loc SettingsRefreshModelsButton}" AutomationProperties.Name="{loc:Loc SettingsRefreshModelsButton}" Command="{Binding RefreshModelsCommand}">
+                                <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="15"/>
+                            </Button>
+                        </Grid>
+                        <TextBlock Text="{loc:Loc SettingsModelsUrlLabel}" FontSize="11" Foreground="{DynamicResource VP.TextTertiaryBrush}" Margin="0,10,0,5"/>
+                        <TextBox Style="{DynamicResource VP.TextBox}" Text="{Binding ModelsUrl,UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="{loc:Loc SettingsModelsUrlHint}" AutomationProperties.Name="{loc:Loc SettingsModelsUrlLabel}"/>
+                        <TextBlock Text="{loc:Loc SettingsModelsUrlHint}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource VP.TextTertiaryBrush}" Margin="0,4,0,0"/>
+                        <TextBlock Text="{Binding ModelRefreshMessage}"
+                                   Margin="0,6,0,0"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource VP.TextTertiaryBrush}"
+                                   Visibility="{Binding ModelRefreshMessage, Converter={StaticResource NullVis}}" />
+                    </StackPanel>
+                </Grid>
+                <Separator Margin="14,0" />
+                <Grid Margin="14,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:Loc SettingsThinkingLevelLabel}"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               ToolTip="{loc:Loc SettingsThinkingLevelHint}" />
+                    <ComboBox Grid.Column="1"
+                              Style="{DynamicResource VP.ComboBox}"
+                              Width="240"
+                              HorizontalAlignment="Left"
+                              ItemsSource="{Binding ThinkingLevelOptions}"
+                              SelectedValue="{Binding SelectedThinkingLevel}"
+                              SelectedValuePath="Value"
+                              DisplayMemberPath="Label" />
+                </Grid>
+                <Separator Margin="14,0" />
+                <Grid Margin="14,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:Loc SettingsProxyModeLabel}"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               ToolTip="{loc:Loc SettingsProxyModeHint}" />
+                    <ComboBox Grid.Column="1"
+                              Style="{DynamicResource VP.ComboBox}"
+                              Width="240"
+                              HorizontalAlignment="Left"
+                              ItemsSource="{Binding ProxyKindOptions}"
+                              SelectedValue="{Binding SelectedProxyKind}"
+                              SelectedValuePath="Value"
+                              DisplayMemberPath="Label" />
+                </Grid>
+                <Grid Margin="14,0,14,12"
+                      Visibility="{Binding IsCustomProxyConfigurable, Converter={StaticResource BoolVis}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:Loc SettingsProxyAddressLabel}"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               ToolTip="{loc:Loc SettingsProxyAddressHint}" />
+                    <StackPanel Grid.Column="1">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox Style="{DynamicResource VP.TextBox}"
+                                     Width="200"
+                                      Text="{Binding ProxyHost, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="{loc:Loc SettingsProxyPortLabel}"
+                                       Margin="10,0,6,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource VP.TextSecondaryBrush}" />
+                            <TextBox Style="{DynamicResource VP.TextBox}"
+                                     Width="70"
+                                     Text="{Binding ProxyPortText, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBox Style="{DynamicResource VP.TextBox}"
+                                     Width="130"
+                                     Text="{Binding ProxyUsername, UpdateSourceTrigger=PropertyChanged}" />
+                            <PasswordBox x:Name="ProxyPasswordBox"
+                                         Style="{StaticResource ApiPasswordBox}"
+                                         Width="200"
+                                         Margin="8,0,0,0"
+                                         PasswordChanged="ProxyPasswordBox_PasswordChanged"
+                                         ToolTip="{loc:Loc SettingsProxyPasswordLabel}"
+                                         AutomationProperties.Name="{loc:Loc SettingsProxyPasswordLabel}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

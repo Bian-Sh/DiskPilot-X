@@ -1,0 +1,938 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppTitle" xml:space="preserve">
+    <value>DiskPilot-X</value>
+  </data>
+  <data name="ThisPCLabel" xml:space="preserve">
+    <value>This PC</value>
+  </data>
+  <data name="ToolbarNavigation" xml:space="preserve">
+    <value>Navigation</value>
+  </data>
+  <data name="PathSelectorToolTip" xml:space="preserve">
+    <value>Select a drive or folder to scan, or type/paste a path</value>
+  </data>
+  <data name="BrowseButton" xml:space="preserve">
+    <value>Browse...</value>
+  </data>
+  <data name="BrowseButtonToolTip" xml:space="preserve">
+    <value>Pick a folder to scan</value>
+  </data>
+  <data name="ScanButton" xml:space="preserve">
+    <value>Scan</value>
+  </data>
+  <data name="ScanButtonToolTip" xml:space="preserve">
+    <value>Start scanning the selected drive or folder</value>
+  </data>
+  <data name="CancelButton" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="CancelScanToolTip" xml:space="preserve">
+    <value>Cancel the current scan</value>
+  </data>
+  <data name="RecommendCleanupButton" xml:space="preserve">
+    <value>Recommend Cleanup</value>
+  </data>
+  <data name="RecommendCleanupToolTip" xml:space="preserve">
+    <value>Uses AI to scan the current view and recommend files and folders that can be safely removed to free up disk space. Only deletable items are shown — files deemed important are not listed.</value>
+  </data>
+  <data name="AnalyzeChatPrompt" xml:space="preserve">
+    <value>[App action] The user clicked the Analyze button, requesting cleanup-recommendation analysis for the current scope with results published to the recommendations panel. Scope: {0}</value>
+  </data>
+  <data name="ChatAppMessageBadge" xml:space="preserve">
+    <value>App action</value>
+  </data>
+  <data name="AnalyzeButton" xml:space="preserve">
+    <value>Analyze</value>
+  </data>
+  <data name="AnalysisInProgressToolTip" xml:space="preserve">
+    <value>Analysis is in progress. Please wait.</value>
+  </data>
+  <data name="ChatButton" xml:space="preserve">
+    <value>Chat</value>
+  </data>
+  <data name="ChatToggleToolTip" xml:space="preserve">
+    <value>Toggle the AI chat panel</value>
+  </data>
+  <data name="SettingsButtonToolTip" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="CapacityLabel" xml:space="preserve">
+    <value>Capacity: </value>
+  </data>
+  <data name="UsedLabel" xml:space="preserve">
+    <value>Used: </value>
+  </data>
+  <data name="FreeLabel" xml:space="preserve">
+    <value>Free: </value>
+  </data>
+  <data name="FilesLabel" xml:space="preserve">
+    <value>Files: </value>
+  </data>
+  <data name="FoldersLabel" xml:space="preserve">
+    <value>Folders: </value>
+  </data>
+  <data name="AnalyzeNoScanMessage" xml:space="preserve">
+    <value>Please complete a scan first before analyzing.</value>
+  </data>
+  <data name="AnalyzeNoScanTitle" xml:space="preserve">
+    <value>No Scan Data</value>
+  </data>
+  <data name="ApiKeyRequiredMessage" xml:space="preserve">
+    <value>An Anthropic API key is required for AI analysis. Would you like to open Settings to configure it?</value>
+  </data>
+  <data name="ApiKeyRequiredTitle" xml:space="preserve">
+    <value>API Key Required</value>
+  </data>
+  <data name="CleaningStatus" xml:space="preserve">
+    <value>Cleaning: {0}/{1} — {2}</value>
+  </data>
+  <data name="CleanupCompleteStatus" xml:space="preserve">
+    <value>Cleanup complete: {0} items removed ({1} freed)</value>
+  </data>
+  <data name="CleanupPartialTitle" xml:space="preserve">
+    <value>Cleanup Complete with Errors</value>
+  </data>
+  <data name="CleanupPartialMessage" xml:space="preserve">
+    <value>Cleanup completed, but {0} item(s) could not be removed. Check the summary for details.</value>
+  </data>
+  <data name="SettingsTitle" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="AnthropicApiKeyHeader" xml:space="preserve">
+    <value>AI Settings</value>
+  </data>
+  <data name="ApiKeyToolTip" xml:space="preserve">
+    <value>Enter your Anthropic API key. The key will be encrypted at rest.</value>
+  </data>
+  <data name="ValidateButton" xml:space="preserve">
+    <value>Validate</value>
+  </data>
+  <data name="DefaultDeletionModeHeader" xml:space="preserve">
+    <value>Default Deletion Mode</value>
+  </data>
+  <data name="DataPrivacyHeader" xml:space="preserve">
+    <value>Data Privacy</value>
+  </data>
+  <data name="DataPrivacyText" xml:space="preserve">
+    <value>When using AI features, file metadata (paths, sizes, types, and dates) is sent to the Anthropic cloud service for analysis. File contents are never transmitted.</value>
+  </data>
+  <data name="SaveButton" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="ApiKeyEmptyMessage" xml:space="preserve">
+    <value>API key cannot be empty.</value>
+  </data>
+  <data name="ApiKeyInvalidMessage" xml:space="preserve">
+    <value>API key is invalid.</value>
+  </data>
+  <data name="ValidationFailedMessage" xml:space="preserve">
+    <value>Validation failed: {0}</value>
+  </data>
+  <data name="SettingsSavedToast" xml:space="preserve">
+    <value>Settings saved</value>
+  </data>
+  <data name="UpButton" xml:space="preserve">
+    <value>Up</value>
+  </data>
+  <data name="NavigateUpToolTip" xml:space="preserve">
+    <value>Navigate up one level</value>
+  </data>
+  <data name="NavigateBackToolTip" xml:space="preserve">
+    <value>Go back</value>
+  </data>
+  <data name="NavigateForwardToolTip" xml:space="preserve">
+    <value>Go forward</value>
+  </data>
+  <data name="NoSubfoldersText" xml:space="preserve">
+    <value>(no subfolders)</value>
+  </data>
+  <data name="PropertiesTitle" xml:space="preserve">
+    <value>Properties - {0}</value>
+  </data>
+  <data name="PropertiesPath" xml:space="preserve">
+    <value>Path:</value>
+  </data>
+  <data name="PropertiesType" xml:space="preserve">
+    <value>Type:</value>
+  </data>
+  <data name="PropertiesSize" xml:space="preserve">
+    <value>Size:</value>
+  </data>
+  <data name="PropertiesFiles" xml:space="preserve">
+    <value>Files:</value>
+  </data>
+  <data name="PropertiesFolders" xml:space="preserve">
+    <value>Folders:</value>
+  </data>
+  <data name="PropertiesCreated" xml:space="preserve">
+    <value>Created:</value>
+  </data>
+  <data name="PropertiesModified" xml:space="preserve">
+    <value>Modified:</value>
+  </data>
+  <data name="PropertiesUnknown" xml:space="preserve">
+    <value>Unknown</value>
+  </data>
+  <data name="OkButton" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="ErrorTitle" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="OpenFailedMessage" xml:space="preserve">
+    <value>Could not open path: {0}</value>
+  </data>
+  <data name="PropertiesFailedMessage" xml:space="preserve">
+    <value>Could not show properties: {0}</value>
+  </data>
+  <data name="ChatConfigureApiKey" xml:space="preserve">
+    <value>Configure your API key in Settings to use the chat</value>
+  </data>
+  <data name="OpenSettingsButton" xml:space="preserve">
+    <value>Open Settings</value>
+  </data>
+  <data name="SendButton" xml:space="preserve">
+    <value>Send</value>
+  </data>
+  <data name="ClearContextToolTip" xml:space="preserve">
+    <value>Clear linked context</value>
+  </data>
+  <data name="ChatContextLabel" xml:space="preserve">
+    <value>Context: </value>
+  </data>
+  <data name="RecommendationsTitle" xml:space="preserve">
+    <value>Cleanup Recommendations</value>
+  </data>
+  <data name="RecommendationsEmpty" xml:space="preserve">
+    <value>No cleanup recommendations yet. Run analysis to get suggestions.</value>
+  </data>
+  <data name="SelectAllButton" xml:space="preserve">
+    <value>Select All</value>
+  </data>
+  <data name="SelectNoneButton" xml:space="preserve">
+    <value>Select None</value>
+  </data>
+  <data name="SelectedLabel" xml:space="preserve">
+    <value>Selected: </value>
+  </data>
+  <data name="ItemsLabel" xml:space="preserve">
+    <value> items</value>
+  </data>
+  <data name="RecoverableLabel" xml:space="preserve">
+    <value>Recoverable: </value>
+  </data>
+  <data name="CleanUpButton" xml:space="preserve">
+    <value>Clean Up</value>
+  </data>
+  <data name="CleanUpToolTip" xml:space="preserve">
+    <value>Execute cleanup for selected recommendations</value>
+  </data>
+  <data name="CopyButton" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="NoItemsSelectedMessage" xml:space="preserve">
+    <value>No recommendations are selected. Please check the items you want to clean up.</value>
+  </data>
+  <data name="NoItemsSelectedTitle" xml:space="preserve">
+    <value>No Items Selected</value>
+  </data>
+  <data name="NoItemsSelectedForCleanupToolTip" xml:space="preserve">
+    <value>No items selected for cleanup</value>
+  </data>
+  <data name="CleanupFailedMessage" xml:space="preserve">
+    <value>Cleanup failed: {0}</value>
+  </data>
+  <data name="CleanupErrorTitle" xml:space="preserve">
+    <value>Cleanup Error</value>
+  </data>
+  <data name="OpenInExplorerMenu" xml:space="preserve">
+    <value>Open in Explorer</value>
+  </data>
+  <data name="CopyPathMenu" xml:space="preserve">
+    <value>Copy Path</value>
+  </data>
+  <data name="PropertiesMenu" xml:space="preserve">
+    <value>Properties</value>
+  </data>
+  <data name="OpenExplorerFailedMessage" xml:space="preserve">
+    <value>Could not open Explorer:
+{0}</value>
+  </data>
+  <data name="CopyPathFailedMessage" xml:space="preserve">
+    <value>Could not copy path to clipboard:
+{0}</value>
+  </data>
+  <data name="FolderType" xml:space="preserve">
+    <value>Folder</value>
+  </data>
+  <data name="FileType" xml:space="preserve">
+    <value>File</value>
+  </data>
+  <data name="FileTypeFormat" xml:space="preserve">
+    <value>{0} File</value>
+  </data>
+  <data name="CloseRecommendationsToolTip" xml:space="preserve">
+    <value>Close recommendations panel</value>
+  </data>
+  <data name="FilterByLabel" xml:space="preserve">
+    <value>Filter by:</value>
+  </data>
+  <data name="AllCategoriesOption" xml:space="preserve">
+    <value>All Categories</value>
+  </data>
+  <data name="AllRatingsOption" xml:space="preserve">
+    <value>All Ratings</value>
+  </data>
+  <data name="SelectAllSafeButton" xml:space="preserve">
+    <value>Select All Safe</value>
+  </data>
+  <data name="DeselectAllCautionButton" xml:space="preserve">
+    <value>Exclude Risk Items</value>
+  </data>
+  <data name="AnalyzingFilesText" xml:space="preserve">
+    <value>Analyzing files...</value>
+  </data>
+  <data name="AnalysisMayTakeText" xml:space="preserve">
+    <value>This may take a few moments</value>
+  </data>
+  <data name="ConfirmCleanupTitle" xml:space="preserve">
+    <value>Confirm Cleanup</value>
+  </data>
+  <data name="ConfirmCleanupPrompt" xml:space="preserve">
+    <value>⚠ Are you sure you want to proceed?</value>
+  </data>
+  <data name="ConfirmCleanupMessage" xml:space="preserve">
+    <value>Clean up {0} selected item(s), freeing about {1}. Deletion mode: {2}. Continue?</value>
+  </data>
+  <data name="DeletionModeHeader" xml:space="preserve">
+    <value>Deletion Mode</value>
+  </data>
+  <data name="MoveToRecycleBinOption" xml:space="preserve">
+    <value>Move to Recycle Bin</value>
+  </data>
+  <data name="PermanentlyDeleteOption" xml:space="preserve">
+    <value>Permanently Delete</value>
+  </data>
+  <data name="PermanentDeleteWarning" xml:space="preserve">
+    <value>Warning: Files cannot be recovered!</value>
+  </data>
+  <data name="ConfirmButton" xml:space="preserve">
+    <value>Confirm</value>
+  </data>
+  <data name="CleanupSummaryTitle" xml:space="preserve">
+    <value>Cleanup Summary</value>
+  </data>
+  <data name="SkippedItemsHeader" xml:space="preserve">
+    <value>Skipped Items</value>
+  </data>
+  <data name="PathColumn" xml:space="preserve">
+    <value>Path</value>
+  </data>
+  <data name="ReasonColumn" xml:space="preserve">
+    <value>Reason</value>
+  </data>
+  <data name="TooltipSize" xml:space="preserve">
+    <value>Size: {0}</value>
+  </data>
+  <data name="TooltipType" xml:space="preserve">
+    <value>Type: {0}</value>
+  </data>
+  <data name="TooltipModified" xml:space="preserve">
+    <value>Modified: {0}</value>
+  </data>
+  <data name="AccessDenied" xml:space="preserve">
+    <value>Access Denied</value>
+  </data>
+  <data name="ChatErrorAppend" xml:space="preserve">
+    <value>
+
+[Error: {0}]</value>
+  </data>
+  <data name="ScanningStatus" xml:space="preserve">
+    <value>Scanning...</value>
+  </data>
+  <data name="ScanProgressStatus" xml:space="preserve">
+    <value>{0} — {1:N0} files, {2:N0} folders</value>
+  </data>
+  <data name="ScanCancelledStatus" xml:space="preserve">
+    <value>Scan cancelled.</value>
+  </data>
+  <data name="ItemsToRemove" xml:space="preserve">
+    <value>Items to remove: {0}</value>
+  </data>
+  <data name="SpaceToFree" xml:space="preserve">
+    <value>Space to free: {0}</value>
+  </data>
+  <data name="CleanupSummarySuccess" xml:space="preserve">
+    <value>{0} items removed ({1} freed)</value>
+  </data>
+  <data name="CleanupSummaryAlreadyRemoved" xml:space="preserve">
+    <value>{0} items were already removed</value>
+  </data>
+  <data name="SkippedItemsWithCount" xml:space="preserve">
+    <value>Skipped Items ({0} items skipped)</value>
+  </data>
+  <data name="TotalSpaceRecovered" xml:space="preserve">
+    <value>Total space recovered: {0}</value>
+  </data>
+  <data name="PropertiesName" xml:space="preserve">
+    <value>Name:</value>
+  </data>
+  <data name="AnthropicBaseUrlHeader" xml:space="preserve">
+    <value>Anthropic Base URL</value>
+  </data>
+  <data name="AnthropicBaseUrlToolTip" xml:space="preserve">
+    <value>Optional. Leave empty to use the built-in Anthropic endpoint.</value>
+  </data>
+  <data name="AnthropicBaseUrlHint" xml:space="preserve">
+    <value>Leave empty to use the built-in endpoint. Enter an absolute http(s) URL to override it.</value>
+  </data>
+  <data name="OpenConsoleToolTip" xml:space="preserve">
+    <value>Open console</value>
+  </data>
+  <data name="RecommendationsTabHeader" xml:space="preserve">
+    <value>Recommendations</value>
+  </data>
+  <data name="ConsoleTabHeader" xml:space="preserve">
+    <value>Console</value>
+  </data>
+  <data name="ConsoleFilterToolTip" xml:space="preserve">
+    <value>Filter console logs</value>
+  </data>
+  <data name="TreemapNoDataText" xml:space="preserve">
+    <value>No data to display. Please scan~</value>
+  </data>
+  <data name="TreemapEmptyTitle" xml:space="preserve">
+    <value>Scan required</value>
+  </data>
+  <data name="TreemapEmptyHint" xml:space="preserve">
+    <value />
+  </data>
+  <data name="TreemapAnalysisRequiredTitle" xml:space="preserve">
+    <value>Scan required</value>
+  </data>
+  <data name="TreemapAnalysisRequiredHint" xml:space="preserve">
+    <value />
+  </data>
+  <data name="TreemapNoChildDataTitle" xml:space="preserve">
+    <value>Scan required</value>
+  </data>
+  <data name="TreemapNoChildDataHint" xml:space="preserve">
+    <value />
+  </data>
+  <data name="SlashCommandNewDescription" xml:space="preserve">
+    <value>Start a new session while keeping previous messages visible</value>
+  </data>
+  <data name="SlashCommandClearDescription" xml:space="preserve">
+    <value>Clear the current chat without changing scanned data</value>
+  </data>
+  <data name="SlashCommandClearConsoleDescription" xml:space="preserve">
+    <value>Clear the console log shown in the app</value>
+  </data>
+  <data name="ChatNewSessionDividerDescription" xml:space="preserve">
+    <value>New session started. Previous messages stay visible, but are no longer sent as context.</value>
+  </data>
+  <data name="ChatEmptyTitle" xml:space="preserve">
+    <value>Chat assistant ready</value>
+  </data>
+  <data name="ChatEmptyDescription" xml:space="preserve">
+    <value>After scanning, ask about current disk usage, cleanup suggestions, or select a folder and ask the assistant to explain risks.</value>
+  </data>
+  <data name="RecommendationsEmptyTitle" xml:space="preserve">
+    <value>No cleanup recommendations yet</value>
+  </data>
+  <data name="RecommendationsEmptyDescription" xml:space="preserve">
+    <value>Switch to the console tab to inspect the analysis process, or adjust filters and try again.</value>
+  </data>
+  <data name="RecommendationsWaitingForAiTitle" xml:space="preserve">
+    <value>AI is analyzing. Please wait...</value>
+  </data>
+  <data name="RecommendationsWaitingForAiDescription" xml:space="preserve">
+    <value></value>
+  </data>
+  <data name="AiScanTitleFormat" xml:space="preserve">
+    <value>AI is scanning {0}. Please wait...</value>
+  </data>
+  <data name="AiExternalAnalysisWaitMessage" xml:space="preserve">
+    <value>AI is analyzing. Please wait...</value>
+  </data>
+  <data name="SettingsBackToAppButton" xml:space="preserve">
+    <value>Back to app</value>
+  </data>
+  <data name="SettingsSearchPlaceholder" xml:space="preserve">
+    <value>Search settings...</value>
+  </data>
+  <data name="SettingsPersonalGroup" xml:space="preserve">
+    <value>Personal</value>
+  </data>
+  <data name="SettingsGeneralNav" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="SettingsAiGroup" xml:space="preserve">
+    <value>AI</value>
+  </data>
+  <data name="SettingsModelInterfaceNav" xml:space="preserve">
+    <value>Models &amp; API</value>
+  </data>
+  <data name="SettingsCleanupPolicyNav" xml:space="preserve">
+    <value>Cleanup policy</value>
+  </data>
+  <data name="SettingsAiApiSection" xml:space="preserve">
+    <value>AI API</value>
+  </data>
+  <data name="SettingsApiKeyEncryptedHint" xml:space="preserve">
+    <value>The key is encrypted and stored on this device</value>
+  </data>
+  <data name="SettingsBaseUrlExample" xml:space="preserve">
+    <value>Example: https://api.example.com/anthropic</value>
+  </data>
+  <data name="SettingsModelsSection" xml:space="preserve">
+    <value>Models</value>
+  </data>
+  <data name="SettingsChatModelLabel" xml:space="preserve">
+    <value>Model list</value>
+  </data>
+  <data name="SettingsChatModelHint" xml:space="preserve">
+    <value>Available models fetched from your provider; choose the conversation model in chat.</value>
+  </data>
+  <data name="SettingsThinkingLabel" xml:space="preserve">
+    <value>Enable thinking</value>
+  </data>
+  <data name="SettingsThinkingHint" xml:space="preserve">
+    <value>When off, requests the model to skip thinking output to reduce JSON truncation</value>
+  </data>
+  <data name="SettingsAllowThinkingOption" xml:space="preserve">
+    <value>Allow model thinking</value>
+  </data>
+  <data name="SettingsLanguageLabel" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="SettingsLanguageHint" xml:space="preserve">
+    <value>Prompts request explanatory text to match the app language</value>
+  </data>
+  <data name="SettingsLanguageSimplifiedChinese" xml:space="preserve">
+    <value>Simplified Chinese</value>
+  </data>
+  <data name="SettingsLanguageEnglish" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="SettingsLanguageAuto" xml:space="preserve">
+    <value>Auto detect</value>
+  </data>
+  <data name="SettingsDefaultCleanupModeLabel" xml:space="preserve">
+    <value>Default cleanup mode</value>
+  </data>
+  <data name="SettingsDefaultCleanupModeHint" xml:space="preserve">
+    <value>Choose how files are removed during cleanup</value>
+  </data>
+  <data name="SettingsDisclaimerNav" xml:space="preserve">
+    <value>Disclaimer</value>
+  </data>
+  <data name="SettingsDisclaimerIntro" xml:space="preserve">
+    <value>Before using this app, please review the following notes. The app helps you inspect local storage usage, understand file distribution, and organize disk space. Scan results, analysis, recommendations, and cleanup suggestions are provided as assistance only and should not be treated as final judgments about whether a file is valuable or safe to remove.</value>
+  </data>
+  <data name="SettingsDisclaimerPrivacy" xml:space="preserve">
+    <value>The app scans only the local paths you choose and displays related file or folder names, paths, sizes, hierarchy, and similar information. If you enable AI analysis or AI chat, the app may send the file tree summary, paths, sizes, recommendation results, and context necessary to generate suggestions or answer your questions to the model service you configured. Any third-party model service processes such data according to its own terms and privacy policy.</value>
+  </data>
+  <data name="SettingsDisclaimerRisk" xml:space="preserve">
+    <value>Because file purpose, business context, and personal workflows cannot be fully determined automatically, scan results, rule-based analysis, cleanup recommendations, and AI responses may be incomplete, inaccurate, or outdated. Deleting, moving, or cleaning files may affect software behavior, project builds, sync or backup workflows, and business processes; permanent deletion may cause unrecoverable data loss.</value>
+  </data>
+  <data name="SettingsDisclaimerResponsibility" xml:space="preserve">
+    <value>You should review target files, confirm the basis for recommendations, assess potential impact, and back up important data before cleanup. Actual deletion, movement, or cleanup actions are confirmed and performed by you, and you are responsible for their consequences. The developer is not responsible for accidental deletion, data loss, business interruption, third-party model service behavior, or losses caused by improper use.</value>
+  </data>
+  <data name="SettingsDisclaimerRecommendation" xml:space="preserve">
+    <value>We recommend starting with low-risk items and using recycle bin mode or another recoverable move option whenever possible. For work documents, project files, system folders, synced drives, or unfamiliar paths, back up first or postpone action until you are confident it is safe to proceed.</value>
+  </data>
+  <data name="SettingsValidationValidating" xml:space="preserve">
+    <value>Validating...</value>
+  </data>
+  <data name="SettingsValidationValid" xml:space="preserve">
+    <value>✓ Valid</value>
+  </data>
+  <data name="SettingsValidationInvalid" xml:space="preserve">
+    <value>✕ Invalid</value>
+  </data>
+  <data name="CloseAppTitle" xml:space="preserve">
+    <value>Close DiskPilot-X?</value>
+  </data>
+  <data name="CloseAppMessage" xml:space="preserve">
+    <value>Current scan and analysis state will be closed. Are you sure you want to exit?</value>
+  </data>
+  <data name="TreemapTabHeader" xml:space="preserve">
+    <value>Treemap</value>
+  </data>
+  <data name="TreeViewTabHeader" xml:space="preserve">
+    <value>Tree View</value>
+  </data>
+  <data name="TreeViewNameHeader" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="TreeViewSizeHeader" xml:space="preserve">
+    <value>Size</value>
+  </data>
+  <data name="TreeViewTypeHeader" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="TreeViewModifiedHeader" xml:space="preserve">
+    <value>Date Modified</value>
+  </data>
+  <data name="SortByNameToolTip" xml:space="preserve">
+    <value>Sort by name</value>
+  </data>
+  <data name="SortBySizeToolTip" xml:space="preserve">
+    <value>Sort by size</value>
+  </data>
+  <data name="SortByTypeToolTip" xml:space="preserve">
+    <value>Sort by type</value>
+  </data>
+  <data name="SortByModifiedToolTip" xml:space="preserve">
+    <value>Sort by date modified</value>
+  </data>
+  <data name="ThinkingLabel" xml:space="preserve">
+    <value>Thinking</value>
+  </data>
+  <data name="ThinkingText" xml:space="preserve">
+    <value>Thinking...</value>
+  </data>
+  <data name="CopyMessageToolTip" xml:space="preserve">
+    <value>Copy message</value>
+  </data>
+  <data name="MinimizeToolTip" xml:space="preserve">
+    <value>Minimize</value>
+  </data>
+  <data name="MaximizeToolTip" xml:space="preserve">
+    <value>Maximize</value>
+  </data>
+  <data name="CloseToolTip" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="CollapseChatPanelToolTip" xml:space="preserve">
+    <value>Collapse chat panel</value>
+  </data>
+  <data name="ExpandChatPanelToolTip" xml:space="preserve">
+    <value>Expand chat panel</value>
+  </data>
+  <data name="RestoreToolTip" xml:space="preserve">
+    <value>Restore</value>
+  </data>
+  <data name="AboutTabHeader" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="VersionLabel" xml:space="preserve">
+    <value>Version </value>
+  </data>
+  <data name="CurrentVersionFormat" xml:space="preserve">
+    <value>Current version: {0}</value>
+  </data>
+  <data name="UpToDateStatus" xml:space="preserve">
+    <value>You are on the latest version</value>
+  </data>
+  <data name="UpdateAvailableTitle" xml:space="preserve">
+    <value>New version {0} available</value>
+  </data>
+  <data name="DownloadUpdateButton" xml:space="preserve">
+    <value>Download Update ({0})</value>
+  </data>
+  <data name="DownloadingStatus" xml:space="preserve">
+    <value>Downloading v{0}...</value>
+  </data>
+  <data name="DownloadCompleteStatus" xml:space="preserve">
+    <value>v{0} downloaded successfully</value>
+  </data>
+  <data name="InstallButton" xml:space="preserve">
+    <value>Install Now</value>
+  </data>
+  <data name="ReDownloadButton" xml:space="preserve">
+    <value>Re-download</value>
+  </data>
+  <data name="ReleaseNotesHeader" xml:space="preserve">
+    <value>Release Notes</value>
+  </data>
+  <data name="UpdateAvailableFormat" xml:space="preserve">
+    <value>(New version 👉{0})</value>
+  </data>
+  <data name="DownloadingFormat" xml:space="preserve">
+    <value>(New version {0} downloading: {1}%)</value>
+  </data>
+  <data name="DownloadReadyFormat" xml:space="preserve">
+    <value>(New version {0} ready)</value>
+  </data>
+  <data name="AboutDescription" xml:space="preserve">
+    <value>A fast, modern disk space analyzer that helps you visualize and clean up your storage. Powered by MFT-level scanning and AI-powered recommendations.</value>
+  </data>
+  <data name="BuyMeCoffee" xml:space="preserve">
+    <value>Buy me a coffee</value>
+  </data>
+  <data name="DonateDialogTitle" xml:space="preserve">
+    <value>Buy me a coffee</value>
+  </data>
+  <data name="DonateAlipayLabel" xml:space="preserve">
+    <value>Alipay</value>
+  </data>
+  <data name="DonateWeChatLabel" xml:space="preserve">
+    <value>WeChat</value>
+  </data>
+  <data name="DonateThankYou" xml:space="preserve">
+    <value>Thank you for your support </value>
+  </data>
+  <data name="GithubLabel" xml:space="preserve">
+    <value>GitHub</value>
+  </data>
+  <data name="VersionDisplayToolTip" xml:space="preserve">
+    <value>AboutPage</value>
+  </data>
+  <data name="ThemeSectionLabel" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="ThemePresetsLabel" xml:space="preserve">
+    <value>Presets</value>
+  </data>
+  <data name="ThemeAccentColorLabel" xml:space="preserve">
+    <value>Accent Color</value>
+  </data>
+  <data name="ThemeAccentColorHint" xml:space="preserve">
+    <value>Hex color for accent (e.g., #FF2562A7)</value>
+  </data>
+  <data name="ThemeApplyButton" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="ThemeAppliedToast" xml:space="preserve">
+    <value>Theme applied</value>
+  </data>
+  <data name="ThemeGlassLabel" xml:space="preserve">
+    <value>Frosted Glass</value>
+  </data>
+  <data name="ThemeGlassHint" xml:space="preserve">
+    <value>Enable frosted-glass / acrylic effect on the window</value>
+  </data>
+  <data name="ThemeGlassOption" xml:space="preserve">
+    <value>Enable frosted glass effect</value>
+  </data>
+  <data name="ThemeBackdropTypeLabel" xml:space="preserve">
+    <value>Glass Type</value>
+  </data>
+  <data name="ThemeBackdropTypeHint" xml:space="preserve">
+    <value>Choose backdrop material type: None, Mica, or Acrylic</value>
+  </data>
+  <data name="ThemeBackdropNone" xml:space="preserve">
+    <value>None</value>
+  </data>
+  <data name="ThemeBlurLabel" xml:space="preserve">
+    <value>Gaussian Blur</value>
+  </data>
+  <data name="ThemeBlurHint" xml:space="preserve">
+    <value>Blur radius for glass panels (0 = no blur, max = 60)</value>
+  </data>
+  <data name="ThemeOpacityLabel" xml:space="preserve">
+    <value>Transparency</value>
+  </data>
+  <data name="ThemeOpacityHint" xml:space="preserve">
+    <value>Glass panel opacity (0.1 nearly transparent, 1.0 fully opaque)</value>
+  </data>
+  <data name="ThemeAutoContrastLabel" xml:space="preserve">
+    <value>Auto Contrast</value>
+  </data>
+  <data name="ThemeAutoContrastHint" xml:space="preserve">
+    <value>Automatically compute text colors for readability against background</value>
+  </data>
+  <data name="ThemeAutoContrastOption" xml:space="preserve">
+    <value>Auto-adjust text for contrast</value>
+  </data>
+  <data name="SettingsBaseUrlLabel" xml:space="preserve">
+    <value>Base URL</value>
+  </data>
+  <data name="SettingsBaseUrlHint" xml:space="preserve">
+    <value>Optional. Leave empty to use the built-in endpoint. Enter an absolute http(s) URL to override it.</value>
+  </data>
+  <data name="ValidateButtonLabel" xml:space="preserve">
+    <value>Validate</value>
+  </data>
+  <data name="SettingsWhitelistNav" xml:space="preserve">
+    <value>Whitelist</value>
+  </data>
+  <data name="SettingsWhitelistDescription" xml:space="preserve">
+    <value>Whitelist entries are excluded or protected: scan skips them, cleanup recommendations hide them, and AI chat cannot query them.</value>
+  </data>
+  <data name="SettingsWhitelistScanTitle" xml:space="preserve">
+    <value>Scan whitelist</value>
+  </data>
+  <data name="SettingsWhitelistScanHint" xml:space="preserve">
+    <value>Skipped during normal scans and fast NTFS scans. If the scan target itself is excluded, scanning is blocked.</value>
+  </data>
+  <data name="SettingsWhitelistCleanupTitle" xml:space="preserve">
+    <value>Cleanup recommendation whitelist</value>
+  </data>
+  <data name="SettingsWhitelistCleanupHint" xml:space="preserve">
+    <value>Hidden before sending data to the model and filtered again from returned recommendations.</value>
+  </data>
+  <data name="SettingsWhitelistAiTitle" xml:space="preserve">
+    <value>AI chat whitelist</value>
+  </data>
+  <data name="SettingsWhitelistAiHint" xml:space="preserve">
+    <value>Hidden from context summaries, selected items, related recommendations, and agent tools.</value>
+  </data>
+  <data name="SettingsWhitelistPathPlaceholder" xml:space="preserve">
+    <value>Path</value>
+  </data>
+  <data name="SettingsWhitelistDescriptionPlaceholder" xml:space="preserve">
+    <value>Description</value>
+  </data>
+  <data name="SettingsWhitelistBrowse" xml:space="preserve">
+    <value>Browse</value>
+  </data>
+  <data name="SettingsWhitelistAdd" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="SettingsWhitelistDelete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="SettingsWhitelistCopyJson" xml:space="preserve">
+    <value>Copy JSON</value>
+  </data>
+  <data name="SettingsWhitelistPasteJson" xml:space="preserve">
+    <value>Paste JSON</value>
+  </data>
+  <data name="SettingsWhitelistPasteInvalidJson" xml:space="preserve">
+    <value>Clipboard content is not a valid whitelist JSON array.</value>
+  </data>
+  <data name="ScanTargetExcludedByWhitelist" xml:space="preserve">
+    <value>The selected scan target is excluded by whitelist settings.</value>
+  </data>
+  <data name="AiWhitelistHiddenPathMessage" xml:space="preserve">
+    <value>This path is hidden by whitelist settings. AI chat cannot query or expose it.</value>
+  </data>
+  <data name="CopilotCardRunning" xml:space="preserve">
+    <value>Running...</value>
+  </data>
+  <data name="CopilotCardCancelled" xml:space="preserve">
+    <value>Cancelled. No data was changed.</value>
+  </data>
+  <data name="CopilotCardDefaultTitle" xml:space="preserve">
+    <value>Confirm Action</value>
+  </data>
+  <data name="CopilotCardDefaultConfirm" xml:space="preserve">
+    <value>Confirm</value>
+  </data>
+  <data name="CopilotCardDefaultCancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="ChatOperationRunningStatus" xml:space="preserve">
+    <value>Processed {0}</value>
+  </data>
+  <data name="ChatOperationCompleteStatus" xml:space="preserve">
+    <value>Completed in {0}</value>
+  </data>
+  <data name="ChatOperationFailedStatus" xml:space="preserve">
+    <value>Failed after {0}</value>
+  </data>
+  <data name="ChatOperationStoppedStatus" xml:space="preserve">
+    <value>Stopped after {0}</value>
+  </data>
+  <data name="CopilotCardUserNotesLabel" xml:space="preserve">
+    <value>Additional instructions (optional)</value>
+  </data>
+  <data name="CopilotStartTitle" xml:space="preserve"><value>Where should we look?</value></data>
+  <data name="CopilotStartDescription" xml:space="preserve"><value>Choose a folder to scan, understand its space usage, and prepare cleanup suggestions you can review.</value></data>
+  <data name="CopilotPlaceholder" xml:space="preserve"><value>Describe a task, or type @ to choose a skill</value></data>
+  <data name="CopilotNewConversation" xml:space="preserve"><value>New conversation</value></data>
+  <data name="CopilotChooseSkill" xml:space="preserve"><value>Choose a skill</value></data>
+  <data name="CopilotJumpLatest" xml:space="preserve"><value>↓ Latest</value></data>
+  <data name="CopilotCopy" xml:space="preserve"><value>Copy</value></data>
+  <data name="CopilotInputLabel" xml:space="preserve"><value>Copilot input</value></data>
+  <data name="CopilotReady" xml:space="preserve"><value>Ready</value></data>
+  <data name="CopilotWorking" xml:space="preserve"><value>Working</value></data>
+  <data name="CopilotCompleted" xml:space="preserve"><value>Completed</value></data>
+  <data name="CopilotStopped" xml:space="preserve"><value>Stopped</value></data>
+  <data name="CopilotFailed" xml:space="preserve"><value>Failed</value></data>
+  <data name="CopilotWaiting" xml:space="preserve"><value>Waiting for your confirmation</value></data>
+  <data name="CopilotStop" xml:space="preserve"><value>Stop</value></data>
+  <data name="CopilotStatus_Running" xml:space="preserve"><value>Running</value></data>
+  <data name="CopilotStatus_Completed" xml:space="preserve"><value>Done</value></data>
+  <data name="CopilotStatus_Failed" xml:space="preserve"><value>Failed</value></data>
+  <data name="CopilotStatus_Cancelled" xml:space="preserve"><value>Stopped</value></data>
+  <data name="CopilotStatus_WaitingForUser" xml:space="preserve"><value>Waiting</value></data>
+  <data name="CopilotTool_get_copilot_context" xml:space="preserve"><value>Read workspace</value></data>
+  <data name="CopilotTool_scan_path" xml:space="preserve"><value>Scan folder</value></data>
+  <data name="CopilotTool_get_analysis_evidence" xml:space="preserve"><value>Inspect evidence</value></data>
+  <data name="CopilotTool_publish_recommendations" xml:space="preserve"><value>Publish suggestions</value></data>
+  <data name="CopilotTool_navigate_path" xml:space="preserve"><value>Locate path</value></data>
+  <data name="CopilotTool_set_view" xml:space="preserve"><value>Switch view</value></data>
+  <data name="CopilotTool_find_by_name" xml:space="preserve"><value>Find by name</value></data>
+  <data name="CopilotTool_find_by_path" xml:space="preserve"><value>Inspect path</value></data>
+  <data name="CopilotTool_list_children" xml:space="preserve"><value>List folder</value></data>
+  <data name="CopilotTool_summarize_subtree" xml:space="preserve"><value>Summarize usage</value></data>
+  <data name="CopilotTool_find_large_files" xml:space="preserve"><value>Find large files</value></data>
+  <data name="CopilotTool_resolve_path" xml:space="preserve"><value>Resolve path</value></data>
+  <data name="CopilotTool_list_recommendations" xml:space="preserve"><value>Read suggestions</value></data>
+  <data name="CopilotTool_select_recommendations" xml:space="preserve"><value>Update selection</value></data>
+  <data name="CopilotTool_cleanup_recommendations" xml:space="preserve"><value>Run confirmed cleanup</value></data>
+  <data name="CopilotTool_ask_user" xml:space="preserve"><value>Ask for input</value></data>
+  <data name="CopilotTool_manage_disk_skills" xml:space="preserve"><value>Manage skills</value></data>
+  <data name="CopilotTool_read_unity_registry_context" xml:space="preserve"><value>Inspect Unity environment</value></data>
+  <data name="CopilotTool_manage_cleanup_skill" xml:space="preserve"><value>Manage cleanup rules</value></data>
+  <data name="CopilotTool_show_skill_panel" xml:space="preserve"><value>Prepare task panel</value></data>
+  <data name="CopilotTool_run_skill_source" xml:space="preserve"><value>Run custom detector</value></data>
+  <data name="CopilotConversationHistory" xml:space="preserve"><value>Conversation history</value></data>
+  <data name="CopilotNoConversationHistory" xml:space="preserve"><value>No conversations yet</value></data>
+  <data name="CopilotHistoryLoadFailed" xml:space="preserve"><value>Unable to load conversation history. Check the file or access permissions. The current conversation is kept.</value></data>
+  <data name="CopilotHistorySaveFailed" xml:space="preserve"><value>Unable to save the conversation. Check disk space or access permissions. The current conversation is not saved yet.</value></data>
+  <data name="SettingsApiFormatLabel" xml:space="preserve"><value>API Format</value></data>
+  <data name="SettingsApiFormatHint" xml:space="preserve"><value>Wire protocol used to talk to the model service</value></data>
+  <data name="SettingsCliIdentityLabel" xml:space="preserve"><value>Client Fingerprint</value></data>
+  <data name="SettingsCliIdentityHint" xml:space="preserve"><value>Simulate a CLI client (User-Agent and headers) so relays that gate by client keep the requests through</value></data>
+  <data name="SettingsThinkingLevelLabel" xml:space="preserve"><value>Thinking Level</value></data>
+  <data name="SettingsThinkingLevelHint" xml:space="preserve"><value>Higher levels allow deeper reasoning but slower responses; Anthropic treats Minimal as Low</value></data>
+  <data name="SettingsProxyModeLabel" xml:space="preserve"><value>Proxy</value></data>
+  <data name="SettingsProxyModeHint" xml:space="preserve"><value>Some relays are only reachable through a proxy</value></data>
+  <data name="SettingsProxyAddressLabel" xml:space="preserve"><value>Proxy Address</value></data>
+  <data name="SettingsProxyAddressHint" xml:space="preserve"><value>HTTP(S) proxy host, e.g. http://127.0.0.1</value></data>
+  <data name="SettingsProxyPortLabel" xml:space="preserve"><value>Port</value></data>
+  <data name="SettingsProxyPasswordLabel" xml:space="preserve"><value>Proxy password (optional)</value></data>
+  <data name="SettingsRefreshModelsButton" xml:space="preserve"><value>Fetch models</value></data>
+  <data name="SettingsModelRefreshRunning" xml:space="preserve"><value>Fetching model list...</value></data>
+  <data name="SettingsModelRefreshFailed" xml:space="preserve"><value>Failed to fetch the model list. Check the base URL, key, format and proxy.</value></data>
+  <data name="SettingsModelRefreshSuccessFormat" xml:space="preserve"><value>Discovered {0} models.</value></data>
+  <data name="ThinkingLevelOffLabel" xml:space="preserve"><value>Off</value></data>
+  <data name="ThinkingLevelMinimalLabel" xml:space="preserve"><value>Minimal</value></data>
+  <data name="ThinkingLevelLowLabel" xml:space="preserve"><value>Low</value></data>
+  <data name="ThinkingLevelMediumLabel" xml:space="preserve"><value>Medium</value></data>
+  <data name="ThinkingLevelHighLabel" xml:space="preserve"><value>High</value></data>
+  <data name="ApiFormatAnthropicLabel" xml:space="preserve"><value>Anthropic Messages</value></data>
+  <data name="ApiFormatResponsesLabel" xml:space="preserve"><value>OpenAI Responses</value></data>
+  <data name="ApiFormatChatCompletionsLabel" xml:space="preserve"><value>OpenAI Chat Completions</value></data>
+  <data name="CliIdentityNoneLabel" xml:space="preserve"><value>None</value></data>
+  <data name="CliIdentityClaudeCodeLabel" xml:space="preserve"><value>Claude Code</value></data>
+  <data name="CliIdentityCodexLabel" xml:space="preserve"><value>Codex CLI</value></data>
+  <data name="CliIdentityGrokLabel" xml:space="preserve"><value>Grok CLI</value></data>
+  <data name="ProxyModeSystemLabel" xml:space="preserve"><value>Use system proxy</value></data>
+  <data name="ProxyModeDirectLabel" xml:space="preserve"><value>Direct (no proxy)</value></data>
+  <data name="ProxyModeCustomLabel" xml:space="preserve"><value>Custom</value></data>
+  <data name="CopilotModelSelectorLabel" xml:space="preserve"><value>Chat model</value></data>
+  <data name="CopilotThinkingSelectorLabel" xml:space="preserve"><value>Thinking level</value></data>
+  <data name="CopilotThinkingSelectorToolTip" xml:space="preserve"><value>Thinking level used for the next message</value></data>
+  <data name="CopilotModelFilterPlaceholder" xml:space="preserve"><value>Search or type a custom model name, Enter to apply</value></data>
+  <data name="ComposerModelsSectionLabel" xml:space="preserve"><value>Models</value></data>
+  <data name="CopilotChooseModel" xml:space="preserve"><value>Select model</value></data>
+  <data name="SettingsModelListEmpty" xml:space="preserve"><value>No models fetched. Refresh the model list in AI settings.</value></data>
+  <data name="SettingsModelsUrlLabel" xml:space="preserve"><value>Models URL</value></data>
+  <data name="SettingsModelsUrlHint" xml:space="preserve"><value>Enter a full HTTP(S) URL; leave blank to use the default models endpoint.</value></data>
+  <data name="SettingsRefreshCliIdentityHint" xml:space="preserve"><value>Refresh the latest CLI fingerprint</value></data>
+  <data name="SettingsCliIdentityRefreshRunning" xml:space="preserve"><value>Fetching the latest fingerprint…</value></data>
+  <data name="SettingsCliIdentityRefreshSuccess" xml:space="preserve"><value>Updated to the latest fingerprint</value></data>
+  <data name="SettingsCliIdentityRefreshFailed" xml:space="preserve"><value>Refresh failed. The current fingerprint is preserved; click to retry.</value></data>
+  <data name="SettingsCliIdentityBuiltIn" xml:space="preserve"><value>Grok uses a built-in fingerprint; no remote version source is available.</value></data>
+  <data name="CopilotTool_web_search" xml:space="preserve"><value>Web search</value></data>
+</root>

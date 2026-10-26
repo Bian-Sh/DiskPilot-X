@@ -1,5 +1,5 @@
-﻿#!/usr/bin/env python3
-"""Check SpaceMonger localization resources stay in sync.
+#!/usr/bin/env python3
+"""Check DiskPilot-X localization resources stay in sync.
 
 Run after pulling upstream changes:
     python scripts/sync-localization.py --check
@@ -21,10 +21,10 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 ROOT = Path(__file__).resolve().parents[1]
-APP_ROOT = ROOT / "src" / "SpaceMonger.App"
+APP_ROOT = ROOT / "src" / "DiskPilotX.App"
 LOC_ROOT = APP_ROOT / "Localization"
 SOURCE_RESX = LOC_ROOT / "Strings.resx"
-LOCALIZED_RESX = [LOC_ROOT / "Strings.zh-CN.resx"]
+LOCALIZED_RESX = [LOC_ROOT / "Strings.zh-CN.resx", LOC_ROOT / "Strings.zh-TW.resx"]
 
 XAML_ATTR_RE = re.compile(r'\b(Content|Header|Title|ToolTip)="([^"{}&][^"]*[A-Za-z][^"]*)"')
 XAML_TEXT_RE = re.compile(r'\bText="([^"{}&][^"]*[A-Za-z][^"]*)"')

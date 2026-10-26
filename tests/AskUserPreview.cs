@@ -2,16 +2,16 @@
 #:property UseWPF=true
 #:property PublishAot=false
 #:property OutputType=WinExe
-#:project ../src/SpaceMonger.App/SpaceMonger.App.csproj
+#:project ../src/DiskPilotX.App/DiskPilotX.App.csproj
 
 using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
-using SpaceMonger.App.ViewModels;
-using SpaceMonger.App.Views;
-using SpaceMonger.Core.Models;
+using DiskPilotX.App.ViewModels;
+using DiskPilotX.App.Views;
+using DiskPilotX.Core.Models;
 
 // 手动后台验收入口：dotnet run --file tests/AskUserPreview.cs。窗口不抢焦点，三分钟自动关闭。
 internal static class AskUserPreview
@@ -22,7 +22,7 @@ internal static class AskUserPreview
         var app = new Application();
         app.Resources.MergedDictionaries.Add(new ResourceDictionary
         {
-            Source = new Uri("/SpaceMonger.App;component/Themes/VisionProTheme.xaml", UriKind.Relative)
+            Source = new Uri("/DiskPilot-X;component/Themes/VisionProTheme.xaml", UriKind.Relative)
         });
         var request = UserDecisionRequest.Parse(JsonNode.Parse("""
         {

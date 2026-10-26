@@ -1,0 +1,99 @@
+<UserControl x:Class="DiskPilotX.App.Views.TreemapView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:DiskPilotX.App.Controls"
+             xmlns:loc="clr-namespace:DiskPilotX.App.Localization"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="800">
+
+    <Grid>
+        <!-- Treemap area: rounded container with clip -->
+        <Border x:Name="TreemapContainer"
+                Background="{DynamicResource VP.SurfaceBrush}"
+                CornerRadius="0,0,10,10"
+                ClipToBounds="True"
+                SizeChanged="TreemapContainer_SizeChanged"
+                BorderBrush="{DynamicResource VP.BorderLightBrush}"
+                BorderThickness="0.5,0,0.5,0.5">
+            <Border.Effect>
+                <DropShadowEffect Color="Black"
+                                  BlurRadius="12"
+                                  ShadowDepth="2"
+                                  Opacity="0.3"
+                                  Direction="270" />
+            </Border.Effect>
+            <Grid>
+                <controls:TreemapControl x:Name="Treemap"
+                                         NodeClicked="Treemap_NodeClicked"
+                                         NodeActivated="Treemap_NodeActivated"
+                                         NodeHovered="Treemap_NodeHovered"
+                                         NodeRightClicked="Treemap_NodeRightClicked"
+                                         SizeChanged="Treemap_SizeChanged" />
+
+                <!-- Empty state: text overlay on canvas, no background panel -->
+                <StackPanel x:Name="EmptyStatePanel"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            Visibility="Visible">
+                    <TextBlock Text="&#xE946;"
+                               FontFamily="Segoe MDL2 Assets"
+                               FontSize="40"
+                               Foreground="{DynamicResource VP.TextTertiaryBrush}"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,14" />
+                    <TextBlock x:Name="EmptyStateTitle"
+                               Text="{loc:Loc TreemapEmptyTitle}"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource VP.TextSecondaryBrush}"
+                               HorizontalAlignment="Center" />
+                    <TextBlock x:Name="EmptyStateHint"
+                               Text="{loc:Loc TreemapEmptyHint}"
+                               FontSize="13"
+                               Foreground="{DynamicResource VP.TextTertiaryBrush}"
+                               HorizontalAlignment="Center"
+                               Margin="0,6,0,0" Visibility="Collapsed" />
+                </StackPanel>
+
+                <!-- Scanning overlay -->
+                <Border x:Name="ScanningOverlay"
+                        Background="{DynamicResource VP.OverlayBrush}"
+                        CornerRadius="0,0,10,10"
+                        Visibility="Collapsed">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <TextBlock x:Name="ScanTitleText"
+                                   Text="{loc:Loc ScanningStatus}"
+                                   FontSize="24"
+                                   FontWeight="Light"
+                                   Foreground="{DynamicResource VP.TextPrimaryBrush}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock x:Name="ScanProgressText"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource VP.TextSecondaryBrush}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,8,0,0" />
+                        <Button Content="{loc:Loc CancelButton}"
+                                Padding="20,8"
+                                Margin="0,16,0,0"
+                                HorizontalAlignment="Center"
+                                Command="{Binding DataContext.CancelScanCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                ToolTip="{loc:Loc CancelScanToolTip}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource VP.Button}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DataContext.IsExternalScan, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

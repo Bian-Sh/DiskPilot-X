@@ -26,7 +26,7 @@ description: 通过聊天、用户提供的链接和资料、当前模型可用�
 
 ## C# 检测契约
 
-源码导入 System、System.IO、System.Linq、System.Collections.Generic、System.Threading、System.Threading.Tasks 和 SpaceMonger.Core.Services.Skills。提供唯一顶层公开非抽象类，具有公开无参构造器并实现 ICleanupSkillDetector。方法签名为 Task<IReadOnlyList<CleanupSkillCandidate>> DetectAsync(CleanupSkillDetectionContext context, CancellationToken cancellationToken)。context 提供 SkillId、ScopePath、Rules。候选构造器依次为 (string RuleId, string Path, long SizeBytes, string Description, string Risk, IReadOnlyList<string> Sources)。必须输出选定 ScopePath 内的现存文件并命中对应规则；大小由宿主重读，保留项不能返回。检查 cancellationToken，不启动外部程序，不读取凭据，不修改文件。需要执行时调用 run_skill_source，不能用参数声明自己已获信任。
+源码导入 System、System.IO、System.Linq、System.Collections.Generic、System.Threading、System.Threading.Tasks 和 DiskPilotX.Core.Services.Skills。提供唯一顶层公开非抽象类，具有公开无参构造器并实现 ICleanupSkillDetector。方法签名为 Task<IReadOnlyList<CleanupSkillCandidate>> DetectAsync(CleanupSkillDetectionContext context, CancellationToken cancellationToken)。context 提供 SkillId、ScopePath、Rules。候选构造器依次为 (string RuleId, string Path, long SizeBytes, string Description, string Risk, IReadOnlyList<string> Sources)。必须输出选定 ScopePath 内的现存文件并命中对应规则；大小由宿主重读，保留项不能返回。检查 cancellationToken，不启动外部程序，不读取凭据，不修改文件。需要执行时调用 run_skill_source，不能用参数声明自己已获信任。
 
 ## 资料与草稿
 

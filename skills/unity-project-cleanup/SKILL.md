@@ -1,12 +1,12 @@
 ﻿---
 name: unity-project-cleanup
-description: Use when SpaceMonger Copilot must identify Unity projects, analyze Unity Hub evidence, classify cleanup risk for Unity-generated folders such as Library, or explain Unity-specific disk usage.
+description: Use when DiskPilot-X must identify Unity projects, analyze Unity Hub evidence, classify cleanup risk for Unity-generated folders such as Library, or explain Unity-specific disk usage.
 ---
 
 # Unity Project Cleanup Skill
 
 ## Purpose
-Use this skill when SpaceMonger Copilot is asked to find Unity projects, judge whether a Unity project or its `Library` folder is safe to clean, or explain Unity-specific disk usage.
+Use this skill when DiskPilot-X is asked to find Unity projects, judge whether a Unity project or its `Library` folder is safe to clean, or explain Unity-specific disk usage.
 
 ## Steps
 
@@ -35,7 +35,7 @@ Keep a narrow mission, rank evidence sources, define non-negotiable safety rules
 - Prefer internal semantic step IDs such as `scan_drive`, `merge_unity_hub_inventory`, and `write_cleanup_recommendations`, then render localized labels at the UI boundary.
 
 ## Current app capability
-SpaceMonger Copilot has a read-only registry toolcall named `read_unity_registry_context`. Use it when Unity Hub/editor installation context can affect risk analysis. The tool reads only a fixed allowlist of Unity and Unity Hub registry keys; do not request arbitrary registry paths and do not infer Hub project membership from registry output.
+DiskPilot-X has a read-only registry toolcall named `read_unity_registry_context`. Use it when Unity Hub/editor installation context can affect risk analysis. The tool reads only a fixed allowlist of Unity and Unity Hub registry keys; do not request arbitrary registry paths and do not infer Hub project membership from registry output.
 
 The app can also run a first-class action named `DiscoverUnityLibraries`. This action is not a decorative plan: it enumerates ready disks, scans each disk sequentially without replacing the main TreeView/Treemap scan result, detects Unity project `Library/` folders, and writes reviewable recommendations into the cleanup recommendations panel.
 

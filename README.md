@@ -1,4 +1,4 @@
-# SpaceMonger Copilot
+# DiskPilot-X
 
 A modern disk space analyzer for Windows inspired by the legendary [SpaceMonger](https://github.com/seanofw/spacemonger1), with AI-powered cleanup recommendations.
 
@@ -20,9 +20,9 @@ AI 继续位于右侧面板，磁盘扫描、Treemap、文件树和推荐列表�
 
 ## About
 
-SpaceMonger Copilot is a spiritual successor to [SpaceMonger](https://www.werkema.com/programming/the-spacemonger-1-x-post-mortem/), the brilliant treemap-based disk space visualizer created by **Sean Werkema** in 1997. The original SpaceMonger — written in a single afternoon and posted online by a college student — became one of the most beloved Windows utilities of its era. Its genius was in its simplicity: one glance at the treemap and you could instantly see where your disk space went. Even decades later, people still swear by it.
+DiskPilot-X is a spiritual successor to [SpaceMonger](https://www.werkema.com/programming/the-spacemonger-1-x-post-mortem/), the brilliant treemap-based disk space visualizer created by **Sean Werkema** in 1997. The original SpaceMonger — written in a single afternoon and posted online by a college student — became one of the most beloved Windows utilities of its era. Its genius was in its simplicity: one glance at the treemap and you could instantly see where your disk space went. Even decades later, people still swear by it.
 
-SpaceMonger Copilot carries that same philosophy forward — instant visual clarity about disk usage — and adds AI-powered analysis to help you decide what's safe to clean up.
+DiskPilot-X carries that same philosophy forward — instant visual clarity about disk usage — and adds AI-powered analysis to help you decide what's safe to clean up.
 
 *Treemap view of ProgramData — each rectangle is proportional to its size on disk. Colors distinguish folders at a glance, and you can click any rectangle to drill into that directory.*
 
@@ -58,22 +58,22 @@ SpaceMonger Copilot carries that same philosophy forward — instant visual clar
 ## Installation
 
 ```bash
-git clone https://github.com/Bian-Sh/SpaceMonger-Copilot.git
-cd SpaceMonger-Copilot
+git clone https://github.com/Bian-Sh/DiskPilot-X.git
+cd DiskPilot-X
 ```
 
 ## Build
 
 ```bash
 cd src
-dotnet build SpaceMonger.sln
+dotnet build DiskPilotX.sln
 ```
 
 ## Run
 
 ```bash
 cd src
-dotnet run --project SpaceMonger.App
+dotnet run --project DiskPilotX.App
 ```
 
 > 应用默认以普通用户权限运行；受限目录可能无法读取，扫描结果会据实反映可访问范围。
@@ -82,22 +82,22 @@ dotnet run --project SpaceMonger.App
 
 ```bash
 cd src
-dotnet test SpaceMonger.sln
+dotnet test DiskPilotX.sln
 ```
 
 ## Configuration
 
 ### Anthropic base URL override
 
-By default the app uses `https://api.anthropic.com`. To point SpaceMonger at another Anthropic-compatible endpoint, enter an Anthropic Base URL in **Settings**. Leave the field empty to use the built-in endpoint. Environment variables are still supported as a fallback before launching the app:
+By default the app uses `https://api.anthropic.com`. To point DiskPilot-X at another Anthropic-compatible endpoint, enter an Anthropic Base URL in **Settings**. Leave the field empty to use the built-in endpoint. Environment variables are still supported as a fallback before launching the app:
 
-- `SPACEMONGER_ANTHROPIC_BASE_URL` — preferred override for this app
+- `DISKPILOT_X_ANTHROPIC_BASE_URL` — preferred override for this app
 - `ANTHROPIC_BASE_URL` — fallback override for compatibility
 
 Settings and environment variable values must be absolute `http://` or `https://` URLs. The app falls back to the official Anthropic base URL when the Settings field is empty and neither variable is set.
 ### Localization
 
-SpaceMonger keeps English source strings in `src/SpaceMonger.App/Localization/Strings.resx` and Simplified Chinese translations in `Strings.zh-CN.resx`. The app follows the Windows UI culture by default; set `SPACEMONGER_LANGUAGE=zh-CN` before launching to force Chinese.
+DiskPilot-X keeps English source strings in `src/DiskPilotX.App/Localization/Strings.resx` and Simplified Chinese translations in `Strings.zh-CN.resx`. The app follows the Windows UI culture by default; set `DISKPILOT_X_LANGUAGE=zh-CN` before launching to force Chinese.
 
 After pulling upstream changes, run:
 
@@ -137,12 +137,12 @@ This verifies resource keys stay aligned and reports likely hard-coded UI string
 
 ```
 src/
-├── SpaceMonger.App/          # WPF application (UI layer)
+├── DiskPilotX.App/           # WPF application (UI layer)
 │   ├── Controls/             # TreemapControl (SkiaSharp rendering)
 │   ├── Converters/           # Value converters for XAML bindings
 │   ├── ViewModels/           # MVVM view models
 │   └── Views/                # XAML views (Chat, Recommendations, Settings, Treemap)
-├── SpaceMonger.Core/         # Core library (no UI dependencies)
+├── DiskPilotX.Core/          # Core library (no UI dependencies)
 │   ├── Enums/                # Safety ratings, categories, etc.
 │   ├── Models/               # FileEntry, TreemapNode, ScanSession, etc.
 │   └── Services/
@@ -153,10 +153,10 @@ src/
 │       ├── Scanning/         # File system scanner (MFT enumeration, parallel size collection, USN journal incremental rescans)
 │       ├── Settings/         # API key and app settings persistence
 │       └── Treemap/          # Squarified treemap layout algorithm
-└── SpaceMonger.sln
+└── DiskPilotX.sln
 tests/
-├── SpaceMonger.App.Tests/
-└── SpaceMonger.Core.Tests/
+├── DiskPilotX.App.Tests/
+└── DiskPilotX.Core.Tests/
 ```
 
 ## Technical Notes

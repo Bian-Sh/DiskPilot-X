@@ -1,0 +1,78 @@
+﻿<UserControl x:Class="DiskPilotX.App.Views.SettingsSections.WhitelistSettingsSection"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:loc="clr-namespace:DiskPilotX.App.Localization"
+             xmlns:vm="clr-namespace:DiskPilotX.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel, IsDesignTimeCreatable=False}"
+             FontFamily="{DynamicResource VP.FontFamily}">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="SettingsSharedResources.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="WhitelistTextBoxStyle" TargetType="TextBox">
+                <Setter Property="Margin" Value="0,0,8,0" />
+                <Setter Property="Padding" Value="8,5" />
+                <Setter Property="Background" Value="{DynamicResource VP.SurfaceBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderSubtleBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <TextBlock x:Name="WhitelistSectionAnchor" Text="{loc:Loc SettingsWhitelistNav}"
+                   FontSize="15" FontWeight="SemiBold"
+                   Foreground="{DynamicResource VP.TextSecondaryBrush}"
+                   Margin="0,16,0,10" />
+        <Border x:Name="WhitelistSection" Background="{DynamicResource VP.SettingsCardBrush}"
+                BorderBrush="{DynamicResource VP.BorderSubtleBrush}"
+                BorderThickness="1" CornerRadius="10">
+            <StackPanel Margin="14,12">
+                <TextBlock Text="{loc:Loc SettingsWhitelistDescription}"
+                           Foreground="{DynamicResource VP.TextSecondaryBrush}"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,12" />
+
+                <StackPanel Tag="scan">
+                    <TextBlock Text="{loc:Loc SettingsWhitelistScanTitle}" FontWeight="SemiBold" Foreground="{DynamicResource VP.TextPrimaryBrush}" />
+                    <TextBlock Text="{loc:Loc SettingsWhitelistScanHint}" Foreground="{DynamicResource VP.TextSecondaryBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,8" />
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBox Style="{StaticResource WhitelistTextBoxStyle}" Text="{Binding NewScanWhitelistPath, UpdateSourceTrigger=PropertyChanged}" ToolTip="{loc:Loc SettingsWhitelistPathPlaceholder}" />
+                        <Button Grid.Column="1" Content="{loc:Loc SettingsWhitelistBrowse}" Command="{Binding BrowseScanWhitelistPathCommand}" Margin="0,0,8,0" />
+                        <Button Grid.Column="2" Content="{loc:Loc SettingsWhitelistAdd}" Command="{Binding AddScanWhitelistPathCommand}" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding ScanWhitelist}" Tag="scan" PreviewMouseRightButtonUp="WhitelistList_RightClick">
+                        <ItemsControl.ContextMenu><ContextMenu><MenuItem Header="{loc:Loc SettingsWhitelistCopyJson}" Command="{Binding PlacementTarget.DataContext.CopyWhitelistCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="scan"/><MenuItem Header="{loc:Loc SettingsWhitelistPasteJson}" Command="{Binding PlacementTarget.DataContext.PasteWhitelistCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="scan"/></ContextMenu></ItemsControl.ContextMenu>
+                        <ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,0,0,6"><Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox Style="{StaticResource WhitelistTextBoxStyle}" Text="{Binding Path, UpdateSourceTrigger=LostFocus}" LostFocus="WhitelistTextBox_LostFocus"/><TextBox Grid.Column="1" Style="{StaticResource WhitelistTextBoxStyle}" Text="{Binding Description, UpdateSourceTrigger=LostFocus}" LostFocus="WhitelistTextBox_LostFocus" ToolTip="{loc:Loc SettingsWhitelistDescriptionPlaceholder}"/><Button Grid.Column="2" Content="{loc:Loc SettingsWhitelistDelete}" Command="{Binding DataContext.RemoveWhitelistEntryCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/></Grid></DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <Separator Margin="0,12" />
+                <StackPanel Tag="cleanup">
+                    <TextBlock Text="{loc:Loc SettingsWhitelistCleanupTitle}" FontWeight="SemiBold" Foreground="{DynamicResource VP.TextPrimaryBrush}" />
+                    <TextBlock Text="{loc:Loc SettingsWhitelistCleanupHint}" Foreground="{DynamicResource VP.TextSecondaryBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,8" />
+                    <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox Style="{StaticResource WhitelistTextBoxStyle}" Text="{Binding NewCleanupWhitelistPath, UpdateSourceTrigger=PropertyChanged}"/><Button Grid.Column="1" Content="{loc:Loc SettingsWhitelistBrowse}" Command="{Binding BrowseCleanupWhitelistPathCommand}" Margin="0,0,8,0"/><Button Grid.Column="2" Content="{loc:Loc SettingsWhitelistAdd}" Command="{Binding AddCleanupWhitelistPathCommand}"/></Grid>
+                    <ItemsControl ItemsSource="{Binding CleanupRecommendationWhitelist}" Tag="cleanup" PreviewMouseRightButtonUp="WhitelistList_RightClick"><ItemsControl.ContextMenu><ContextMenu><MenuItem Header="{loc:Loc SettingsWhitelistCopyJson}" Command="{Binding PlacementTarget.DataContext.CopyWhitelistCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="cleanup"/><MenuItem Header="{loc:Loc SettingsWhitelistPasteJson}" Command="{Binding PlacementTarget.DataContext.PasteWhitelistCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="cleanup"/></ContextMenu></ItemsControl.ContextMenu><ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,0,0,6"><Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox Style="{StaticResource WhitelistTextBoxStyle}" Text="{Binding Path, UpdateSourceTrigger=LostFocus}" LostFocus="WhitelistTextBox_LostFocus"/><TextBox Grid.Column="1" Style="{StaticResource WhitelistTextBoxStyle}" Text="{Binding Description, UpdateSourceTrigger=LostFocus}" LostFocus="WhitelistTextBox_LostFocus"/><Button Grid.Column="2" Content="{loc:Loc SettingsWhitelistDelete}" Command="{Binding DataContext.RemoveWhitelistEntryCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/></Grid></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                </StackPanel>
+
+                <Separator Margin="0,12" />
+                <StackPanel Tag="ai">
+                    <TextBlock Text="{loc:Loc SettingsWhitelistAiTitle}" FontWeight="SemiBold" Foreground="{DynamicResource VP.TextPrimaryBrush}" />
+                    <TextBlock Text="{loc:Loc SettingsWhitelistAiHint}" Foreground="{DynamicResource VP.TextSecondaryBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,8" />
+                    <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox Style="{StaticResource WhitelistTextBoxStyle}" Text="{Binding NewAiWhitelistPath, UpdateSourceTrigger=PropertyChanged}"/><Button Grid.Column="1" Content="{loc:Loc SettingsWhitelistBrowse}" Command="{Binding BrowseAiWhitelistPathCommand}" Margin="0,0,8,0"/><Button Grid.Column="2" Content="{loc:Loc SettingsWhitelistAdd}" Command="{Binding AddAiWhitelistPathCommand}"/></Grid>
+                    <ItemsControl ItemsSource="{Binding AiConversationWhitelist}" Tag="ai" PreviewMouseRightButtonUp="WhitelistList_RightClick"><ItemsControl.ContextMenu><ContextMenu><MenuItem Header="{loc:Loc SettingsWhitelistCopyJson}" Command="{Binding PlacementTarget.DataContext.CopyWhitelistCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="ai"/><MenuItem Header="{loc:Loc SettingsWhitelistPasteJson}" Command="{Binding PlacementTarget.DataContext.PasteWhitelistCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="ai"/></ContextMenu></ItemsControl.ContextMenu><ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,0,0,6"><Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox Style="{StaticResource WhitelistTextBoxStyle}" Text="{Binding Path, UpdateSourceTrigger=LostFocus}" LostFocus="WhitelistTextBox_LostFocus"/><TextBox Grid.Column="1" Style="{StaticResource WhitelistTextBoxStyle}" Text="{Binding Description, UpdateSourceTrigger=LostFocus}" LostFocus="WhitelistTextBox_LostFocus"/><Button Grid.Column="2" Content="{loc:Loc SettingsWhitelistDelete}" Command="{Binding DataContext.RemoveWhitelistEntryCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/></Grid></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                </StackPanel>
+
+                <TextBlock Text="{Binding WhitelistErrorMessage}" Foreground="#FFFF6B6B" FontSize="12" TextWrapping="Wrap" Margin="0,10,0,0" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>
