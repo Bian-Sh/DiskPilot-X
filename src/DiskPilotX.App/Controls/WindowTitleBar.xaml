@@ -22,7 +22,7 @@
             <TextBlock Text="&#xE74E;"
                        FontFamily="Segoe MDL2 Assets"
                        FontSize="14"
-                       Foreground="{DynamicResource VP.AccentBrush}"
+                       Foreground="{DynamicResource VP.AccentTextBrush}"
                        VerticalAlignment="Center"
                        Margin="0,0,8,0" />
             <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"

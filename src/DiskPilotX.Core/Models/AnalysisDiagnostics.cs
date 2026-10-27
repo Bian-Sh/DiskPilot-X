@@ -1,4 +1,4 @@
-﻿namespace DiskPilotX.Core.Models;
+namespace DiskPilotX.Core.Models;
 
 public class AnalysisDiagnostics
 {
@@ -8,6 +8,10 @@ public class AnalysisDiagnostics
     public int MetadataLength { get; set; }
     public int ResponseLength { get; set; }
     public int ExtractedJsonLength { get; set; }
+    public int InputRecommendationCount { get; set; }
+    public int ExcludedFilteredCount { get; set; }
+    public int OverlapFilteredCount { get; set; }
+    public int HostFilteredCount { get; set; }
     public int ParsedRecommendationCount { get; set; }
     public int MalformedRecommendationCount { get; set; }
     public int MissingFieldRecommendationCount { get; set; }

@@ -19,18 +19,18 @@ public sealed record SavedChatSegment(ChatSegmentKind Kind, string Text, string?
 /// <summary>只保存展示数据，不序列化磁盘对象、交互确认或凭据配置。</summary>
 public sealed record SavedChatMessage(Guid Id, ChatSender Sender, string Text, string Thinking, DateTime Timestamp,
     string CompletedAtText, bool IsError, IReadOnlyList<SavedChatSegment> Segments,
-    DateTime? CompletedAt = null, ChatSegmentStatus? ProcessStatus = null)
+    DateTime? CompletedAt = null, ChatSegmentStatus? ProcessStatus = null, ModelTokenUsage? Usage = null)
 {
     public static SavedChatMessage Capture(Message message) => new(message.Id, message.Sender, message.Text,
         message.Thinking, message.Timestamp, message.CompletedAtText, message.IsError,
         message.Segments.Select(segment => new SavedChatSegment(segment.Kind, segment.Text, segment.Detail,
             segment.ToolName, segment.ToolCallId, segment.Status, segment.IsSummary, segment.IsFinal)).ToArray(),
-        message.CompletedAt, message.ProcessStatus);
+        message.CompletedAt, message.ProcessStatus, message.Usage);
 
     public Message Restore(ChatSegmentStatus? sessionStatus = null)
     {
         var message = new Message { Id = Id, Sender = Sender, Text = Text, Thinking = Thinking,
-            Timestamp = Timestamp, CompletedAtText = CompletedAtText, IsError = IsError };
+            Timestamp = Timestamp, CompletedAtText = CompletedAtText, IsError = IsError, Usage = Usage };
         foreach (var segment in Segments)
             message.Segments.Add(new ChatSegment(segment.Kind) { Text = segment.Text, Detail = segment.Detail,
                 ToolName = segment.ToolName, ToolCallId = segment.ToolCallId, IsSummary = segment.IsSummary, IsFinal = segment.IsFinal,
@@ -52,10 +52,14 @@ public sealed record ConversationSnapshot(string Id, DateTimeOffset UpdatedAt, s
     public string? Title { get; init; }
 }
 
+/// <summary>用于授权前核验的最小元数据，不包含对话正文。</summary>
+public sealed record ConversationMetadata(string Id, string? PrivacySignature, long SourceLength, DateTime SourceWriteTimeUtc);
+
 /// <summary>每会话一个本地快照；先写同目录临时文件，再原子替换，避免中断破坏上一份记录。</summary>
 public sealed class ConversationStore(string rootDirectory)
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
+    private static readonly JsonSerializerOptions MetadataJsonOptions = new() { RespectRequiredConstructorParameters = true };
 
     public void Save(ConversationSnapshot snapshot)
     {
@@ -64,12 +68,55 @@ public sealed class ConversationStore(string rootDirectory)
         Directory.CreateDirectory(rootDirectory);
         var target = PathFor(snapshot.Id);
         var temporary = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        ConversationMetadata metadata;
         try
         {
             File.WriteAllText(temporary, JsonSerializer.Serialize(snapshot, JsonOptions));
+            // 从本次写入的临时文件取属性，避免绑定到其他保存操作替换后的正文。
+            var source = new FileInfo(temporary);
+            metadata = new(snapshot.Id, snapshot.PrivacySignature, source.Length, source.LastWriteTimeUtc);
             File.Move(temporary, target, overwrite: true);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        SaveMetadata(metadata);
+    }
+
+    /// <summary>只读取侧文件与源文件属性；旧快照不迁移，无法核验时拒绝访问。</summary>
+    public ConversationMetadata? ReadMetadata(string id)
+    {
+        var sourcePath = PathFor(id);
+        try
+        {
+            var metadata = JsonSerializer.Deserialize<ConversationMetadata>(
+                File.ReadAllText(Path.ChangeExtension(sourcePath, ".metadata")), MetadataJsonOptions);
+            if (metadata is null || metadata.Id != id) return null;
+            var source = new FileInfo(sourcePath);
+            return source.Exists && source.Length == metadata.SourceLength
+                && source.LastWriteTimeUtc == metadata.SourceWriteTimeUtc ? metadata : null;
+        }
+        catch (Exception exception) when (IsStorageError(exception)) { return null; }
+    }
+
+    private void SaveMetadata(ConversationMetadata metadata)
+    {
+        var target = Path.ChangeExtension(PathFor(metadata.Id), ".metadata");
+        var temporary = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllText(temporary, JsonSerializer.Serialize(metadata, JsonOptions));
+            File.Move(temporary, target, overwrite: true);
+        }
+        catch (Exception exception) when (IsStorageError(exception))
+        {
+            // 正文已保存，侧文件失败不改变原保存行为；尽可能移除旧元数据。
+            try { File.Delete(target); }
+            catch (Exception cleanupException) when (IsStorageError(cleanupException)) { }
+        }
+        finally
+        {
+            try { File.Delete(temporary); }
+            catch (Exception exception) when (IsStorageError(exception)) { }
+        }
     }
 
     public ConversationSnapshot Load(string id)

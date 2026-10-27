@@ -63,6 +63,8 @@ public partial class MainWindow
         if (DataContext is MainViewModel mainVm)
             mainVm.RecommendationsVM = recsVm;
         SettingsPage.DataContext = settingsVm;
+        settingsVm.ShowModelDiscoveryFailureAsync = message => ShowAppMessageAsync(
+            message, L.Text("SettingsModelDiscoveryFailedTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
         SettingsPage.BackRequested += HideSettingsPage;
         settingsVm.SettingsChanged += OnSettingsChanged;
         TitleBar.SettingsRequested += (_, _) => ShowSettingsPage();

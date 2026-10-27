@@ -175,6 +175,62 @@ public class ChatInteractionTests
         restored[1].CompletedAt.Should().BeNull();
     }
 
+    [Fact]
+    public void 同轮多次工具请求用量累加且重复完成快照不重复计数()
+    {
+        var message = new Message();
+        var step = ModelMessage.AssistantToolCalls([new("工具", "scan_path", "{}")]) with { Usage = new(100, 20, 120, 80, 0) };
+        var activity = Event(AgentEventKind.MessageCompleted) with { Message = step };
+        message.ApplyActivity(activity);
+        message.ApplyActivity(activity);
+        message.ApplyActivity(Event(AgentEventKind.StepStarted));
+        message.ApplyActivity(Event(AgentEventKind.MessageCompleted) with { Message = ModelMessage.Assistant("完成") with { Usage = new(50, 10, 60, 0, 5) } });
+        message.Usage.Should().Be(new ModelTokenUsage(150, 30, 180, 80, 5));
+        message.UsageText.Should().Contain("缓存读取 80").And.Contain("缓存写入 5");
+        var saved = DiskPilotX.Core.Services.Assistant.SavedChatMessage.Capture(message);
+        var restored = System.Text.Json.JsonSerializer.Deserialize<DiskPilotX.Core.Services.Assistant.SavedChatMessage>(System.Text.Json.JsonSerializer.Serialize(saved))!.Restore();
+        restored.Usage.Should().Be(message.Usage);
+        restored.UsageText.Should().Be(message.UsageText);
+    }
+
+    [Fact]
+    public void 旧历史没有用量时隐藏统计而明确零用量仍显示()
+    {
+        var message = new Message();
+        var saved = DiskPilotX.Core.Services.Assistant.SavedChatMessage.Capture(message);
+        saved.Restore().HasUsage.Should().BeFalse();
+        message.Usage = new(0, 0, 0, 0);
+        message.HasUsage.Should().BeTrue();
+        message.UsageText.Should().Contain("缓存读取 0");
+        message.UsageText.Should().NotContain("缓存写入");
+    }
+
+    [Fact]
+    public void 部分步骤缺少统计时明确标注仅为已报告用量()
+    {
+        var message = new Message();
+        message.ApplyActivity(Event(AgentEventKind.MessageCompleted) with { Message = ModelMessage.AssistantToolCalls([new("工具", "scan_path", "{}")]) });
+        message.ApplyActivity(Event(AgentEventKind.StepStarted));
+        message.ApplyActivity(Event(AgentEventKind.MessageCompleted) with { Message = ModelMessage.Assistant("完成") with { Usage = new(100, 20, 120) } });
+        message.UsageText.Should().StartWith("已报告 Token");
+        message.UsageText.Should().Contain("合计 120").And.NotContain("缓存");
+    }
+
+    [Theory]
+    [InlineData(120, "120 tokens")]
+    [InlineData(1290, "1.3K tokens")]
+    [InlineData(9802, "9.8K tokens")]
+    [InlineData(1234000, "1.2M tokens")]
+    public void 默认胶囊仅显示紧凑总量而精确数字保留在悬停明细(long total, string expected)
+    {
+        var message = new Message { Usage = new(9701, 101, total, 0) };
+        message.UsageSummary.Should().Be(expected);
+        message.UsageDetails.Should().Contain(row => row.Key == "输入" && row.Value == 9701.ToString("N0"));
+        message.UsageDetails.Should().Contain(row => row.Key == "合计" && row.Value == total.ToString("N0"));
+        message.UsageDetails.Should().NotContain(row => row.Key == "缓存写入");
+        message.UsageSummary.Should().NotContain("输入").And.NotContain("缓存");
+    }
+
     private static AgentEvent Event(AgentEventKind kind, string? text = null) =>
         new("会话", kind, new DateTimeOffset(2026, 10, 26, 9, 0, 12, TimeSpan.FromHours(8))) { Text = text };
 }

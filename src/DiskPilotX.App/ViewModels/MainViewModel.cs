@@ -143,6 +143,7 @@ public partial class MainViewModel : ObservableObject
 
             _logger.LogInformation("Scan completed for {ScanTarget}; files={Files}, folders={Folders}, hasRoot={HasRoot}", scanTarget, session.TotalFiles, session.TotalFolders, session.RootEntry is not null);
             DebugBreakpoints.Hit("scan-returned");
+            session.Provenance ??= new("manual");
             CurrentSession = session;
             UpdateStatusBar(session);
             DebugBreakpoints.Hit("scan-session-set");

@@ -98,56 +98,9 @@
                               Content="{loc:Loc ThemeGlassOption}" />
                 </Grid>
 
-                <!-- Glass Backdrop Type -->
+                <!-- 统一磨砂材质仅开放背景透明度调节。 -->
                 <Separator Margin="14,0" />
-                <Grid Margin="14,12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="170" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="{loc:Loc ThemeBackdropTypeLabel}"
-                               Style="{StaticResource SettingsLabelStyle}"
-                               ToolTip="{loc:Loc ThemeBackdropTypeHint}" />
-                    <ComboBox Grid.Column="1"
-                              Style="{DynamicResource VP.ComboBox}"
-                              SelectedIndex="{Binding GlassBackdropType, UpdateSourceTrigger=PropertyChanged}">
-                        <ComboBox.Items>
-                            <TextBlock Text="{loc:Loc ThemeBackdropNone}" />
-                            <TextBlock Text="Mica" />
-                            <TextBlock Text="Acrylic" />
-                            <TextBlock Text="Tabbed" />
-                        </ComboBox.Items>
-                    </ComboBox>
-                </Grid>
-
-                <!-- Blur Radius -->
-                <Separator Margin="14,0" />
-                <Grid Margin="14,12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="170" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="50" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="{loc:Loc ThemeBlurLabel}"
-                               Style="{StaticResource SettingsLabelStyle}"
-                               ToolTip="{loc:Loc ThemeBlurHint}" />
-                    <Slider Grid.Column="1"
-                            Minimum="0" Maximum="60"
-                            Value="{Binding BlurRadius, UpdateSourceTrigger=PropertyChanged}"
-                            TickFrequency="5"
-                            IsSnapToTickEnabled="True"
-                            VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="2"
-                               Text="{Binding BlurRadius, StringFormat={}{0:F0}}"
-                               Foreground="{DynamicResource VP.TextTertiaryBrush}"
-                               VerticalAlignment="Center"
-                               Margin="8,0,0,0"
-                               FontSize="11" />
-                </Grid>
-
-                <!-- Glass Opacity -->
-                <Separator Margin="14,0" />
-                <Grid Margin="14,12">
+                <Grid Margin="14,12" IsEnabled="{Binding GlassEnabled}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="170" />
                         <ColumnDefinition Width="*" />
@@ -156,18 +109,17 @@
                     <TextBlock Text="{loc:Loc ThemeOpacityLabel}"
                                Style="{StaticResource SettingsLabelStyle}"
                                ToolTip="{loc:Loc ThemeOpacityHint}" />
-                    <Slider Grid.Column="1"
-                            Minimum="0.1" Maximum="1.0"
-                            Value="{Binding GlassOpacity, UpdateSourceTrigger=PropertyChanged}"
-                            TickFrequency="0.1"
-                            IsSnapToTickEnabled="True"
+                    <Slider x:Name="GlassTransparencySlider" Grid.Column="1"
+                            AutomationProperties.Name="{loc:Loc ThemeOpacityLabel}"
+                            Minimum="0" Maximum="100"
+                            SmallChange="5" LargeChange="10"
+                            TickFrequency="5" IsSnapToTickEnabled="True"
+                            Value="{Binding GlassOpacityPercent, UpdateSourceTrigger=PropertyChanged}"
                             VerticalAlignment="Center" />
                     <TextBlock Grid.Column="2"
-                               Text="{Binding GlassOpacity, StringFormat={}{0:F1}}"
+                               Text="{Binding GlassOpacityPercent, StringFormat={}{0:F0}%}"
                                Foreground="{DynamicResource VP.TextTertiaryBrush}"
-                               VerticalAlignment="Center"
-                               Margin="8,0,0,0"
-                               FontSize="11" />
+                               VerticalAlignment="Center" Margin="8,0,0,0" FontSize="11" />
                 </Grid>
 
                 <!-- Auto Text Contrast -->

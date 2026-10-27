@@ -698,10 +698,10 @@
     <value>预设</value>
   </data>
   <data name="ThemeAccentColorLabel" xml:space="preserve">
-    <value>强调色</value>
+    <value>背景色</value>
   </data>
   <data name="ThemeAccentColorHint" xml:space="preserve">
-    <value>输入十六进制颜色值（例如 #FF2562A7）</value>
+    <value>选择应用背景色，或输入十六进制颜色值（例如 #FF2562A7）</value>
   </data>
   <data name="ThemeApplyButton" xml:space="preserve">
     <value>应用</value>
@@ -734,10 +734,10 @@
     <value>毛玻璃面板模糊半径（0 = 关闭，最大 = 60）</value>
   </data>
   <data name="ThemeOpacityLabel" xml:space="preserve">
-    <value>不透明度</value>
+    <value>透明度</value>
   </data>
   <data name="ThemeOpacityHint" xml:space="preserve">
-    <value>毛玻璃面板不透明度（0.1 几乎透明，1.0 完全不透明）</value>
+    <value>0% 最通透，100% 完全不透明；背景色在各档位均参与预览。</value>
   </data>
   <data name="ThemeAutoContrastLabel" xml:space="preserve">
     <value>自动对比</value>
@@ -923,7 +923,7 @@
   <data name="CopilotModelFilterPlaceholder" xml:space="preserve"><value>搜索或输入自定义模型名，回车应用</value></data>
   <data name="ComposerModelsSectionLabel" xml:space="preserve"><value>模型</value></data>
   <data name="CopilotChooseModel" xml:space="preserve"><value>选择模型</value></data>
-  <data name="SettingsModelListEmpty" xml:space="preserve"><value>尚未获取模型，请在 AI 设置中刷新模型列表。</value></data>
+  <data name="SettingsModelListEmpty" xml:space="preserve"><value>配置接口地址和 API Key 后，完成编辑即可自动获取模型。</value></data>
   <data name="SettingsModelsUrlLabel" xml:space="preserve"><value>模型获取 URL</value></data>
   <data name="SettingsModelsUrlHint" xml:space="preserve"><value>填写完整 HTTP(S) URL；留空使用当前接口的默认模型列表地址。</value></data>
   <data name="SettingsRefreshCliIdentityHint" xml:space="preserve"><value>刷新此 CLI 的最新指纹</value></data>
@@ -935,5 +935,110 @@
   <data name="ChatNewSessionDividerDescription" xml:space="preserve">
     <value>新会话已开始。之前的消息仍然可见，但不会再作为上下文发送。</value>
   </data>
+  <data name="SettingsModelDiscoveryFailedTitle" xml:space="preserve"><value>未能获取模型列表</value></data>
+  <data name="SettingsModelDiscoveryExhaustedMessage" xml:space="preserve"><value>已尝试所有候选模型列表地址，仍未获取有效模型。请向服务商确认完整的 HTTP(S) 模型列表链接，填入“模型获取 URL”，确认代理设置后再点击刷新。已有模型列表已保留，详细原因可在 App 控制台查看。</value></data>
+  <data name="SettingsModelRefreshFailedDetailFormat" xml:space="preserve"><value>模型列表获取失败：{0} 详细原因请查看控制台。</value></data>
+  <data name="SettingsModelDragHint" xml:space="preserve"><value>拖动排序（Alt+↑/↓）</value></data>
+  <data name="SettingsModelRemoveHint" xml:space="preserve"><value>从聊天模型列表移除</value></data>
+  <data name="SettingsModelListEditHint" xml:space="preserve"><value>拖动左侧抓手排序，移入模型行可移除。刷新保留排序，重新发现项追加末尾。</value></data>
+  <data name="SettingsModelConfigIncomplete" xml:space="preserve"><value>请填写接口地址和 API Key，完成编辑后将自动获取模型。</value></data>
+  <data name="SettingsModelBaseUrlInvalid" xml:space="preserve"><value>接口地址需要有效的 HTTP(S) URL。</value></data>
+  <data name="SettingsModelUrlInvalid" xml:space="preserve"><value>模型获取 URL 需要完整的 HTTP(S) 地址。</value></data>
+  <data name="SettingsModelProxyIncomplete" xml:space="preserve"><value>请完善代理地址和有效端口，完成编辑后将自动重试。</value></data>
+  <data name="SettingsModelAutoFetchFailed" xml:space="preserve"><value>无法获取模型列表，请配置代理或自定义模型获取 URL。</value></data>
   <data name="CopilotSubmitAnswers" xml:space="preserve"><value>提交回答</value></data>
+  <data name="AnalysisStateNotStartedTitle" xml:space="preserve">
+    <value>尚未分析</value>
+  </data>
+  <data name="AnalysisStateNotStartedDescription" xml:space="preserve">
+    <value>开始分析以评估所选范围。</value>
+  </data>
+  <data name="AnalysisStateRunningDescription" xml:space="preserve">
+    <value>正在评估当前范围，建议发布后会显示在此处。</value>
+  </data>
+  <data name="AnalysisStateWaitingForUserTitle" xml:space="preserve">
+    <value>等待用户输入</value>
+  </data>
+  <data name="AnalysisStateWaitingForUserDescription" xml:space="preserve">
+    <value>请在聊天中回答助手的问题，以继续评估此范围。</value>
+  </data>
+  <data name="AnalysisStateUnknownTitle" xml:space="preserve">
+    <value>分析结果尚未确认</value>
+  </data>
+  <data name="AnalysisStateUnknownDescription" xml:space="preserve">
+    <value>此范围尚未确认完成评估，列表为空不代表没有可推荐项。</value>
+  </data>
+  <data name="AnalysisStateRecommendationsTitle" xml:space="preserve">
+    <value>分析已完成</value>
+  </data>
+  <data name="AnalysisStateRecommendationsDescription" xml:space="preserve">
+    <value>已发布的清理建议可在列表中查看。</value>
+  </data>
+  <data name="AnalysisStateNoRecommendationsTitle" xml:space="preserve">
+    <value>未发现清理建议</value>
+  </data>
+  <data name="AnalysisStateNoRecommendationsDescription" xml:space="preserve">
+    <value>此范围已完整评估，没有通过校验的清理建议。</value>
+  </data>
+  <data name="AnalysisStatePartialTitle" xml:space="preserve">
+    <value>分析部分完成</value>
+  </data>
+  <data name="AnalysisStatePartialDescription" xml:space="preserve">
+    <value>部分内容尚未完成评估，已有建议不代表覆盖整个范围。</value>
+  </data>
+  <data name="AnalysisStateRestrictedTitle" xml:space="preserve">
+    <value>分析受限</value>
+  </data>
+  <data name="AnalysisStateRestrictedDescription" xml:space="preserve">
+    <value>保护或排除规则限制了本次评估，不代表没有可清理内容。</value>
+  </data>
+  <data name="AnalysisStateFailedTitle" xml:space="preserve">
+    <value>分析失败</value>
+  </data>
+  <data name="AnalysisStateFailedDescription" xml:space="preserve">
+    <value>本次分析未完成，保留的建议仍归属于原来的分析结果。</value>
+  </data>
+  <data name="AnalysisStateCancelledTitle" xml:space="preserve">
+    <value>分析已取消</value>
+  </data>
+  <data name="AnalysisStateCancelledDescription" xml:space="preserve">
+    <value>本次分析在完成前已取消，保留的建议仍归属于原来的分析结果。</value>
+  </data>
+  <data name="AnalysisScopeFormat" xml:space="preserve">
+    <value>范围：{0}</value>
+  </data>
+  <data name="AnalysisUnassessedCountFormat" xml:space="preserve">
+    <value>未评估：{0}</value>
+  </data>
+  <data name="AnalysisPreviousResultsNotice" xml:space="preserve">
+    <value>当前显示上次分析的建议，并非本次任务的结果。</value>
+  </data>
+  <data name="CopilotTool_list_analysis_rules" xml:space="preserve">
+    <value>列出分析规则</value>
+  </data>
+  <data name="CopilotTool_read_analysis_rule" xml:space="preserve">
+    <value>读取分析规则</value>
+  </data>
+  <data name="CopilotTool_preview_analysis_rule" xml:space="preserve">
+    <value>预览分析规则</value>
+  </data>
+  <data name="CopilotTool_get_analysis_context" xml:space="preserve">
+    <value>读取分析上下文</value>
+  </data>
+  <data name="CopilotTool_complete_analysis" xml:space="preserve">
+    <value>完成分析</value>
+  </data>
+  <data name="CopilotTool_request_rule_creation" xml:space="preserve">
+    <value>请求创建规则</value>
+  </data>
+  <data name="CopilotTool_manage_analysis_memory" xml:space="preserve">
+    <value>管理分析记忆</value>
+  </data>
+  <data name="CopilotTool_read_analysis_history" xml:space="preserve">
+    <value>读取分析历史</value>
+  </data>
+  <data name="ChatRuleCreationDraftButton" xml:space="preserve">
+    <value>填写规则创建请求</value>
+  </data>
+  <data name="CopilotTool_report_task_topics" xml:space="preserve"><value>记录公开任务主题</value></data>
 </root>

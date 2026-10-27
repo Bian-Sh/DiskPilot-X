@@ -348,6 +348,18 @@ public sealed class AnthropicModelClientTests
     {
         public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => throw new IOException(Key);
     }
+    [Fact]
+    public async Task 用量合并起始帧与末帧且累计输出不重复相加()
+    {
+        var body = Sse(new { type = "message_start", message = new { usage = new { input_tokens = 10, output_tokens = 1, cache_read_input_tokens = 80, cache_creation_input_tokens = 20 } } })
+            + Sse(new { type = "message_delta", delta = new { stop_reason = (string?)null }, usage = new { output_tokens = 8 } })
+            + Sse(new { type = "message_delta", delta = new { stop_reason = "end_turn" }, usage = new { output_tokens = 15 } })
+            + Sse(new { type = "message_stop" });
+        using var http = TextHttp(body);
+        var completed = Assert.Single((await Collect(Client(http), Request)).OfType<ModelCompletedEvent>());
+        Assert.Equal(new ModelTokenUsage(10, 15, 125, 80, 20), completed.Usage);
+    }
+
     private static AnthropicModelClient Client(HttpClient http, bool thinking = false) => new(http, Key, "https://gateway.example/proxy/v1", "claude-test", thinking ? ThinkingLevel.Medium : ThinkingLevel.Off);
     private static HttpClient TextHttp(string text) => new(new FakeHandler(_ => Response(text)));
     private static HttpResponseMessage Response(string text) => Response(new MemoryStream(Encoding.UTF8.GetBytes(text)));

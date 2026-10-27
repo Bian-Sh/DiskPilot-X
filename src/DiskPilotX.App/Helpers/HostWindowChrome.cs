@@ -39,8 +39,8 @@ internal sealed class HostWindowChrome
 
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
+        // 明暗模式与磨砂材质都由 ThemeManager.ApplyGlassBackdrop 按当前主题统一下发。
         _theme?.ApplyGlassBackdrop(_window);
-        AcrylicHelper.EnableDarkMode(_window);
     }
 
     /// <summary>主题切换后磨砂材质要重新下发，否则新建的窗口会停在旧材质上。</summary>

@@ -8,6 +8,7 @@ using DiskPilotX.App.Converters;
 using DiskPilotX.App.Localization;
 using DiskPilotX.Core.Enums;
 using DiskPilotX.Core.Models;
+using DiskPilotX.Core.Services.Analysis;
 
 namespace DiskPilotX.App.ViewModels;
 
@@ -64,13 +65,96 @@ public partial class RecommendationsViewModel : ObservableObject
 
     public bool HasAnyRecommendations => Recommendations.Count > 0;
 
-    public string EmptyStateTitleText => IsWaitingForExternalRecommendations
-        ? L.Text("RecommendationsWaitingForAiTitle")
-        : L.Text("RecommendationsEmptyTitle");
+    private bool _analysisStarted;
+    private bool _hasExternalResults;
+    private bool _recommendationsFromPreviousAnalysis;
+    private Guid? _recommendationsTaskId;
 
-    public string EmptyStateDescriptionText => IsWaitingForExternalRecommendations
-        ? string.Empty
-        : L.Text("RecommendationsEmptyDescription");
+    public AnalysisTaskResult? AnalysisTask { get; private set; }
+    public string AnalysisScopePath => AnalysisTask?.ScopePath ?? string.Empty;
+
+    private string AnalysisPresentationState
+    {
+        get
+        {
+            if (AnalysisTask is not { } task)
+                return IsAnalyzing || IsWaitingForExternalRecommendations ? "Running"
+                    : _analysisStarted || _hasExternalResults ? "Unknown" : "NotStarted";
+
+            // 生命周期优先于结论，失败或取消不能沿用曾发布的成功结论。
+            if (task.Status != AnalysisTaskStatus.Completed) return task.Status.ToString();
+            if (task.Outcome == AnalysisOutcome.NeedsInput) return "WaitingForUser";
+            if (task.Outcome == AnalysisOutcome.Restricted) return "Restricted";
+            if (task.Unassessed.Count > 0) return "Partial";
+            return task.Outcome.ToString();
+        }
+    }
+
+    public string EmptyStateTitleText => AnalysisPresentationState == "Running"
+        ? L.Text("RecommendationsWaitingForAiTitle")
+        : L.Text($"AnalysisState{AnalysisPresentationState}Title");
+
+    public string EmptyStateDescriptionText
+    {
+        get
+        {
+            var description = L.Text($"AnalysisState{AnalysisPresentationState}Description");
+            return AnalysisTask is { Unassessed.Count: > 0 } task
+                ? description + Environment.NewLine + string.Join(Environment.NewLine, task.Unassessed)
+                : description;
+        }
+    }
+
+    public string AnalysisStatusText
+    {
+        get
+        {
+            var parts = new List<string> { EmptyStateTitleText };
+            if (!string.IsNullOrWhiteSpace(AnalysisScopePath))
+                parts.Add(L.Format("AnalysisScopeFormat", AnalysisScopePath));
+            if (AnalysisTask is { } task)
+            {
+                parts.Add(L.Format("AnalysisUnassessedCountFormat", task.Unassessed.Count));
+                if (task.Unassessed.Count > 0) parts.Add(string.Join("; ", task.Unassessed));
+            }
+            if (_recommendationsFromPreviousAnalysis && HasAnyRecommendations)
+                parts.Add(L.Text("AnalysisPreviousResultsNotice"));
+            return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>开始新分析，但保留既有建议、选择及筛选，直到新结果实际发布。</summary>
+    public void BeginAnalysis()
+    {
+        _analysisStarted = true;
+        _recommendationsFromPreviousAnalysis = HasAnyRecommendations;
+        AnalysisTask = null;
+        AnalysisError = null;
+        IsAnalyzing = true;
+        IsWaitingForExternalRecommendations = true;
+        OnPropertyChanged(nameof(AnalysisTask));
+        OnPropertyChanged(nameof(AnalysisScopePath));
+        NotifyAnalysisPresentation();
+    }
+
+    /// <summary>仅更新任务快照；建议内容仍由 SetExternalRecommendations 提供。</summary>
+    public void SetAnalysisTask(AnalysisTaskResult task)
+    {
+        ArgumentNullException.ThrowIfNull(task);
+        if (HasAnyRecommendations &&
+            (_recommendationsTaskId is { } previousId && previousId != task.Id ||
+             _recommendationsTaskId is null && task.Status is AnalysisTaskStatus.Failed or AnalysisTaskStatus.Cancelled))
+            _recommendationsFromPreviousAnalysis = true;
+        if (!_recommendationsFromPreviousAnalysis && HasAnyRecommendations)
+            _recommendationsTaskId = task.Id;
+        AnalysisTask = task;
+        _analysisStarted = task.Status != AnalysisTaskStatus.NotStarted;
+        IsAnalyzing = task.Status == AnalysisTaskStatus.Running;
+        IsWaitingForExternalRecommendations = IsAnalyzing;
+        OnPropertyChanged(nameof(AnalysisTask));
+        OnPropertyChanged(nameof(AnalysisScopePath));
+        NotifyAnalysisPresentation();
+    }
 
     public RecommendationsViewModel(ILogger<RecommendationsViewModel>? logger = null)
     {
@@ -79,16 +163,17 @@ public partial class RecommendationsViewModel : ObservableObject
         L.LanguageChanged += OnLanguageChanged;
     }
 
-    partial void OnIsWaitingForExternalRecommendationsChanged(bool value)
-    {
-        OnPropertyChanged(nameof(EmptyStateTitleText));
-        OnPropertyChanged(nameof(EmptyStateDescriptionText));
-    }
+    partial void OnIsWaitingForExternalRecommendationsChanged(bool value) => NotifyAnalysisPresentation();
 
-    private void OnLanguageChanged()
+    partial void OnIsAnalyzingChanged(bool value) => NotifyAnalysisPresentation();
+
+    private void OnLanguageChanged() => NotifyAnalysisPresentation();
+
+    private void NotifyAnalysisPresentation()
     {
         OnPropertyChanged(nameof(EmptyStateTitleText));
         OnPropertyChanged(nameof(EmptyStateDescriptionText));
+        OnPropertyChanged(nameof(AnalysisStatusText));
     }
 
     public void SetExternalRecommendations(IEnumerable<CleanupRecommendation> recommendations, AnalysisDiagnostics? diagnostics = null)
@@ -103,6 +188,9 @@ public partial class RecommendationsViewModel : ObservableObject
         }
 
         _logger.LogInformation("External recommendations applied: count={Count}", indexedRecommendations.Count);
+        _hasExternalResults = true;
+        _recommendationsFromPreviousAnalysis = false;
+        _recommendationsTaskId = AnalysisTask?.Id;
         AnalysisError = null;
         IsWaitingForExternalRecommendations = false;
         LastDiagnostics = diagnostics;
@@ -110,6 +198,8 @@ public partial class RecommendationsViewModel : ObservableObject
         ApplyFilters();
         UpdateTotals();
         HasRecommendations = Recommendations.Count > 0;
+        OnPropertyChanged(nameof(HasAnyRecommendations));
+        NotifyAnalysisPresentation();
     }
 
     public void BeginExternalRecommendationLoad()

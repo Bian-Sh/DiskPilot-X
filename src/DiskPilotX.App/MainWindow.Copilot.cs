@@ -23,6 +23,8 @@ public partial class MainWindow
     private void ConnectAssistantWorkspace()
     {
         var workspace = App.Services!.GetRequiredService<AssistantWorkspace>();
+        App.Services!.GetRequiredService<DiskAssistantService>().AnalysisStateChanged += task =>
+            _ = Dispatcher.InvokeAsync(() => _recommendationsViewModel?.SetAnalysisTask(task));
         workspace.ReadContext = ct => Dispatcher.InvokeAsync(() =>
         {
             ct.ThrowIfCancellationRequested();
@@ -58,6 +60,8 @@ public partial class MainWindow
                 if(main.IsScanning || _cleanupRunning) return AssistantError("当前磁盘操作尚未完成。");
                 if(main.CurrentSession is not null && _chatViewModel is not null && !await _chatViewModel.ConfirmAsync("替换当前扫描结果",$"扫描 {target}","将更新 Treemap、文件树与当前分析上下文。",ct)) return new JsonObject{["ok"]=false,["cancelled"]=true};
                 var session=await main.ScanForAssistantAsync(target,ct);
+                session.Provenance = new(args?["source_rule_id"] is null ? "chat" : "rule", args?["conversation_id"]?.GetValue<string>(),
+                    args?["message_id"]?.GetValue<string>(), args?["purpose"]?.GetValue<string>() ?? "用户请求扫描指定范围", args?["source_rule_id"]?.GetValue<string>());
                 CacheAiScanSession(session);
                 // 工作区换了一份新扫描结果，清理基准跟着它走，避免沿用上一次的批次会话。
                 _assistantAnalysisSession=session;
@@ -136,6 +140,9 @@ public partial class MainWindow
                 if(localFocus is null)return AssistantError("分析范围已失效。");
                 var analysis=engine.ValidateCandidates(main.CurrentSession!,raw,localFocus);
                 analysis.Recommendations=analysis.Recommendations.Where(r=>analysisMode||!WouldAffectExcludedPath(r.TargetPath,settings.AiConversationWhitelist)).ToList();
+                // 确认窗口期间若规则、偏好或隐私条件改变，原列表保留并要求重新分析，避免用旧结论覆盖。
+                if (!App.Services!.GetRequiredService<AssistantWorkspace>().ValidateAnalysisCommit(args)) return AssistantError("确认期间规则、偏好或隐私条件改变，原列表已保留，请重新分析。");
+                ct.ThrowIfCancellationRequested();
                 var published=mergeMode?_recommendationsViewModel.Recommendations.Concat(analysis.Recommendations).ToList():analysis.Recommendations;
                 for(var index=0;index<published.Count;index++) published[index].Id=(index+1).ToString();
                 _recommendationsViewModel.SetExternalRecommendations(published,analysis.Diagnostics);
@@ -168,6 +175,23 @@ public partial class MainWindow
                 var description=package is null ? $"操作：{args?["operation"]}；技能：{args?["id"]}\n\n{args?["body_markdown"]}" : $"规则：{package["title"]}\n说明：{package["description"]}\n\n规则明细：\n{package["rules"]?.ToJsonString(new(){WriteIndented=true})}\n\n{package["skill_markdown"]}";
                 var confirmed=await _chatViewModel.ConfirmAsync("保存这份清理规则？",description,"保存后可从对话空态和 @ 菜单使用。保存不会清理文件；自定义源码执行还需单独授权。",ct);
                 return new JsonObject{["ok"]=confirmed,["cancelled"]=!confirmed};
+            }
+            case "confirm_analysis_memory":
+            case "confirm_analysis_history":
+            {
+                if (_chatViewModel is null) return AssistantError("无法显示分析上下文确认。");
+                var description = args?["description"]?.GetValue<string>() ?? args?.ToJsonString() ?? "";
+                var confirmed = await _chatViewModel.ConfirmAsync(operation == "confirm_analysis_history" ? "读取关联会话的这一条消息？" : "更新本地分析偏好或使用记录？", description,
+                    "这不会清理文件，也不会继承历史清理授权；你可以拒绝。", ct);
+                return new JsonObject { ["ok"] = confirmed, ["cancelled"] = !confirmed };
+            }
+            case "queue_rule_creation":
+            {
+                if (_chatViewModel is null || main.CurrentSession?.Id.ToString() != args?["scan_id"]?.GetValue<string>()) return AssistantError("原分析范围已失效，请重新分析。");
+                var scope = args?["scope_path"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(scope) || !AnalysisTaskContext.IsWithin(scope, main.CurrentSession!.TargetPath)) return AssistantError("规则创建范围不属于本次扫描。");
+                _chatViewModel.PrepareRuleCreationDraft(main.CurrentSession!.Id, scope, args?["reason"]?.GetValue<string>() ?? "补充专用检查规则");
+                return new JsonObject { ["ok"] = true, ["queued"] = true, ["created"] = false, ["next"] = "本轮结束后可点击填写规则创建请求，审核输入后由用户发送；规则完成后可回到同一范围继续分析。" };
             }
             case "ask_user":
                 if(_chatViewModel is null)return AssistantError("无法显示输入请求。");

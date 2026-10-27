@@ -72,12 +72,13 @@ public class TreemapControl : SKElement
             Placement = System.Windows.Controls.Primitives.PlacementMode.Mouse,
             PlacementTarget = this,
             IsHitTestVisible = false,
-            Background = Brushes.LightYellow,
-            Foreground = Brushes.Black,
-            BorderBrush = Brushes.Gray,
             BorderThickness = new Thickness(1),
             Padding = new Thickness(5),
         };
+        _toolTip.SetResourceReference(Control.BackgroundProperty, "VP.BackgroundAltBrush");
+        _toolTip.SetResourceReference(Control.ForegroundProperty, "VP.TextPrimaryBrush");
+        _toolTip.SetResourceReference(Control.BorderBrushProperty, "VP.BorderLightBrush");
+        _toolTip.SetResourceReference(Control.FontFamilyProperty, "VP.FontFamily");
         _toolTipTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
         _toolTipTimer.Tick += (_, _) =>
         {
@@ -436,13 +437,14 @@ public class TreemapControl : SKElement
 
         if (entry.IsAccessDenied)
         {
-            panel.Children.Add(new TextBlock
+            var deniedText = new TextBlock
             {
                 Text = L.Text("AccessDenied"),
-                Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 80, 80)),
                 FontWeight = FontWeights.Bold,
                 Margin = new Thickness(0, 2, 0, 0),
-            });
+            };
+            deniedText.SetResourceReference(TextBlock.ForegroundProperty, "VP.DangerTextBrush");
+            panel.Children.Add(deniedText);
         }
 
         _toolTip.Content = panel;

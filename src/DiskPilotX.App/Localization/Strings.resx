@@ -701,10 +701,10 @@
     <value>Presets</value>
   </data>
   <data name="ThemeAccentColorLabel" xml:space="preserve">
-    <value>Accent Color</value>
+    <value>Background Color</value>
   </data>
   <data name="ThemeAccentColorHint" xml:space="preserve">
-    <value>Hex color for accent (e.g., #FF2562A7)</value>
+    <value>Choose the app background color or enter a hex value (e.g., #FF2562A7)</value>
   </data>
   <data name="ThemeApplyButton" xml:space="preserve">
     <value>Apply</value>
@@ -740,7 +740,7 @@
     <value>Transparency</value>
   </data>
   <data name="ThemeOpacityHint" xml:space="preserve">
-    <value>Glass panel opacity (0.1 nearly transparent, 1.0 fully opaque)</value>
+    <value>0% is the clearest; 100% is opaque. The background color remains visible at every level.</value>
   </data>
   <data name="ThemeAutoContrastLabel" xml:space="preserve">
     <value>Auto Contrast</value>
@@ -926,7 +926,7 @@
   <data name="CopilotModelFilterPlaceholder" xml:space="preserve"><value>Search or type a custom model name, Enter to apply</value></data>
   <data name="ComposerModelsSectionLabel" xml:space="preserve"><value>Models</value></data>
   <data name="CopilotChooseModel" xml:space="preserve"><value>Select model</value></data>
-  <data name="SettingsModelListEmpty" xml:space="preserve"><value>No models fetched. Refresh the model list in AI settings.</value></data>
+  <data name="SettingsModelListEmpty" xml:space="preserve"><value>Configure the base URL and API Key to load models automatically when editing is complete.</value></data>
   <data name="SettingsModelsUrlLabel" xml:space="preserve"><value>Models URL</value></data>
   <data name="SettingsModelsUrlHint" xml:space="preserve"><value>Enter a full HTTP(S) URL; leave blank to use the default models endpoint.</value></data>
   <data name="SettingsRefreshCliIdentityHint" xml:space="preserve"><value>Refresh the latest CLI fingerprint</value></data>
@@ -935,5 +935,110 @@
   <data name="SettingsCliIdentityRefreshFailed" xml:space="preserve"><value>Refresh failed. The current fingerprint is preserved; click to retry.</value></data>
   <data name="SettingsCliIdentityBuiltIn" xml:space="preserve"><value>Grok uses a built-in fingerprint; no remote version source is available.</value></data>
   <data name="CopilotTool_web_search" xml:space="preserve"><value>Web search</value></data>
+  <data name="SettingsModelDiscoveryFailedTitle" xml:space="preserve"><value>Unable to discover models</value></data>
+  <data name="SettingsModelDiscoveryExhaustedMessage" xml:space="preserve"><value>All candidate model-list addresses were tried, but no valid models were returned. Enter a complete HTTP(S) Models URL supplied by your provider, check the proxy settings, and refresh again. Your existing model list has been kept. See the app console for details.</value></data>
+  <data name="SettingsModelRefreshFailedDetailFormat" xml:space="preserve"><value>Model discovery failed: {0} See the app console for details.</value></data>
+  <data name="SettingsModelDragHint" xml:space="preserve"><value>Drag to reorder (Alt+↑/↓)</value></data>
+  <data name="SettingsModelRemoveHint" xml:space="preserve"><value>Remove from chat model list</value></data>
+  <data name="SettingsModelListEditHint" xml:space="preserve"><value>Drag the left handle to reorder; hover a row to remove it. Refresh keeps your order and appends rediscovered models.</value></data>
+  <data name="SettingsModelConfigIncomplete" xml:space="preserve"><value>Enter the base URL and API Key. Models load automatically when editing is complete.</value></data>
+  <data name="SettingsModelBaseUrlInvalid" xml:space="preserve"><value>The base URL must be a valid HTTP(S) URL.</value></data>
+  <data name="SettingsModelUrlInvalid" xml:space="preserve"><value>The Models URL must be a complete HTTP(S) URL.</value></data>
+  <data name="SettingsModelProxyIncomplete" xml:space="preserve"><value>Complete the proxy address and valid port to retry automatically.</value></data>
+  <data name="SettingsModelAutoFetchFailed" xml:space="preserve"><value>Unable to get the model list. Configure a proxy or a custom Models URL.</value></data>
   <data name="CopilotSubmitAnswers" xml:space="preserve"><value>Submit answers</value></data>
+  <data name="AnalysisStateNotStartedTitle" xml:space="preserve">
+    <value>Analysis not started</value>
+  </data>
+  <data name="AnalysisStateNotStartedDescription" xml:space="preserve">
+    <value>Start an analysis to assess the selected scope.</value>
+  </data>
+  <data name="AnalysisStateRunningDescription" xml:space="preserve">
+    <value>Assessing the current scope. Recommendations will appear when published.</value>
+  </data>
+  <data name="AnalysisStateWaitingForUserTitle" xml:space="preserve">
+    <value>Waiting for your input</value>
+  </data>
+  <data name="AnalysisStateWaitingForUserDescription" xml:space="preserve">
+    <value>Answer the assistant in chat to continue assessing this scope.</value>
+  </data>
+  <data name="AnalysisStateUnknownTitle" xml:space="preserve">
+    <value>Analysis result not confirmed</value>
+  </data>
+  <data name="AnalysisStateUnknownDescription" xml:space="preserve">
+    <value>No complete assessment has been confirmed for this scope. An empty list does not mean there are no recommendations.</value>
+  </data>
+  <data name="AnalysisStateRecommendationsTitle" xml:space="preserve">
+    <value>Analysis completed</value>
+  </data>
+  <data name="AnalysisStateRecommendationsDescription" xml:space="preserve">
+    <value>Published cleanup recommendations are available in the list.</value>
+  </data>
+  <data name="AnalysisStateNoRecommendationsTitle" xml:space="preserve">
+    <value>No cleanup recommendations</value>
+  </data>
+  <data name="AnalysisStateNoRecommendationsDescription" xml:space="preserve">
+    <value>This scope was fully assessed and no cleanup recommendations were accepted.</value>
+  </data>
+  <data name="AnalysisStatePartialTitle" xml:space="preserve">
+    <value>Analysis partially completed</value>
+  </data>
+  <data name="AnalysisStatePartialDescription" xml:space="preserve">
+    <value>Some items could not be assessed. Available recommendations do not cover the entire scope.</value>
+  </data>
+  <data name="AnalysisStateRestrictedTitle" xml:space="preserve">
+    <value>Analysis restricted</value>
+  </data>
+  <data name="AnalysisStateRestrictedDescription" xml:space="preserve">
+    <value>Protection or exclusion rules restricted this assessment. This does not mean there is nothing to clean up.</value>
+  </data>
+  <data name="AnalysisStateFailedTitle" xml:space="preserve">
+    <value>Analysis failed</value>
+  </data>
+  <data name="AnalysisStateFailedDescription" xml:space="preserve">
+    <value>This analysis did not complete. Any retained recommendations remain from their original analysis.</value>
+  </data>
+  <data name="AnalysisStateCancelledTitle" xml:space="preserve">
+    <value>Analysis cancelled</value>
+  </data>
+  <data name="AnalysisStateCancelledDescription" xml:space="preserve">
+    <value>This analysis was cancelled before completion. Any retained recommendations remain from their original analysis.</value>
+  </data>
+  <data name="AnalysisScopeFormat" xml:space="preserve">
+    <value>Scope: {0}</value>
+  </data>
+  <data name="AnalysisUnassessedCountFormat" xml:space="preserve">
+    <value>Unassessed: {0}</value>
+  </data>
+  <data name="AnalysisPreviousResultsNotice" xml:space="preserve">
+    <value>Showing recommendations from the previous analysis, not results of this task.</value>
+  </data>
+  <data name="CopilotTool_list_analysis_rules" xml:space="preserve">
+    <value>List analysis rules</value>
+  </data>
+  <data name="CopilotTool_read_analysis_rule" xml:space="preserve">
+    <value>Read analysis rule</value>
+  </data>
+  <data name="CopilotTool_preview_analysis_rule" xml:space="preserve">
+    <value>Preview analysis rule</value>
+  </data>
+  <data name="CopilotTool_get_analysis_context" xml:space="preserve">
+    <value>Read analysis context</value>
+  </data>
+  <data name="CopilotTool_complete_analysis" xml:space="preserve">
+    <value>Complete analysis</value>
+  </data>
+  <data name="CopilotTool_request_rule_creation" xml:space="preserve">
+    <value>Request rule creation</value>
+  </data>
+  <data name="CopilotTool_manage_analysis_memory" xml:space="preserve">
+    <value>Manage analysis memory</value>
+  </data>
+  <data name="CopilotTool_read_analysis_history" xml:space="preserve">
+    <value>Read analysis history</value>
+  </data>
+  <data name="ChatRuleCreationDraftButton" xml:space="preserve">
+    <value>Draft rule request</value>
+  </data>
+  <data name="CopilotTool_report_task_topics" xml:space="preserve"><value>Report public task topics</value></data>
 </root>

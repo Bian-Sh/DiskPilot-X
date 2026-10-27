@@ -22,6 +22,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -114,8 +115,17 @@
             </Grid>
         </Border>
 
+        <!-- 当前任务状态在有旧建议或新建议时仍保持可见。 -->
+        <TextBlock x:Name="AnalysisStatus"
+                   Grid.Row="1"
+                   Text="{Binding AnalysisStatusText}"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource VP.TextSecondaryBrush}"
+                   FontSize="12"
+                   Margin="20,6,20,8" />
+
         <!-- Analyzing overlay -->
-        <Border Grid.Row="1"
+        <Border x:Name="AnalyzingOverlay" Grid.Row="2"
                 Panel.ZIndex="10"
                 Background="Transparent"
                 Padding="0,8,0,0">
@@ -123,15 +133,19 @@
                 <Style TargetType="Border">
                     <Setter Property="Visibility" Value="Collapsed" />
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsAnalyzing}" Value="True">
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsAnalyzing}" Value="True" />
+                                <Condition Binding="{Binding HasRecommendations}" Value="False" />
+                            </MultiDataTrigger.Conditions>
                             <Setter Property="Visibility" Value="Visible" />
-                        </DataTrigger>
+                        </MultiDataTrigger>
                     </Style.Triggers>
                 </Style>
             </Border.Style>
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                 <ProgressBar IsIndeterminate="True" Width="180" Height="3" Margin="0,0,0,12"
-                             Foreground="{DynamicResource VP.AccentBrush}"
+                             Foreground="{DynamicResource VP.AccentTextBrush}"
                              Background="{DynamicResource VP.SurfaceBrush}" />
                 <TextBlock Text="{loc:Loc AnalyzingFilesText}"
                            FontSize="14"
@@ -146,7 +160,7 @@
         </Border>
 
         <!-- Error / empty display -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="2"
                 Panel.ZIndex="5"
                 Background="Transparent"
                 Padding="20">
@@ -167,7 +181,7 @@
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="520">
                 <TextBlock Text="{Binding AnalysisError}"
                            TextWrapping="Wrap"
-                           Foreground="{DynamicResource VP.DangerBrush}"
+                           Foreground="{DynamicResource VP.DangerTextBrush}"
                            FontSize="13"
                            HorizontalAlignment="Center"
                            TextAlignment="Center">
@@ -223,9 +237,9 @@
             </StackPanel>
         </Border>
 
-        <!-- Row 1: Recommendations List -->
+        <!-- 第 2 行：建议列表 -->
         <ListView x:Name="RecommendationsList"
-                  Grid.Row="1"
+                  Grid.Row="2"
                   Style="{DynamicResource VP.ListView}"
                   ItemsSource="{Binding FilteredRecommendations}"
                   Margin="4,0,4,4"
@@ -361,8 +375,8 @@
             </ListView.ItemTemplate>
         </ListView>
 
-        <!-- Row 2: Summary Bar -->
-        <Border Grid.Row="2"
+        <!-- 第 3 行：汇总栏 -->
+        <Border Grid.Row="3"
                 Background="{DynamicResource VP.SurfaceBrush}"
                 BorderBrush="{DynamicResource VP.BorderSubtleBrush}"
                 BorderThickness="0,1,0,0"

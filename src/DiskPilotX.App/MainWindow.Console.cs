@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -186,6 +186,7 @@ public partial class MainWindow
         // 分析统一走对话：应用代发一条显式溯源的消息，证据仍由 AI 通过工具读取；
         // 覆盖已有建议的知情同意由 publish_recommendations 的聊天内确认卡片承担。
         var prompt = L.Format("AnalyzeChatPrompt", focusEntry?.Name ?? mainVm.CurrentSession.TargetPath);
+        _recommendationsViewModel.BeginAnalysis();
         _recommendationsViewModel.IsAnalyzing = true;
         DebugBreakpoints.Hit("analyze-context-ready");
         try
@@ -193,9 +194,13 @@ public partial class MainWindow
             var runResult = await _chatViewModel.SendAppAnalysisAsync(prompt, focusPath);
             DebugBreakpoints.Hit("analyze-command-returned");
             AppendAnalysisDiagnostics(runResult?.Analysis?.Diagnostics);
+            if (runResult?.Task is { } task) _recommendationsViewModel.SetAnalysisTask(task);
             if (runResult is null)
             {
                 WriteConsoleLog("Analysis request was rejected before the run started.", LogEventLevel.Warning);
+                _recommendationsViewModel.SetAnalysisTask(new(Guid.NewGuid(), mainVm.CurrentSession.Id, focusPath,
+                    DiskPilotX.Core.Services.Analysis.AnalysisTaskStatus.Failed, DiskPilotX.Core.Services.Analysis.AnalysisOutcome.Unknown, 0,
+                    ["本轮分析未能启动，请查看聊天面板的提示。"], new Dictionary<string, string>()));
             }
         }
         finally
