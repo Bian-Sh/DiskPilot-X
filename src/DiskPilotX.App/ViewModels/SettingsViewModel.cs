@@ -15,6 +15,8 @@ using DiskPilotX.Core.Services.Llm;
 using DiskPilotX.Core.Services.Settings;
 using DiskPilotX.Core.Services.Whitelist;
 using TinyHarness;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DiskPilotX.App.ViewModels;
 
@@ -32,11 +34,15 @@ public partial class SettingsViewModel : ObservableObject
     private readonly ModelConnectionTester _llmClient;
     private readonly ThemeManager _themeManager;
     private readonly ModelCatalogService? _modelCatalog;
+    private readonly ILogger<SettingsViewModel> _logger;
+    private bool _proxyPasswordEdited;
     private readonly IPathWhitelistMatcher _whitelistMatcher;
     private bool _isLoadingSettings;
     private bool _suppressPersistence;
 
     public event Action? SettingsChanged;
+
+    public Func<string, Task>? ShowModelDiscoveryFailureAsync { get; set; }
 
     [ObservableProperty]
     private string? _apiKey;
@@ -46,6 +52,7 @@ public partial class SettingsViewModel : ObservableObject
         if (_isLoadingSettings)
             return;
 
+        InvalidateModelDiscovery();
         _suppressPersistence = true;
         try
         {
@@ -72,6 +79,7 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnAnthropicBaseUrlChanged(string? value)
     {
+        InvalidateModelDiscovery();
         PersistAppSettings(settings =>
             settings.AnthropicBaseUrl = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
     }
@@ -81,6 +89,7 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnModelsUrlChanged(string? value)
     {
+        InvalidateModelDiscovery();
         PersistAppSettings(settings => settings.ModelsUrl = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
     }
 
@@ -106,6 +115,7 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnSelectedApiFormatChanged(LlmApiFormat value)
     {
+        InvalidateModelDiscovery();
         PersistAppSettings(settings => settings.ApiFormat = LlmContracts.FormatApiFormat(value));
     }
 
@@ -114,6 +124,7 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnSelectedCliIdentityChanged(CliIdentityKind value)
     {
+        InvalidateModelDiscovery();
         PersistAppSettings(settings => settings.CliIdentity = LlmContracts.FormatCliIdentity(value));
         OnPropertyChanged(nameof(CliIdentitySummary));
         OnPropertyChanged(nameof(CliIdentityFingerprint));
@@ -124,6 +135,7 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnSelectedProxyKindChanged(ProxyKind value)
     {
+        InvalidateModelDiscovery();
         PersistAppSettings(settings => settings.ProxyMode = LlmContracts.FormatProxyKind(value));
         OnPropertyChanged(nameof(IsCustomProxyConfigurable));
     }
@@ -133,6 +145,7 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnProxyHostChanged(string? value)
     {
+        InvalidateModelDiscovery();
         PersistAppSettings(settings => settings.ProxyHost = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
     }
 
@@ -141,6 +154,7 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnProxyPortTextChanged(string? value)
     {
+        InvalidateModelDiscovery();
         PersistAppSettings(settings => settings.ProxyPort = int.TryParse(value?.Trim(), out var port) && port > 0 && port < 65536 ? port : null);
     }
 
@@ -149,6 +163,7 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnProxyUsernameChanged(string? value)
     {
+        InvalidateModelDiscovery();
         PersistAppSettings(settings => settings.ProxyUsername = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
     }
 
@@ -157,12 +172,43 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnProxyPasswordChanged(string? value)
     {
+        InvalidateModelDiscovery();
+        if (!_isLoadingSettings) _proxyPasswordEdited = true;
         PersistAppSettings(settings => settings.EncryptedProxyPassword = string.IsNullOrEmpty(value) ? null : _settingsService.EncryptProxyPassword(value));
     }
 
     public bool IsCustomProxyConfigurable => SelectedProxyKind == ProxyKind.Custom;
 
     public ObservableCollection<string> ModelCandidates { get; } = [];
+
+    /// <summary>列表顺序即聊天模型菜单顺序，只在有效移动时持久化一次。</summary>
+    public bool MoveModel(string? id, int targetIndex)
+    {
+        if (IsRefreshingModels || id is null) return false;
+        var sourceIndex = ModelCandidates.IndexOf(id);
+        if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= ModelCandidates.Count || sourceIndex == targetIndex) return false;
+        ModelCandidates.Move(sourceIndex, targetIndex);
+        PersistAppSettings(settings => settings.DiscoveredModels = ModelCandidates.ToList());
+        return true;
+    }
+
+    [RelayCommand]
+    private void RemoveModel(string? id)
+    {
+        if (IsRefreshingModels || id is null || !ModelCandidates.Remove(id)) return;
+        // 不替用户改选其他模型，也不让旧的设置页选择在保存时复活已移除项。
+        if (string.Equals(ChatModelName, id, StringComparison.OrdinalIgnoreCase))
+        {
+            _suppressPersistence = true;
+            try { ChatModelName = null; }
+            finally { _suppressPersistence = false; }
+        }
+        PersistAppSettings(settings =>
+        {
+            settings.DiscoveredModels = ModelCandidates.ToList();
+            if (string.Equals(settings.ChatModelName, id, StringComparison.OrdinalIgnoreCase)) settings.ChatModelName = null;
+        });
+    }
 
     [ObservableProperty]
     private bool _isRefreshingModels;
@@ -253,33 +299,21 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _glassEnabled;
 
-    partial void OnGlassEnabledChanged(bool value)
-    {
-        if (!_isLoadingSettings) SyncAndSaveTheme();
-    }
+    partial void OnGlassEnabledChanged(bool value) => ApplyGlassSettings();
 
     [ObservableProperty]
-    private int _glassBackdropType;
+    private double _glassOpacityPercent = 60;
 
-    partial void OnGlassBackdropTypeChanged(int value)
+    partial void OnGlassOpacityPercentChanged(double value) => ApplyGlassSettings();
+
+    private void ApplyGlassSettings()
     {
-        if (!_isLoadingSettings) SyncAndSaveTheme();
-    }
-
-    [ObservableProperty]
-    private double _blurRadius;
-
-    partial void OnBlurRadiusChanged(double value)
-    {
-        if (!_isLoadingSettings) SyncAndSaveTheme();
-    }
-
-    [ObservableProperty]
-    private double _glassOpacity = 0.85;
-
-    partial void OnGlassOpacityChanged(double value)
-    {
-        if (!_isLoadingSettings) SyncAndSaveTheme();
+        if (_isLoadingSettings) return;
+        var profile = _themeManager.CurrentProfile.Clone();
+        profile.GlassEnabled = GlassEnabled;
+        profile.GlassOpacity = GlassOpacityPercent / 100;
+        _themeManager.ApplyTheme(profile);
+        SettingsChanged?.Invoke();
     }
 
     [ObservableProperty]
@@ -293,12 +327,13 @@ public partial class SettingsViewModel : ObservableObject
     public static IReadOnlyList<ThemeProfile> AvailableThemePresets { get; } = ThemeProfile.BuiltInPresets;
 
     public SettingsViewModel(ISettingsService settingsService, ModelConnectionTester llmClient, ThemeManager themeManager,
-        ModelCatalogService? modelCatalog = null, IPathWhitelistMatcher? whitelistMatcher = null)
+        ModelCatalogService? modelCatalog = null, IPathWhitelistMatcher? whitelistMatcher = null, ILogger<SettingsViewModel>? logger = null)
     {
         _settingsService = settingsService;
         _llmClient = llmClient;
         _themeManager = themeManager;
         _modelCatalog = modelCatalog;
+        _logger = logger ?? NullLogger<SettingsViewModel>.Instance;
         _whitelistMatcher = whitelistMatcher ?? new PathWhitelistMatcher();
         L.LanguageChanged += RefreshValidationStatusText;
         L.LanguageChanged += RefreshOptionLabels;
@@ -391,7 +426,10 @@ public partial class SettingsViewModel : ObservableObject
     {
         if (preset == null) return;
 
-        _themeManager.ApplyTheme(preset);
+        var profile = preset.Clone();
+        profile.GlassEnabled = GlassEnabled;
+        profile.GlassOpacity = _themeManager.CurrentProfile.GlassOpacity;
+        _themeManager.ApplyTheme(profile);
         _themeManager.Persist();
 
         _isLoadingSettings = true;
@@ -413,9 +451,7 @@ public partial class SettingsViewModel : ObservableObject
         SelectedThemeProfile = p;
         ThemeBackgroundColor = ThemeManager.ParseColor(p.BackgroundColor);
         GlassEnabled = p.GlassEnabled;
-        GlassBackdropType = p.GlassBackdropType;
-        BlurRadius = p.BlurRadius;
-        GlassOpacity = p.GlassOpacity;
+        GlassOpacityPercent = 100 * p.GlassOpacity;
         AutoTextContrast = p.AutoTextContrast;
     }
 
@@ -434,11 +470,14 @@ public partial class SettingsViewModel : ObservableObject
 
         ValidationState = ValidationState.Validating;
         ValidationMessage = null;
+        var version = _catalogVersion;
+        var catalogTask = CompleteModelConfigurationAsync(force: true);
 
         try
         {
             var endpoint = BuildEndpoint();
             var isValid = await _llmClient.ValidateAsync(endpoint, CancellationToken.None);
+            if (version != _catalogVersion) return;
 
             if (isValid)
             {
@@ -455,22 +494,32 @@ public partial class SettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            if (version != _catalogVersion) return;
             ValidationState = ValidationState.Invalid;
             IsApiKeyValid = false;
+            LogSettingsException("模型连接验证失败", ex);
             ValidationMessage = L.Format("ValidationFailedMessage", "模型连接验证失败，请检查地址、模型与凭据。");
         }
+        finally { await catalogTask; }
     }
 
     /// <summary>用当前编辑中的字段构建端点配置；代理口令优先取输入框，未改动时解密存量值。</summary>
     private ModelEndpointConfig BuildEndpoint()
     {
         var settings = _settingsService.LoadSettings();
-        var proxyPassword = string.IsNullOrEmpty(ProxyPassword) ? _settingsService.GetProxyPassword(settings) : ProxyPassword;
+        if (SelectedProxyKind == ProxyKind.Custom
+            && (!int.TryParse(ProxyPortText?.Trim(), out var port) || port is <= 0 or >= 65536))
+            throw new InvalidOperationException("自定义代理端口必须是 1–65535 的整数。");
+        var proxyPassword = _proxyPasswordEdited ? ProxyPassword : _settingsService.GetProxyPassword(settings);
         return ModelEndpointConfig.FromSettings(settings, ApiKey ?? string.Empty,
             ModelEndpointResolver.ResolveModel(ChatModelName, AnthropicBaseUrl),
             proxyPassword) with
         {
+            BaseUrl = string.IsNullOrWhiteSpace(AnthropicBaseUrl) ? null : AnthropicBaseUrl.Trim(),
             ModelsUrl = string.IsNullOrWhiteSpace(ModelsUrl) ? null : ModelsUrl.Trim(),
+            ProxyHost = string.IsNullOrWhiteSpace(ProxyHost) ? null : ProxyHost.Trim(),
+            ProxyPort = int.TryParse(ProxyPortText?.Trim(), out var currentPort) ? currentPort : null,
+            ProxyUsername = string.IsNullOrWhiteSpace(ProxyUsername) ? null : ProxyUsername.Trim(),
             ApiFormat = SelectedApiFormat,
             CliIdentity = SelectedCliIdentity,
             ThinkingLevel = SelectedThinkingLevel,
@@ -495,40 +544,27 @@ public partial class SettingsViewModel : ObservableObject
             OnPropertyChanged(nameof(CliIdentitySummary));
             OnPropertyChanged(nameof(CliIdentityFingerprint));
         }
+        catch (Exception ex)
+        {
+            LogSettingsException("客户端指纹刷新失败", ex);
+            option.Status = L.Text("SettingsCliIdentityRefreshFailed");
+        }
         finally { option.IsRefreshing = false; }
     }
 
     [RelayCommand]
-    private async Task RefreshModelsAsync()
-    {
-        if (_modelCatalog is null || IsRefreshingModels) return;
-        if (string.IsNullOrWhiteSpace(ApiKey))
-        {
-            ModelRefreshMessage = L.Text("ApiKeyEmptyMessage");
-            return;
-        }
+    private Task RefreshModelsAsync() => RequestModelCatalog(force: true, automatic: false);
 
-        IsRefreshingModels = true;
-        ModelRefreshMessage = L.Text("SettingsModelRefreshRunning");
-        try
-        {
-            var endpoint = BuildEndpoint();
-            var models = await Task.Run(() => _modelCatalog.FetchAsync(endpoint, CancellationToken.None));
-            var ids = models.Select(model => model.Id).ToList();
-            PersistAppSettings(settings => settings.DiscoveredModels = ids);
-            ModelCandidates.Clear();
-            foreach (var id in ids) ModelCandidates.Add(id);
-            ModelRefreshMessage = L.Format("SettingsModelRefreshSuccessFormat", $"{ids.Count}");
-        }
-        catch (Exception ex) when (ex is ModelClientException or InvalidOperationException or HttpRequestException or TaskCanceledException or JsonException)
-        {
-            ModelRefreshMessage = L.Text("SettingsModelRefreshFailed");
-        }
-        finally
-        {
-            IsRefreshingModels = false;
-        }
-    }
+    private ModelEndpointConfig DiagnosticConfig() => new()
+    {
+        ApiKey = ApiKey ?? string.Empty,
+        ProxyPassword = ProxyPassword,
+        Model = string.Empty,
+    };
+
+    private void LogSettingsException(string operation, Exception exception, ModelEndpointConfig? endpoint = null) =>
+        _logger.LogError("{Operation}：{ExceptionType} {Detail}", operation, exception.GetType().Name,
+            ModelCatalogService.Sanitize(endpoint ?? DiagnosticConfig(), exception.ToString()));
 
     [RelayCommand]
     public void Save()
@@ -563,7 +599,7 @@ public partial class SettingsViewModel : ObservableObject
         settings.Language = string.IsNullOrWhiteSpace(Language) ? "zh-CN" : Language.Trim();
         L.SetLanguage(settings.Language);
 
-        SyncThemeToManager();
+        settings.ThemeProfile = _themeManager.CurrentProfile.Clone();
 
         _settingsService.SaveSettings(settings);
         SettingsChanged?.Invoke();
@@ -661,6 +697,7 @@ public partial class SettingsViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is JsonException or ArgumentException)
         {
+            LogSettingsException("导入白名单失败", ex);
             WhitelistErrorMessage = L.Text("SettingsWhitelistPasteInvalidJson");
         }
     }
@@ -764,9 +801,7 @@ public partial class SettingsViewModel : ObservableObject
             SuccessColor = "#FF30D158",
             WarningColor = "#FFFFD60A",
             GlassEnabled = GlassEnabled,
-            GlassBackdropType = GlassBackdropType,
-            BlurRadius = BlurRadius,
-            GlassOpacity = GlassOpacity,
+            GlassOpacity = GlassOpacityPercent / 100,
             AutoTextContrast = AutoTextContrast,
             SurfaceAlpha = _themeManager.CurrentProfile.SurfaceAlpha,
             SurfaceHoverAlpha = _themeManager.CurrentProfile.SurfaceHoverAlpha,
@@ -875,6 +910,7 @@ public partial class SettingsViewModel : ObservableObject
 
     public void LoadSettings()
     {
+        InvalidateModelDiscovery();
         var settings = _settingsService.LoadSettings();
 
         _isLoadingSettings = true;
@@ -898,6 +934,7 @@ public partial class SettingsViewModel : ObservableObject
             ProxyPortText = settings.ProxyPort?.ToString() ?? "7890";
             ProxyUsername = settings.ProxyUsername;
             ProxyPassword = null;
+            _proxyPasswordEdited = false;
             ModelCandidates.Clear();
             foreach (var id in settings.DiscoveredModels.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase))
                 ModelCandidates.Add(id);

@@ -100,8 +100,9 @@ public partial class SettingsPage : UserControl
         foreach (var button in NavButtons)
         {
             var isActive = string.Equals(button.Tag as string, sectionName, StringComparison.Ordinal);
-            button.Background = isActive ? (Brush)FindResource("VP.SurfaceHoverBrush") : Brushes.Transparent;
-            button.Foreground = (Brush)FindResource(isActive ? "VP.TextPrimaryBrush" : "VP.TextSecondaryBrush");
+            if (isActive) button.SetResourceReference(Control.BackgroundProperty, "VP.SurfaceHoverBrush");
+            else button.Background = Brushes.Transparent;
+            button.SetResourceReference(Control.ForegroundProperty, isActive ? "VP.TextPrimaryBrush" : "VP.TextSecondaryBrush");
             button.FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Medium;
         }
     }

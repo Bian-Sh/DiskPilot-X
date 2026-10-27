@@ -231,7 +231,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
 
                 case LinkInline link:
                     var linkSpan = new Span();
-                    linkSpan.Foreground = FindBrush("VP.AccentBrush", Color.FromRgb(0x4D, 0x9F, 0xFF));
+                    linkSpan.Foreground = FindBrush("VP.AccentTextBrush", Color.FromRgb(0x4D, 0x9F, 0xFF));
                     linkSpan.TextDecorations = TextDecorations.Underline;
                     linkSpan.Cursor = System.Windows.Input.Cursors.Hand;
                     AddInlines(linkSpan, link);
@@ -278,7 +278,7 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
 
                 case LinkInline link:
                     var linkSpan = new Span();
-                    linkSpan.Foreground = FindBrush("VP.AccentBrush", Color.FromRgb(0x4D, 0x9F, 0xFF));
+                    linkSpan.Foreground = FindBrush("VP.AccentTextBrush", Color.FromRgb(0x4D, 0x9F, 0xFF));
                     linkSpan.TextDecorations = TextDecorations.Underline;
                     linkSpan.Cursor = System.Windows.Input.Cursors.Hand;
                     AddInlines(linkSpan, link);

@@ -137,10 +137,10 @@
           <TextBlock Margin="0,4,0,8" FontWeight="SemiBold"><Run Text="{Binding CurrentField.Label, Mode=OneWay}"/><Run Text="{Binding CurrentField.RequiredSuffix, Mode=OneWay}"/></TextBlock>
           </StackPanel></Border>
           <ContentControl x:Name="FieldContent" Content="{Binding CurrentField}"/>
-          <TextBlock Text="{Binding CurrentField.ErrorMessage}" Foreground="{DynamicResource VP.DangerBrush}" Margin="0,6,0,0"
+          <TextBlock Text="{Binding CurrentField.ErrorMessage}" Foreground="{DynamicResource VP.DangerTextBrush}" Margin="0,6,0,0"
                      AutomationProperties.LiveSetting="Assertive"
                      Visibility="{Binding CurrentField.HasError, Converter={StaticResource BoolVis}}"/>
-          <TextBlock Text="{Binding ErrorSummary}" Foreground="{DynamicResource VP.DangerBrush}" FontSize="12" Margin="0,4,0,0"
+          <TextBlock Text="{Binding ErrorSummary}" Foreground="{DynamicResource VP.DangerTextBrush}" FontSize="12" Margin="0,4,0,0"
                      Visibility="{Binding HasErrors, Converter={StaticResource BoolVis}}"/>
         </StackPanel>
       </ScrollViewer>

@@ -565,7 +565,7 @@
                                                        RenderTransformOrigin="0.5,0.5">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Foreground" Value="White" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
                                                         <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
                                                         <Setter Property="RenderTransform">
                                                             <Setter.Value>
@@ -584,7 +584,7 @@
                                                                 <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
                                                             </DataTrigger>
                                                             <DataTrigger Binding="{Binding IsPressed, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True">
-                                                                <Setter Property="Foreground" Value="{DynamicResource VP.AccentBrush}" />
+                                                                <Setter Property="Foreground" Value="{DynamicResource VP.AccentTextBrush}" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -613,8 +613,8 @@
                             <Border Grid.Column="1" Style="{StaticResource TreeColumnBorder}" Padding="4,2">
                                 <Grid>
                                     <Border Height="18" BorderBrush="{DynamicResource VP.BorderSubtleBrush}" BorderThickness="0.5" Background="{DynamicResource VP.SurfaceBrush}" />
-                                    <Border Height="18" HorizontalAlignment="Left" Width="{Binding ParentPercentBarWidth}" Background="{DynamicResource VP.AccentBrush}" Opacity="0.9" />
-                                    <TextBlock Text="{Binding ParentPercentText}" Style="{StaticResource TreeNumericText}" Foreground="White" />
+                                    <Border Height="18" HorizontalAlignment="Left" Width="{Binding ParentPercentBarWidth}" Background="{DynamicResource VP.AccentBrush}" Opacity="0.35" />
+                                    <TextBlock Text="{Binding ParentPercentText}" Style="{StaticResource TreeNumericText}" />
                                 </Grid>
                             </Border>
 

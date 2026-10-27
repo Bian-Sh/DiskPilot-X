@@ -40,14 +40,14 @@ public class ThemeProfile
     /// <summary>Enable frosted-glass (acrylic/mica) on the window backdrop.</summary>
     public bool GlassEnabled { get; set; } = false;
 
-    /// <summary>Glass backdrop type: 0=None, 1=Mica, 2=Acrylic, 3=Tabbed.</summary>
-    public int GlassBackdropType { get; set; } = 0;
+    private double _glassOpacity = 0.6;
 
-    /// <summary>Gaussian blur radius for in-app glass panels (0 = off).</summary>
-    public double BlurRadius { get; set; } = 0;
-
-    /// <summary>Glass surface opacity (0.0 = fully transparent, 1.0 = fully opaque).</summary>
-    public double GlassOpacity { get; set; } = 0.85;
+    /// <summary>背景遮色浓度；0 为最通透档、1 不透明，最低叠色由主题管理器维护。</summary>
+    public double GlassOpacity
+    {
+        get => _glassOpacity;
+        set => _glassOpacity = double.IsFinite(value) ? Math.Clamp(value, 0.0, 1.0) : 0.6;
+    }
 
     // ── Auto Contrast ────────────────────────────────────────────
 
@@ -85,9 +85,6 @@ public class ThemeProfile
         TextSecondaryColor = "#FF9AA8BC",
         TextTertiaryColor = "#FF8796AB",
         GlassEnabled = false,
-        GlassBackdropType = 0,
-        BlurRadius = 0,
-        GlassOpacity = 0.85,
         AutoTextContrast = false,
     };
 
@@ -103,9 +100,6 @@ public class ThemeProfile
         TextSecondaryColor = "#FF5E6B7A",
         TextTertiaryColor = "#FF758295",
         GlassEnabled = false,
-        GlassBackdropType = 0,
-        BlurRadius = 0,
-        GlassOpacity = 0.9,
         AutoTextContrast = false,
         SurfaceAlpha = 26,
         SurfaceHoverAlpha = 40,
@@ -117,36 +111,12 @@ public class ThemeProfile
         OverlayAlpha = 64,
     };
 
-    public static ThemeProfile FrostedGlass { get; } = new()
-    {
-        Name = "毛玻璃",
-        IsBuiltIn = true,
-        AccentColor = "#FF4A90D9",
-        AccentHoverColor = "#FF5DA3E8",
-        BackgroundColor = "#FF1E1E2E",
-        BackgroundAltColor = "#FF2A2A3C",
-        TextPrimaryColor = "#FFEDEDF5",
-        TextSecondaryColor = "#FFB0B0C0",
-        TextTertiaryColor = "#FF888899",
-        GlassEnabled = true,
-        GlassBackdropType = 3, // Acrylic
-        BlurRadius = 30,
-        GlassOpacity = 0.7,
-        AutoTextContrast = true,
-        SurfaceAlpha = 40,
-        SurfaceHoverAlpha = 60,
-        SurfaceActiveAlpha = 80,
-        SettingsCardAlpha = 45,
-        CardAlpha = 30,
-        BorderLightAlpha = 60,
-        BorderSubtleAlpha = 40,
-        OverlayAlpha = 80,
-    };
+    /// <summary>复制配色，避免磨砂开关污染共享的内置预设。</summary>
+    public ThemeProfile Clone() => (ThemeProfile)MemberwiseClone();
 
     public static IReadOnlyList<ThemeProfile> BuiltInPresets { get; } = new[]
     {
         VisionProDark,
         VisionProLight,
-        FrostedGlass,
     };
 }

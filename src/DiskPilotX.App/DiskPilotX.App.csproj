@@ -39,6 +39,8 @@
     <Version>1.0.0</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
+    <!-- 只保留中文简体 + 英文卫星资源，避免 Roslyn/依赖包全量语言文件夹冗余（与 Codex 打包一致） -->
+    <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
   </PropertyGroup>
 
 </Project>

@@ -316,9 +316,9 @@ public partial class AppModalHost : UserControl
     {
         return messageType switch
         {
-            ModalMessageType.Error => (Brush)FindResource("VP.DangerBrush"),
-            ModalMessageType.Warning => (Brush)FindResource("VP.WarningBrush"),
-            ModalMessageType.Info => (Brush)FindResource("VP.AccentBrush"),
+            ModalMessageType.Error => (Brush)FindResource("VP.DangerTextBrush"),
+            ModalMessageType.Warning => (Brush)FindResource("VP.WarningTextBrush"),
+            ModalMessageType.Info => (Brush)FindResource("VP.AccentTextBrush"),
             _ => (Brush)FindResource("VP.TextSecondaryBrush")
         };
     }

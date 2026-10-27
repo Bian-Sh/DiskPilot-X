@@ -1,4 +1,5 @@
-﻿using System.Windows.Media;
+﻿using System.Windows;
+using System.Windows.Media;
 using Serilog.Events;
 
 namespace DiskPilotX.App.Logging;
@@ -18,25 +19,32 @@ public sealed record UiLogEntry(DateTimeOffset Timestamp, LogEventLevel Level, s
         _ => $"[{Level}]"
     };
 
-    public Brush TimeBrush => Brushes.DeepSkyBlue;
+    public Brush TimeBrush => ThemeBrush("VP.TextTertiaryBrush", Colors.Gray);
 
     public Brush LevelBrush => Level switch
     {
-        LogEventLevel.Verbose => new SolidColorBrush(Color.FromRgb(122, 162, 247)),
-        LogEventLevel.Debug => new SolidColorBrush(Color.FromRgb(187, 154, 247)),
-        LogEventLevel.Information => new SolidColorBrush(Color.FromRgb(158, 206, 106)),
-        LogEventLevel.Warning => new SolidColorBrush(Color.FromRgb(224, 175, 104)),
-        LogEventLevel.Error => new SolidColorBrush(Color.FromRgb(247, 118, 142)),
-        LogEventLevel.Fatal => new SolidColorBrush(Color.FromRgb(255, 85, 110)),
-        _ => Brushes.LightGray
+        LogEventLevel.Verbose => ThemeBrush("VP.AccentTextBrush", Color.FromRgb(122, 162, 247)),
+        LogEventLevel.Debug => ThemeBrush("VP.AccentHoverTextBrush", Color.FromRgb(187, 154, 247)),
+        LogEventLevel.Information => ThemeBrush("VP.SuccessTextBrush", Color.FromRgb(158, 206, 106)),
+        LogEventLevel.Warning => ThemeBrush("VP.WarningTextBrush", Color.FromRgb(224, 175, 104)),
+        LogEventLevel.Error or LogEventLevel.Fatal => ThemeBrush("VP.DangerTextBrush", Color.FromRgb(247, 118, 142)),
+        _ => ThemeBrush("VP.TextSecondaryBrush", Colors.Gray)
     };
 
     public Brush MessageBrush => Level switch
     {
-        LogEventLevel.Warning => new SolidColorBrush(Color.FromRgb(255, 199, 119)),
-        LogEventLevel.Error or LogEventLevel.Fatal => new SolidColorBrush(Color.FromRgb(255, 158, 171)),
-        _ => new SolidColorBrush(Color.FromRgb(192, 202, 245))
+        LogEventLevel.Warning => ThemeBrush("VP.WarningTextBrush", Color.FromRgb(255, 199, 119)),
+        LogEventLevel.Error or LogEventLevel.Fatal => ThemeBrush("VP.DangerTextBrush", Color.FromRgb(255, 158, 171)),
+        _ => ThemeBrush("VP.TextPrimaryBrush", Colors.Black)
     };
+
+    private static Brush ThemeBrush(string key, Color fallback)
+    {
+        if (Application.Current?.TryFindResource(key) is Brush brush) return brush;
+        var fallbackBrush = new SolidColorBrush(fallback);
+        fallbackBrush.Freeze();
+        return fallbackBrush;
+    }
 
     public string DisplayMessage => string.IsNullOrWhiteSpace(Exception)
         ? Message

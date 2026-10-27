@@ -9,6 +9,7 @@ using DiskPilotX.App.ViewModels;
 using DiskPilotX.Core.Enums;
 using DiskPilotX.Core.Models;
 using DiskPilotX.Core.Services.Analysis;
+using DiskPilotX.Core.Services.Assistant;
 using DiskPilotX.Core.Services.Cleanup;
 using DiskPilotX.Core.Services.FileTree;
 using DiskPilotX.Core.Services.Settings;
@@ -38,6 +39,7 @@ public partial class MainWindow
             return AssistantError("当前有磁盘任务正在运行，或尚无可清理结果。");
         if(ids.Count==0)return AssistantError("请先选择具体清理项。");
         _cleanupRunning=true;main.IsCopilotBusy=true;
+        var completedActions = new List<CleanupAction>();
         try
         {
             var items=_recommendationsViewModel.Recommendations.ToList();
@@ -68,7 +70,7 @@ public partial class MainWindow
             if(!approvalCurrent || !plan.MatchesCurrentList(main.CurrentSession,_recommendationsViewModel.Recommendations.ToList(),CurrentDeletionMode))return AssistantError("确认期间清单、选择、目录内容或删除方式已改变，请重新确认。");
             await Task.Run(()=>ValidateCleanupItems(plan,approvedSession!,fromAssistant,ct:ct),ct);
             var progress=new Progress<CleanupProgress>(p=>main.ScanProgressText=$"正在清理 {p.CompletedCount+1}/{p.TotalCount}");
-            var results=new List<CleanupAction>();
+            var results=completedActions;
             foreach(var item in plan.Items)
             {
                 ct.ThrowIfCancellationRequested();
@@ -97,7 +99,7 @@ public partial class MainWindow
         catch(InvalidOperationException){return AssistantError("清理项不在当前允许范围或目录状态已改变，请重新扫描核对后再确认。");}
         catch(IOException){return AssistantError("目录内容正在变化或无法完整读取，未继续清理。请关闭占用程序或重新扫描后重试。");}
         catch(UnauthorizedAccessException){return AssistantError("无法完整读取清理目录，未继续清理。请检查访问权限。");}
-        finally{_cleanupRunning=false;main.IsCopilotBusy=_chatViewModel?.IsOperationRunning==true;}
+        finally{try{App.Services!.GetRequiredService<DiskAssistantService>().RecordCleanupUsage(completedActions);}catch(Exception e){Serilog.Log.Debug("可选使用记录未能保存 {ExceptionType}",e.GetType().Name);}finally{_cleanupRunning=false;main.IsCopilotBusy=_chatViewModel?.IsOperationRunning==true;}}
     }
     private void ValidateCleanupItems(CleanupPlan plan,ScanSession session,bool fromAssistant,CleanupRecommendation? current=null,CancellationToken ct=default)
     {
