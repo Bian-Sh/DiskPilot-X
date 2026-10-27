@@ -38,7 +38,10 @@ public partial class MainWindow
         var position = new Point(x ?? -1, y ?? -1);
         switch (action)
         {
-            case "move": control.HandleHover(position); break;
+            case "move": control.HandlePointerMove(position); break;
+            case "left_down": control.HandleLeftPress(position, 1, false); break;
+            case "left_up": control.HandleLeftRelease(position); break;
+            case "middle_click": control.HandleMiddleClick(position); break;
             case "leave": control.HandleHover(new Point(-1, -1)); break;
             case "click": control.HandleClick(position, 1, false); break;
             case "double_click": control.HandleClick(position, 2, false); break;
@@ -53,10 +56,14 @@ public partial class MainWindow
             HoveredPath = _treemapViewModel?.HoveredNode?.Entry.Path,
             Width = control.ActualWidth,
             Height = control.ActualHeight,
+            Viewport = new { control.Viewport.Zoom, PanX = control.Viewport.X, PanY = control.Viewport.Y },
             Nodes = action == "nodes" ? control.Nodes?.Select(n => new
             {
                 n.Entry.Name, n.Entry.Path, n.Entry.IsDirectory,
-                n.X, n.Y, n.Width, n.Height, n.Depth, n.Label
+                n.X, n.Y, n.Width, n.Height, n.Depth, n.Label, n.ColorHex, n.ContentColorHex, n.AggregatedCount, n.AggregatedSize,
+                ScreenX = n.X * control.Viewport.Zoom + control.Viewport.X,
+                ScreenY = n.Y * control.Viewport.Zoom + control.Viewport.Y,
+                ScreenWidth = n.Width * control.Viewport.Zoom, ScreenHeight = n.Height * control.Viewport.Zoom
             }).ToArray() : null,
         };
     }

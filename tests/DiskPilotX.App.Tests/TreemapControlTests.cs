@@ -4,6 +4,8 @@ using System.Windows;
 using SkiaSharp;
 using SkiaSharp.Views.Desktop;
 using DiskPilotX.App.Controls;
+using DiskPilotX.App.ViewModels;
+using DiskPilotX.Core.Services.Treemap;
 using DiskPilotX.Core.Models;
 
 namespace DiskPilotX.App.Tests;
@@ -109,7 +111,7 @@ public class TreemapControlTests
     });
 
     [Fact]
-    public void FlatTiles_LightSitsAtNodeCenter_AndClearsOnLeave() => InSta(() =>
+    public void FlatTiles_LightFollowsPointer_AndClearsOnLeave() => InSta(() =>
     {
         var node = Node(false, 0, 0, 400, 300);
         node.Label = null;
@@ -122,11 +124,10 @@ public class TreemapControlTests
         Assert.NotNull(hover);
         hover.Invoke(control, [new Point(100, 150)]);
         using var first = Render(control);
-        // 光斑固定在悬停 cell 的中心（跨块光照），不跟随指针。
-        Assert.True(first.GetPixel(200, 150).Red > first.GetPixel(20, 150).Red);
+        Assert.True(first.GetPixel(100, 150).Red > first.GetPixel(300, 150).Red);
         hover.Invoke(control, [new Point(300, 150)]);
         using var second = Render(control);
-        Assert.Equal(first.GetPixel(100, 150), second.GetPixel(100, 150));
+        Assert.True(second.GetPixel(300, 150).Red > second.GetPixel(100, 150).Red);
         hover.Invoke(control, [new Point(-1, -1)]);
         using var cleared = Render(control);
         Assert.Equal(normal.GetPixel(100, 150), cleared.GetPixel(100, 150));
@@ -187,11 +188,11 @@ public class TreemapControlTests
         hover.Invoke(control, [new Point(100, 25)]);
         using var fileTitleHover = Render(control);
         Assert.True(fileTitleHover.GetPixel(150, 25).Red > normal.GetPixel(150, 25).Red);
-        // 悬停目录标题：标题条不被光照覆盖，内容区随父节点光斑（中心在节点中心）变亮。
+        // 悬停目录标题不点亮内容区。
         hover.Invoke(control, [new Point(100, 5)]);
         using var titleHover = Render(control);
         Assert.Equal(normal.GetPixel(150, 10), titleHover.GetPixel(150, 10));
-        Assert.True(titleHover.GetPixel(200, 140).Red > normal.GetPixel(200, 140).Red);
+        Assert.Equal(normal.GetPixel(100, 60), titleHover.GetPixel(100, 60));
     });
 
     [Fact]
@@ -215,6 +216,250 @@ public class TreemapControlTests
         Assert.Same(left, control.HitTest(150, 150));
         Assert.Same(right, control.HitTest(350, 150));
     });
+
+    [Fact]
+    public void LeftDrag_PansFromInsideCell_WithoutClicking() => InSta(() =>
+    {
+        var left = Node(false, 0, 0, 200, 300);
+        var right = Node(false, 200, 0, 200, 300);
+        var control = Sized([left, right]);
+        Call(control, "ZoomAt", 200f, 150f, 2f);
+        Assert.Same(right, control.HitTest(230, 150));
+        int clicks = 0;
+        control.NodeClicked += (_, _) => clicks++;
+        Call(control, "HandleLeftPress", new Point(200, 150), 1, false);
+        Call(control, "HandlePointerMove", new Point(260, 150));
+        Call(control, "HandleLeftRelease", new Point(260, 150));
+        Assert.Equal(0, clicks);
+        Assert.Same(left, control.HitTest(230, 150));
+        Call(control, "HandleLeftPress", new Point(100, 150), 1, false);
+        Call(control, "HandleLeftRelease", new Point(101, 151));
+        Assert.Equal(1, clicks);
+        Assert.Same(left, control.SelectedNode);
+    });
+
+    [Fact]
+    public void LeftClick_CtrlSelectionAndTitleDoubleClickArePreserved() => InSta(() =>
+    {
+        var directory = Node(true, 0, 0, 400, 300);
+        var file = Node(false, 1, 18, 398, 281);
+        file.Depth = 1;
+        var control = Sized([directory, file]);
+        int entered = 0;
+        control.NodeActivated += (_, _) => entered++;
+        Call(control, "HandleLeftPress", new Point(100, 100), 1, true);
+        Call(control, "HandleLeftRelease", new Point(100, 100));
+        Assert.Contains(file, control.MultiSelection);
+        Call(control, "HandleLeftPress", new Point(100, 5), 2, false);
+        Call(control, "HandleLeftRelease", new Point(100, 5));
+        Assert.Equal(1, entered);
+    });
+
+    [Fact]
+    public void FoldedDirectory_HasColoredBodyAndNeutralTitle() => InSta(() =>
+    {
+        var node = Node(true, 0, 0, 400, 300);
+        node.ColorHex = "#303030";
+        node.ContentColorHex = "#2196F3";
+        var control = Sized([node]);
+        using var image = Render(control);
+        Assert.Equal(SKColor.Parse("#303030"), image.GetPixel(300, 10));
+        Assert.Equal(SKColor.Parse("#2196F3"), image.GetPixel(300, 150));
+    });
+
+    [Fact]
+    public void PointerLight_FollowsScreenPositionAfterZoomAndPan() => InSta(() =>
+    {
+        var node = Node(false, 0, 0, 400, 300);
+        node.Label = null;
+        var control = Sized([node]);
+        Call(control, "ZoomAt", 200f, 150f, 2f);
+        Call(control, "HandleHover", new Point(80, 150));
+        using var image = Render(control);
+        Assert.True(image.GetPixel(80, 150).Red > image.GetPixel(300, 150).Red);
+    });
+
+    [Fact]
+    public void Wheel_EntersPointedDirectoryAndReturnsToSavedParentViewport() => InSta(() =>
+    {
+        var (control, vm, root, child) = NavigationFixture();
+        // 扫描根本身有父目录，也不允许滚轮退出到扫描范围外。
+        root.Parent = new FileEntry { Name = "扫描范围外", IsDirectory = true };
+        float savedZoom = 1f, savedX = 0f, savedY = 0f;
+        for (int i = 0; i < 20 && ReferenceEquals(root, vm.CurrentRoot); i++)
+        {
+            savedZoom = vm.Zoom; savedX = Field(control, "_panX"); savedY = Field(control, "_panY");
+            Call(control, "RaiseWheelAt", 90f, 150f, 120);
+        }
+        Assert.Same(child, vm.CurrentRoot);
+        Assert.Equal(1f, vm.Zoom);
+        Assert.Equal(2, vm.BreadcrumbPath.Count);
+        Call(control, "RaiseWheelAt", 90f, 150f, -120);
+        Assert.Same(root, vm.CurrentRoot);
+        Assert.Equal(savedZoom, vm.Zoom);
+        Assert.Equal(savedX, Field(control, "_panX"));
+        Assert.Equal(savedY, Field(control, "_panY"));
+        for (int i = 0; i < 30; i++) Call(control, "RaiseWheelAt", 90f, 150f, -120);
+        Assert.Same(root, vm.CurrentRoot);
+        Assert.Equal(1f, vm.Zoom);
+        Assert.Equal(0f, Field(control, "_panX"));
+        Assert.Equal(0f, Field(control, "_panY"));
+    });
+
+    [Fact]
+    public void MiddleClick_CentersFileParent_AndDoesNotStartPanning() => InSta(() =>
+    {
+        var (control, vm, root, child) = NavigationFixture();
+        var file = control.Nodes!.First(n => !n.Entry.IsDirectory && ReferenceEquals(n.Entry.Parent, child));
+        var click = new Point(file.X + file.Width / 2, file.Y + file.Height / 2);
+        float beforeZoom = vm.Zoom;
+        float beforeWidth = file.Width;
+        Call(control, "HandleMiddleClick", click);
+        Assert.Same(root, vm.CurrentRoot);
+        Assert.Equal(beforeZoom, vm.Zoom);
+        Assert.Equal(beforeWidth, file.Width);
+        var folder = control.Nodes!.Single(n => ReferenceEquals(n.Entry, child));
+        float cx = (folder.X + folder.Width / 2) * vm.Zoom + Field(control, "_panX");
+        float cy = (folder.Y + folder.Height / 2) * vm.Zoom + Field(control, "_panY");
+        Assert.InRange(cx, 199f, 201f);
+        Assert.InRange(cy, 149f, 151f);
+        float before = Field(control, "_panX");
+        Call(control, "HandlePointerMove", new Point(click.X + 40, click.Y + 20));
+        Assert.Equal(before, Field(control, "_panX"));
+    });
+
+    private static (TreemapControl, TreemapViewModel, FileEntry, FileEntry) NavigationFixture(bool tiny = false)
+    {
+        var root = new FileEntry { Name = "根", Path = "C:/根", IsDirectory = true, Size = 1000 };
+        FileEntry Folder(string name)
+        {
+            var dir = new FileEntry { Name = name, Path = root.Path + "/" + name, IsDirectory = true, Size = tiny ? (name == "甲" ? 20 : 980) : 500, Parent = root };
+            root.Children.Add(dir);
+            for (int i = 0; i < 5; i++) dir.Children.Add(new FileEntry { Name = $"文件{i}.js", Path = dir.Path + $"/文件{i}.js", Size = dir.Size / 5, Parent = dir });
+            return dir;
+        }
+        var child = Folder("甲");
+        Folder("乙");
+        var vm = new TreemapViewModel(new SquarifiedTreemapLayout());
+        var control = Sized([]);
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(vm.CurrentRoot)) Call(control, "SetViewRoot", vm.CurrentRoot, vm.ScanRoot);
+            if (e.PropertyName == nameof(vm.Nodes)) control.Nodes = vm.Nodes;
+        };
+        control.RootNavigationRequested += (_, dir) => vm.NavigateToEntry(dir);
+        control.ZoomChanged += (_, zoom) => vm.SetZoom(zoom);
+        vm.UpdateSize(400, 300);
+        vm.SetRoot(root);
+        return (control, vm, root, child);
+    }
+
+    [Fact]
+    public void ZoomRelayout_KeepsLightUnderStationaryPointer() => InSta(() =>
+    {
+        var (control, _, _, _) = NavigationFixture();
+        Call(control, "HandleHover", new Point(90, 150));
+        Call(control, "RaiseWheelAt", 90f, 150f, 120);
+        var hovered = typeof(TreemapControl).GetField("_lastHoveredNode", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(control);
+        Assert.NotNull(hovered);
+        Assert.Same(control.HitTest(90, 150), hovered);
+    });
+
+    [Fact]
+    public void MiddleClick_TinyEdgeFolderKeepsScaleAndCentersWithoutNavigation() => InSta(() =>
+    {
+        var (control, vm, root, child) = NavigationFixture(tiny: true);
+        var node = control.Nodes!.Single(n => ReferenceEquals(n.Entry, child));
+        float beforeWidth = node.Width;
+        Call(control, "HandleMiddleClick", new Point(node.X + node.Width / 2, node.Y + node.Height / 2));
+        Assert.Same(root, vm.CurrentRoot);
+        Assert.Equal(1f, vm.Zoom);
+        Assert.Equal(beforeWidth, node.Width);
+        Assert.Equal(200f, node.X + node.Width / 2 + Field(control, "_panX"), 1);
+        Assert.Equal(150f, node.Y + node.Height / 2 + Field(control, "_panY"), 1);
+        Call(control, "RaiseWheelAt", 200f, 150f, -120);
+        Assert.Equal(0f, Field(control, "_panX"));
+        Assert.Equal(0f, Field(control, "_panY"));
+        Assert.Same(root, vm.CurrentRoot);
+    });
+
+    [Fact]
+    public void AggregateZoom_PreservesItsOwnAnchorInsteadOfParent_AndHasNoDirectoryTitle() => InSta(() =>
+    {
+        var parent = new FileEntry { Name = "目录", Path = "C:/目录", IsDirectory = true, Size = 1000 };
+        var folder = Node(true, 0, 0, 400, 300);
+        folder.Entry = parent;
+        var tail = Node(true, 200, 30, 200, 270);
+        tail.Entry = parent; tail.Depth = 1; tail.AggregatedCount = 500;
+        var control = Sized([folder, tail]);
+        int activations = 0;
+        control.NodeActivated += (_, _) => activations++;
+        Call(control, "HandleClick", new Point(250, 35), 2, false);
+        Assert.Equal(0, activations);
+        control.ZoomChanged += (_, _) => control.Nodes = [folder, tail];
+        Call(control, "RaiseWheelAt", 250f, 100f, 120);
+        Assert.Same(tail, control.HitTest(250, 100));
+        Assert.Equal(-62.5f, Field(control, "_panX"), 2);
+        Assert.Equal(-25f, Field(control, "_panY"), 2);
+    });
+
+    [Fact]
+    public void MultiSelection_UsesPureWhiteOutline() => InSta(() =>
+    {
+        var node = Node(false, 50, 40, 200, 180);
+        var control = Sized([node]);
+        Call(control, "HandleClick", new Point(100, 100), 1, true);
+        using var image = Render(control);
+        Assert.Equal(SKColors.White, image.GetPixel(49, 100));
+    });
+
+    [Fact]
+    public void WheelExit_VisitsImmediateParentWhenEnteringSeveralLevelsAtOnce() => InSta(() =>
+    {
+        var (control, vm, root, parent) = NavigationFixture();
+        var nested = new FileEntry { Name = "内层", Path = parent.Path + "/内层", IsDirectory = true, Size = parent.Size, Parent = parent };
+        foreach (var file in parent.Children) { file.Parent = nested; nested.Children.Add(file); }
+        parent.Children.Clear();
+        parent.Children.Add(nested);
+        vm.UpdateSize(400, 300);
+        for (int i = 0; i < 25 && ReferenceEquals(root, vm.CurrentRoot); i++) Call(control, "RaiseWheelAt", 90f, 150f, 120);
+        Assert.Same(nested, vm.CurrentRoot);
+        Call(control, "RaiseWheelAt", 90f, 150f, -120);
+        Assert.Same(parent, vm.CurrentRoot);
+        Call(control, "RaiseWheelAt", 90f, 150f, -120);
+        Assert.Same(root, vm.CurrentRoot);
+    });
+
+    [Fact]
+    public void FocusNode_AfterMiddleCenterRestoresNormalFullViewPanBounds() => InSta(() =>
+    {
+        var (control, _, _, _) = NavigationFixture();
+        Call(control, "HandleMiddleClick", new Point(90, 150));
+        control.FocusNode(control.Nodes![0]);
+        Call(control, "HandleLeftPress", new Point(200, 150), 1, false);
+        Call(control, "HandlePointerMove", new Point(260, 170));
+        Call(control, "HandleLeftRelease", new Point(260, 170));
+        Assert.Equal(0f, Field(control, "_panX"));
+        Assert.Equal(0f, Field(control, "_panY"));
+    });
+
+    private static TreemapControl Sized(List<TreemapNode> nodes)
+    {
+        var control = new TreemapControl { Nodes = nodes };
+        control.Measure(new Size(400, 300));
+        control.Arrange(new Rect(0, 0, 400, 300));
+        return control;
+    }
+
+    private static float Field(TreemapControl control, string name) =>
+        (float)typeof(TreemapControl).GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(control)!;
+
+    private static void Call(TreemapControl control, string name, params object?[] args)
+    {
+        var method = typeof(TreemapControl).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance);
+        Assert.NotNull(method);
+        method.Invoke(control, args);
+    }
 
     private static SKBitmap Render(TreemapControl control)
     {

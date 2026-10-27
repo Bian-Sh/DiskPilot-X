@@ -57,6 +57,11 @@ public partial class TreemapView : UserControl
     public TreemapView()
     {
         InitializeComponent();
+        // 事件只绑定一次，替换 ViewModel 不累积旧委托。
+        Treemap.MultiSelectionChanged += (_, _) => _viewModel?.SetMultiSelection(Treemap.MultiSelection.ToList());
+        Treemap.ZoomChanged += (_, zoom) => _viewModel?.SetZoom(zoom);
+        Treemap.RootNavigationRequested += (_, entry) => _viewModel?.NavigateToEntry(entry);
+
     }
 
     public void SetViewModel(TreemapViewModel vm)
@@ -71,22 +76,21 @@ public partial class TreemapView : UserControl
         _viewModel.PropertyChanged += ViewModel_PropertyChanged;
 
         // Sync initial state
+        Treemap.SetViewRoot(_viewModel.CurrentRoot, _viewModel.ScanRoot);
         Treemap.Nodes = _viewModel.Nodes;
         Treemap.SelectedNode = _viewModel.SelectedNode;
         UpdateEmptyState();
 
-        // 同步多选集合到 ViewModel（供 AI 引用）。
-        Treemap.MultiSelectionChanged += (_, _) =>
-            _viewModel?.SetMultiSelection(Treemap.MultiSelection.ToList());
 
-        // 缩放级别变化 → 触发 LOD 重布局（zoom 增大展开更多层级）。
-        Treemap.ZoomChanged += (_, zoom) => _viewModel?.SetZoom(zoom);
     }
 
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)
         {
+            case nameof(TreemapViewModel.CurrentRoot):
+                Treemap.SetViewRoot(_viewModel?.CurrentRoot, _viewModel?.ScanRoot);
+                break;
             case nameof(TreemapViewModel.SelectedNode):
                 Treemap.SelectedNode = _viewModel?.SelectedNode;
                 break;

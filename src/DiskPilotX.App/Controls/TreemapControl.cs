@@ -39,6 +39,7 @@ public class TreemapControl : SKElement
     private TreemapNode? _selectedNode;
     private readonly HashSet<TreemapNode> _multiSelection = new();
     private Point _hoverPosition;
+    private bool _pointerInside;
     private readonly DispatcherTimer _toolTipTimer;
 
     // ── 视口变换（逻辑坐标 → 屏幕坐标：screen = logical * zoom + pan）──
@@ -49,6 +50,14 @@ public class TreemapControl : SKElement
 
     // ── 拖拽平移状态 ──
     private bool _isPanning;
+    private int _pressClickCount;
+    private bool _pressCtrlHeld;
+    private FileEntry? _viewRoot;
+    private FileEntry? _scanRoot;
+    private bool _wheelNavigating;
+    private bool _allowCenteredPan;
+    private readonly Stack<ViewportFrame> _wheelHistory = new();
+    private sealed record ViewportFrame(FileEntry Root, float Zoom, float PanX, float PanY, bool Centered);
     private Point _panStartScreen;
     private float _panStartPanX;
     private float _panStartPanY;
@@ -56,6 +65,7 @@ public class TreemapControl : SKElement
 
     // ── 缩放锚点：LOD 重布局后保持指针下的节点相对位置不变 ──
     private FileEntry? _zoomAnchorEntry;
+    private bool _zoomAnchorAggregate;
     private float _zoomAnchorFx;
     private float _zoomAnchorFy;
     private Point _zoomAnchorScreen;
@@ -70,6 +80,7 @@ public class TreemapControl : SKElement
             ClearMultiSelection();
             ClearHover();
             ApplyZoomAnchor();
+            if (_pointerInside && !_isPanning) HandleHover(_hoverPosition);
             InvalidateVisual();
         }
     }
@@ -86,6 +97,7 @@ public class TreemapControl : SKElement
     }
 
     public IReadOnlyCollection<TreemapNode> MultiSelection => _multiSelection;
+    internal (float Zoom, float X, float Y) Viewport => (_zoom, _panX, _panY);
 
     public event EventHandler<TreemapNode>? NodeClicked;
     public event EventHandler<TreemapNode>? NodeActivated;
@@ -95,6 +107,23 @@ public class TreemapControl : SKElement
 
     /// <summary>缩放级别改变时触发（参数为新 zoom），供 LOD 重布局。</summary>
     public event EventHandler<float>? ZoomChanged;
+    public event EventHandler<FileEntry>? RootNavigationRequested;
+
+    /// <summary>切换层级时同步视口；普通导航清除滚轮历史，滚轮导航保留返回位置。</summary>
+    internal void SetViewRoot(FileEntry? root, FileEntry? scanRoot)
+    {
+        _scanRoot = scanRoot;
+        if (ReferenceEquals(root, _viewRoot)) return;
+        _viewRoot = root;
+        _allowCenteredPan = false;
+        _zoom = MinZoom;
+        _panX = _panY = 0;
+        _zoomAnchorEntry = null;
+        if (!_wheelNavigating) _wheelHistory.Clear();
+        if (_isPanning) EndPan();
+        ClearHover();
+        InvalidateVisual();
+    }
 
     public TreemapControl()
     {
@@ -186,7 +215,7 @@ public class TreemapControl : SKElement
 
         foreach (var node in sortedNodes)
         {
-            if (node.Entry.IsDirectory)
+            if (node.Entry.IsDirectory && node.AggregatedCount == 0)
             {
                 DrawDirectoryNode(canvas, node, fillPaint, borderPaint, textPaint, labelFont);
             }
@@ -198,10 +227,10 @@ public class TreemapControl : SKElement
 
         DrawPointerLight(canvas);
 
-        // 多选集合先画蓝色描边（除当前选中焦点外）。
+        // 多选集合先画纯白描边（除当前选中焦点外）。
         foreach (var node in _multiSelection)
         {
-            if (node != SelectedNode) DrawOutline(canvas, node, Spec(2f), new SKColor(66, 165, 245));
+            if (node != SelectedNode) DrawOutline(canvas, node, Spec(2f), SKColors.White);
         }
 
         // 最后叠加选中态纯白粗框 + 悬停细白框，目录选择框不会被子块覆盖。
@@ -216,9 +245,10 @@ public class TreemapControl : SKElement
     {
         var rect = NodeRect(node);
         // 目录（含标题栏）使用中性色，颜色由布局引擎统一分配。
-        fillPaint.Color = SKColor.Parse(string.IsNullOrWhiteSpace(node.ColorHex) ? "#303030" : node.ColorHex);
+        var titleColor = SKColor.Parse(string.IsNullOrWhiteSpace(node.ColorHex) ? "#303030" : node.ColorHex);
+        fillPaint.Color = SKColor.Parse(node.ContentColorHex ?? node.ColorHex);
         canvas.DrawRect(rect, fillPaint);
-        borderPaint.Color = DarkenColor(fillPaint.Color, 0.20f);
+        borderPaint.Color = DarkenColor(titleColor, 0.20f);
         borderPaint.StrokeWidth = Spec(1f);
         var frame = rect;
         frame.Inflate(-Spec(0.5f), -Spec(0.5f));
@@ -226,8 +256,12 @@ public class TreemapControl : SKElement
 
         float headerHeight = GetHeaderHeight(node.Height);
         if (node.Label is not null && headerHeight >= Spec(14f))
+        {
+            fillPaint.Color = titleColor;
+            canvas.DrawRect(new SKRect(rect.Left, rect.Top, rect.Right, rect.Top + headerHeight), fillPaint);
             DrawLabel(canvas, node.Label, node.X + Spec(3f), node.Y + headerHeight / 2f + Spec(3.5f),
-                node.Width - Spec(6f), textPaint, font, fillPaint.Color);
+                node.Width - Spec(6f), textPaint, font, titleColor);
+        }
 
         if (node.Entry.IsAccessDenied)
             DrawAccessDeniedOverlay(canvas, rect);
@@ -238,7 +272,8 @@ public class TreemapControl : SKElement
         SKPaint fillPaint, SKPaint borderPaint, SKPaint textPaint, SKFont font)
     {
         var rect = NodeRect(node);
-        rect.Inflate(-Spec(0.5f), -Spec(0.5f)); // cell 间留 1px 细缝（屏幕像素恒定），边界更清晰
+        bool detailed = Math.Min(rect.Width, rect.Height) >= Spec(5f);
+        if (detailed) rect.Inflate(-Spec(0.5f), -Spec(0.5f)); // 小于 5px 时优先保留占用色
         var color = SKColor.Parse(node.ColorHex);
         fillPaint.Color = color;
         canvas.DrawRect(rect, fillPaint);
@@ -247,7 +282,7 @@ public class TreemapControl : SKElement
         borderPaint.StrokeWidth = Spec(0.5f);
         var frame = rect;
         frame.Inflate(-Spec(0.25f), -Spec(0.25f));
-        canvas.DrawRect(frame, borderPaint);
+        if (detailed) canvas.DrawRect(frame, borderPaint);
 
         if (node.Label is not null && rect.Height >= Spec(14f))
             DrawLabel(canvas, node.Label, rect.Left + Spec(3f), rect.Top + Spec(11f),
@@ -266,9 +301,11 @@ public class TreemapControl : SKElement
     private void DrawPointerLight(SKCanvas canvas)
     {
         if (_lastHoveredNode is null) return;
-        // 用悬停节点在逻辑坐标里的中心做光斑，避免与视口缩放/平移错位。
-        var node = _lastHoveredNode;
-        var center = new SKPoint(node.X + node.Width / 2f, node.Y + node.Height / 2f);
+        // 指针先逆变换为布局坐标，缩放、平移后光晕仍跟随鼠标。
+        var center = new SKPoint((float)(_hoverPosition.X - _panX) / _zoom,
+            (float)(_hoverPosition.Y - _panY) / _zoom);
+        if (_lastHoveredNode.Entry.IsDirectory && _lastHoveredNode.AggregatedCount == 0
+            && center.Y < _lastHoveredNode.Y + GetDirectoryTitleHeight(_lastHoveredNode)) return;
         using var light = SKShader.CreateRadialGradient(center, Spec(150f),
             [new SKColor(255, 255, 255, 42), new SKColor(255, 255, 255, 0)],
             [0f, 1f], SKShaderTileMode.Clamp);
@@ -288,12 +325,12 @@ public class TreemapControl : SKElement
 
     private float GetDirectoryTitleHeight(TreemapNode node)
     {
-        if (!node.Entry.IsDirectory || node.Label is null) return 0f;
+        if (!node.Entry.IsDirectory || node.AggregatedCount > 0 || node.Label is null) return 0f;
         float height = GetHeaderHeight(node.Height);
         return height >= Spec(14f) && node.Height >= height ? height : 0f;
     }
 
-    private static void DrawOutline(SKCanvas canvas, TreemapNode? node, float width, SKColor color)
+    private void DrawOutline(SKCanvas canvas, TreemapNode? node, float width, SKColor color)
     {
         if (node is null || !node.IsVisible) return;
         using var paint = new SKPaint
@@ -304,7 +341,7 @@ public class TreemapControl : SKElement
             IsAntialias = false,
         };
         var rect = NodeRect(node);
-        float outset = width > 1f ? width / 2f : -width / 2f;
+        float outset = width > Spec(1f) ? width / 2f : -width / 2f;
         rect.Inflate(outset, outset);
         canvas.DrawRect(rect, paint);
     }
@@ -392,48 +429,55 @@ public class TreemapControl : SKElement
         return deepest;
     }
 
-    // ── 左键：单击选中 / Ctrl 多选 / 双击钻取 / 空白拖拽平移 ──
+    // 左键按下后先捕获，释放时才区分点击与拖动，避免平移误触选择或钻取。
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
         Focus();
-        var pos = e.GetPosition(this);
-        var node = HitTest(pos.X, pos.Y);
-
-        if (node is null)
-        {
-            // 空白处开始拖拽平移。
-            BeginPan(pos);
-            e.Handled = true;
-            return;
-        }
-
-        HandleClick(pos, e.ClickCount, Keyboard.Modifiers.HasFlag(ModifierKeys.Control));
+        HandleLeftPress(e.GetPosition(this), e.ClickCount, Keyboard.Modifiers.HasFlag(ModifierKeys.Control));
+        CaptureMouse();
         e.Handled = true;
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
-        if (_isPanning)
-            EndPan();
+        HandleLeftRelease(e.GetPosition(this));
+        e.Handled = true;
     }
 
-    private void BeginPan(Point pos)
+    internal void HandleLeftPress(Point pos, int clickCount, bool ctrlHeld)
     {
         _isPanning = true;
         _panStartScreen = pos;
         _panStartPanX = _panX;
         _panStartPanY = _panY;
         _panDragExceededThreshold = false;
-        CaptureMouse();
-        Cursor = Cursors.SizeAll;
+        _pressClickCount = clickCount;
+        _pressCtrlHeld = ctrlHeld;
+    }
+
+    internal void HandleLeftRelease(Point pos)
+    {
+        if (!_isPanning) return;
+        HandlePointerMove(pos);
+        bool click = !_panDragExceededThreshold;
+        EndPan();
+        if (click) HandleClick(pos, _pressClickCount, _pressCtrlHeld);
+        HandleHover(pos);
     }
 
     private void EndPan()
     {
         _isPanning = false;
-        ReleaseMouseCapture();
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        Cursor = Cursors.Arrow;
+    }
+
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+        _isPanning = false;
         Cursor = Cursors.Arrow;
     }
 
@@ -459,7 +503,7 @@ public class TreemapControl : SKElement
 
         float headerHeight = GetHeaderHeight(node.Height);
         double logicalY = (position.Y - _panY) / _zoom;
-        if (clickCount == 2 && node.Entry.IsDirectory && node.Label is not null
+        if (clickCount == 2 && node.Entry.IsDirectory && node.AggregatedCount == 0 && node.Label is not null
             && headerHeight >= Spec(14f) && logicalY < node.Y + headerHeight)
         {
             // 双击钻取目录。
@@ -487,52 +531,63 @@ public class TreemapControl : SKElement
         InvalidateVisual();
     }
 
-    // ── 中键：按住拖拽平移（按需平移）──
+    // 中键只执行一次所在目录居中，不捕获鼠标，也不开始平移。
     protected override void OnMouseDown(MouseButtonEventArgs e)
     {
         base.OnMouseDown(e);
-        if (e.ChangedButton == MouseButton.Middle)
-        {
-            BeginPan(e.GetPosition(this));
-            e.Handled = true;
-        }
-    }
-
-    protected override void OnMouseUp(MouseButtonEventArgs e)
-    {
-        base.OnMouseUp(e);
-        if (e.ChangedButton == MouseButton.Middle && _isPanning)
-        {
-            EndPan();
-            e.Handled = true;
-        }
+        if (e.ChangedButton != MouseButton.Middle) return;
+        HandleMiddleClick(e.GetPosition(this));
+        e.Handled = true;
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
+        HandlePointerMove(e.GetPosition(this));
+    }
 
-        var pos = e.GetPosition(this);
+    internal void HandlePointerMove(Point pos)
+    {
+        if (!_isPanning) { HandleHover(pos); return; }
+        double dx = pos.X - _panStartScreen.X;
+        double dy = pos.Y - _panStartScreen.Y;
+        if (!_panDragExceededThreshold && Math.Abs(dx) < DragThreshold && Math.Abs(dy) < DragThreshold) return;
+        _panDragExceededThreshold = true;
+        _panX = _panStartPanX + (float)dx;
+        _panY = _panStartPanY + (float)dy;
+        ClampPan();
+        Cursor = Cursors.SizeAll;
+        ClearHover();
+        InvalidateVisual();
+    }
 
-        if (_isPanning)
+    internal void HandleMiddleClick(Point position)
+    {
+        var folder = DirectoryAt(position, includeRoot: true);
+        if (folder is null) return;
+        // 中键只平移：不改变倍率、不重布局、不进入目录，cell 屏幕尺寸保持不变。
+        _allowCenteredPan = true;
+        _zoomAnchorEntry = null;
+        _panX = (float)ActualWidth / 2f - (folder.X + folder.Width / 2f) * _zoom;
+        _panY = (float)ActualHeight / 2f - (folder.Y + folder.Height / 2f) * _zoom;
+        ClampPan();
+        HandleHover(position);
+        InvalidateVisual();
+    }
+
+    private TreemapNode? DirectoryAt(Point position, bool includeRoot = false)
+    {
+        var hit = HitTest(position.X, position.Y);
+        var entry = hit?.Entry.IsDirectory == true ? hit.Entry : hit?.Entry.Parent;
+        while (entry is not null)
         {
-            double dx = pos.X - _panStartScreen.X;
-            double dy = pos.Y - _panStartScreen.Y;
-            if (!_panDragExceededThreshold &&
-                Math.Abs(dx) < DragThreshold && Math.Abs(dy) < DragThreshold)
-                return;
-            _panDragExceededThreshold = true;
-            _panX = _panStartPanX + (float)dx;
-            _panY = _panStartPanY + (float)dy;
-            ClampPan();
-            Cursor = Cursors.SizeAll;
-            _toolTipTimer.Stop();
-            _toolTip.IsOpen = false;
-            InvalidateVisual();
-            return;
+            if (!includeRoot && ReferenceEquals(entry, _viewRoot)) return null;
+            var node = _nodes?.FirstOrDefault(n => n.IsVisible && n.AggregatedCount == 0
+                && ReferenceEquals(n.Entry, entry));
+            if (node is not null && entry.Size > 0 && (includeRoot || entry.Children.Any(c => c.Size > 0))) return node;
+            entry = entry.Parent;
         }
-
-        HandleHover(pos);
+        return null;
     }
 
     // ── 滚轮缩放（指针锚定）+ 键盘缩放/平移 ──
@@ -548,8 +603,7 @@ public class TreemapControl : SKElement
         }
         else
         {
-            float factor = e.Delta > 0 ? ZoomStep : 1f / ZoomStep;
-            ZoomAt((float)pos.X, (float)pos.Y, factor);
+            RaiseWheelAt((float)pos.X, (float)pos.Y, e.Delta);
         }
         e.Handled = true;
     }
@@ -557,13 +611,36 @@ public class TreemapControl : SKElement
     /// <summary>验收/测试注入：在指定控件坐标处执行一次滚轮缩放。</summary>
     internal void RaiseWheelAt(float x, float y, int delta)
     {
-        float factor = delta > 0 ? ZoomStep : 1f / ZoomStep;
+        if (delta == 0) return;
+        float factor = MathF.Pow(ZoomStep, delta / 120f);
         ZoomAt(x, y, factor);
+        if (!_isPanning) HandleHover(new Point(x, y));
     }
 
     private void ZoomAt(float screenX, float screenY, float factor)
     {
-        float newZoom = Math.Clamp(_zoom * factor, MinZoom, MaxZoom);
+        var position = new Point(screenX, screenY);
+        if (factor < 1f && _zoom <= MinZoom + 0.0001f)
+        {
+            if (_allowCenteredPan) { ResetView(); return; }
+            ExitWheelLevel();
+            return;
+        }
+        var target = DirectoryAt(position);
+        float ceiling = MaxZoom;
+        if (target is not null)
+        {
+            float bodyHeight = target.Height - GetDirectoryTitleHeight(target);
+            ceiling = Math.Clamp(Math.Min((float)ActualWidth / target.Width,
+                (float)ActualHeight / Math.Max(bodyHeight, Spec(1f))), MinZoom, MaxZoom);
+        }
+        if (factor > 1f && target is not null && _viewRoot is not null && _zoom >= ceiling - 0.0001f)
+        {
+            EnterWheelLevel(target.Entry);
+            return;
+        }
+        // 缩小时不能因指针碰到另一目录而突然跳变到更小的适配上限。
+        float newZoom = Math.Clamp(_zoom * factor, MinZoom, factor > 1f ? Math.Max(_zoom, ceiling) : MaxZoom);
         if (Math.Abs(newZoom - _zoom) < 1e-6f) return;
 
         // 记录锚点：指针下的节点及其内部相对位置，LOD 重布局后对齐回来。
@@ -574,6 +651,7 @@ public class TreemapControl : SKElement
             float anchorLogicalX = ((float)screenX - _panX) / _zoom;
             float anchorLogicalY = ((float)screenY - _panY) / _zoom;
             _zoomAnchorEntry = anchorNode.Entry;
+            _zoomAnchorAggregate = anchorNode.AggregatedCount > 0;
             _zoomAnchorFx = (anchorLogicalX - anchorNode.X) / anchorNode.Width;
             _zoomAnchorFy = (anchorLogicalY - anchorNode.Y) / anchorNode.Height;
             _zoomAnchorScreen = new Point(screenX, screenY);
@@ -587,12 +665,53 @@ public class TreemapControl : SKElement
         if (_zoom <= MinZoom)
         {
             // 回到 1x：整图恰好铺满视口，复位平移。
+            _allowCenteredPan = false;
             _panX = 0f;
             _panY = 0f;
             _zoomAnchorEntry = null;
         }
         ClampPan();
         ZoomChanged?.Invoke(this, _zoom);
+        InvalidateVisual();
+    }
+
+    private void EnterWheelLevel(FileEntry directory)
+    {
+        if (_viewRoot is null || RootNavigationRequested is null) return;
+        var frame = new ViewportFrame(_viewRoot, _zoom, _panX, _panY, _allowCenteredPan);
+        _wheelNavigating = true;
+        try
+        {
+            RootNavigationRequested.Invoke(this, directory);
+            if (ReferenceEquals(_viewRoot, directory)) _wheelHistory.Push(frame);
+        }
+        finally { _wheelNavigating = false; }
+    }
+
+    private void ExitWheelLevel()
+    {
+        if (_viewRoot is null || ReferenceEquals(_viewRoot, _scanRoot) || RootNavigationRequested is null) return;
+        var parent = _viewRoot.Parent;
+        if (parent is null) return;
+        var saved = _wheelHistory.Count > 0 ? _wheelHistory.Peek() : null;
+        // 进入时可能跨过多个已展开层级；退出仍按真实父目录逐层返回。
+        var frame = saved is not null && ReferenceEquals(saved.Root, parent) ? _wheelHistory.Pop() : null;
+        _wheelNavigating = true;
+        try
+        {
+            RootNavigationRequested.Invoke(this, parent);
+            if (frame is not null && ReferenceEquals(parent, _viewRoot))
+            {
+                _zoom = frame.Zoom;
+                _allowCenteredPan = frame.Centered;
+                _panX = frame.PanX;
+                _panY = frame.PanY;
+                _zoomAnchorEntry = null;
+                ZoomChanged?.Invoke(this, _zoom);
+                ClampPan();
+            }
+        }
+        finally { _wheelNavigating = false; }
         InvalidateVisual();
     }
 
@@ -604,7 +723,8 @@ public class TreemapControl : SKElement
         var entry = _zoomAnchorEntry;
         _zoomAnchorEntry = null;
         var node = _nodes?.FirstOrDefault(n => n.IsVisible
-            && string.Equals(n.Entry.Path, entry.Path, StringComparison.OrdinalIgnoreCase));
+            && (n.AggregatedCount > 0) == _zoomAnchorAggregate
+            && ReferenceEquals(n.Entry, entry));
         if (node is null || node.Width <= 0 || node.Height <= 0)
             return;
         float anchorX = node.X + _zoomAnchorFx * node.Width;
@@ -614,19 +734,22 @@ public class TreemapControl : SKElement
         ClampPan();
     }
 
-    /// <summary>钳制平移量：地图始终铺满视口，任何 zoom 下都不露出空白。</summary>
+    /// <summary>普通平移约束在地图内；中键明确要求居中时，允许边缘点移到视口中心。</summary>
     private void ClampPan()
     {
         if (ActualWidth <= 0 || ActualHeight <= 0)
             return;
         float minX = (float)ActualWidth * (1f - _zoom);
         float minY = (float)ActualHeight * (1f - _zoom);
-        _panX = Math.Clamp(_panX, minX, 0f);
-        _panY = Math.Clamp(_panY, minY, 0f);
+        float marginX = _allowCenteredPan ? (float)ActualWidth / 2f : 0f;
+        float marginY = _allowCenteredPan ? (float)ActualHeight / 2f : 0f;
+        _panX = Math.Clamp(_panX, minX - marginX, marginX);
+        _panY = Math.Clamp(_panY, minY - marginY, marginY);
     }
 
     public void ResetView()
     {
+        _allowCenteredPan = false;
         if (_zoom != 1f || _panX != 0f || _panY != 0f)
         {
             _zoom = 1f;
@@ -663,6 +786,8 @@ public class TreemapControl : SKElement
     internal void HandleHover(Point position)
     {
         _hoverPosition = position;
+        _pointerInside = position.X >= 0 && position.Y >= 0
+            && position.X < ActualWidth && position.Y < ActualHeight;
         var node = HitTest(position.X, position.Y);
         if (node == _lastHoveredNode)
         {
@@ -684,6 +809,7 @@ public class TreemapControl : SKElement
     protected override void OnMouseLeave(MouseEventArgs e)
     {
         base.OnMouseLeave(e);
+        _pointerInside = false;
         ClearHover();
     }
 
@@ -843,6 +969,7 @@ public class TreemapControl : SKElement
         if (_nodes is null || !_nodes.Contains(node)) return;
 
         // 复位视口缩放/平移，确保目标以 1:1 可见，并同步 LOD 级别。
+        _allowCenteredPan = false;
         _zoom = 1f;
         _panX = 0f;
         _panY = 0f;

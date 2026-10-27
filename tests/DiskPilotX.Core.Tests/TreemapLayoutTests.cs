@@ -74,6 +74,23 @@ public class TreemapLayoutTests
         Assert.Equal(9f, h2, 1);
     }
 
+    [Fact]
+    public void ManyTinyFiles_KeepVisibleColorAndAccountForTail()
+    {
+        var root = Directory("根");
+        for (int i = 0; i < 600; i++) File($"文件{i}.js", root, 100);
+        root.Size = 60000;
+        var nodes = new SquarifiedTreemapLayout().ComputeLayout(root, 1200, 800, 64);
+        // 不能只保留前 20 项并把它们错误放大为全部占用。
+        Assert.True(nodes.Count > 21);
+        var tail = Assert.Single(nodes.Where(n => n.AggregatedCount > 0));
+        Assert.Equal(472, tail.AggregatedCount);
+        Assert.Equal(47200, tail.AggregatedSize);
+        Assert.Same(root, tail.Entry);
+        var first = nodes.First(n => n.Entry.Name == "文件0.js");
+        Assert.True(first.Width * first.Height < 1200 * 800 / 300f);
+    }
+
     private static FileEntry Directory(string name, FileEntry? parent = null)
     {
         var entry = new FileEntry { Name = name, Path = name, IsDirectory = true, Parent = parent };
@@ -89,10 +106,9 @@ public class TreemapLayoutTests
     }
 
     [Fact]
-    public void Lod_ZoomIn_RevealsDeeperLevels()
+    public void LargeDirectories_AreNotCutOffByZoomDepthBudget()
     {
-        // 构造深嵌套树：每层一个大目录包一个小目录 + 一个文件。
-        // zoom=1 时深度预算小（~3 层），zoom=8 时展开到底（8 层），节点数应增加。
+        // 有足够屏幕空间的目录应立即展开，不依赖硬性 zoom 深度预算。
         var root = Directory("根");
         var current = root;
         for (int i = 0; i < 8; i++)
@@ -108,7 +124,7 @@ public class TreemapLayoutTests
         var lowZoom = engine.ComputeLayout(root, 800, 600, 8, zoom: 1f);
         var highZoom = engine.ComputeLayout(root, 800, 600, 8, zoom: 8f);
 
-        Assert.True(highZoom.Count > lowZoom.Count,
-            $"zoom=8 应比 zoom=1 展开更多节点（实际 {lowZoom.Count} vs {highZoom.Count}）");
+        Assert.Equal(8, lowZoom.Max(n => n.Depth));
+        Assert.True(highZoom.Count >= lowZoom.Count);
     }
 }

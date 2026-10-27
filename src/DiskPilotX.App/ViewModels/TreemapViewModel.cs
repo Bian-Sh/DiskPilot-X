@@ -64,6 +64,12 @@ public partial class TreemapViewModel : ObservableObject
         _layoutEngine = layoutEngine;
     }
 
+    partial void OnCurrentRootChanged(FileEntry? value)
+    {
+        // 每次进入新层级从完整视图起步，控制器负责恢复滚轮返回时的父级视口。
+        Zoom = 1f;
+    }
+
     public void SetRoot(FileEntry root, ScanSession? session = null)
     {
         _scanRoot = root;
@@ -450,7 +456,7 @@ public partial class TreemapViewModel : ObservableObject
             return;
         }
 
-        Nodes = _layoutEngine.ComputeLayout(CurrentRoot, ViewWidth, ViewHeight, maxDepth: 8, zoom: Zoom);
+        Nodes = _layoutEngine.ComputeLayout(CurrentRoot, ViewWidth, ViewHeight, maxDepth: 64, zoom: Zoom);
         // 导航/钻取后清空多选集合。
         MultiSelection = Array.Empty<TreemapNode>();
     }
