@@ -31,6 +31,7 @@ public sealed record ChatMessage(ChatRole Role, string? Content)
     public IReadOnlyList<ToolCall> ToolCalls { get; init; } = [];
     public string? ToolCallId { get; init; }
     public string? ToolName { get; init; }
+    public ModelTokenUsage? Usage { get; init; }
     public IReadOnlyList<ChatContentBlock> Blocks { get; init; } = [];
 
     public static ChatMessage System(string content) => new(ChatRole.System, content);

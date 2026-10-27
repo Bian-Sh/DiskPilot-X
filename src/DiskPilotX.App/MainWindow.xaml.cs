@@ -146,4 +146,38 @@ public partial class MainWindow : Window
         _acceptanceAutomationServer ??= AcceptanceAutomationServer.StartIfEnabled(this);
     }
 
+    // ── Bottom panel row clamp ─────────────────────────────────────────────
+    // 防止分割线把底部面板拖得超出可用空间（裁掉「清理/分析」汇总栏）或挤得
+    // 比内容最小高度还小（同样裁掉汇总栏）。
+    // 做法：不碰拖拽事件流（DragDelta 会干扰 GridSplitter 的拖拽循环），
+    // 改为给行 3 设 MinHeight/MaxHeight —— Grid 布局层天然钳制，splitter 自身拖拽也尊重 Min/Max。
+
+    private void ContentGrid_SizeChanged(object sender, SizeChangedEventArgs e)
+        => UpdateBottomPanelRowLimits();
+
+    private void UpdateBottomPanelRowLimits()
+    {
+        const double minUpperRowHeight = 220; // RowDefinition MinHeight of the treemap row
+
+        var row = RecommendationsPanelRow;
+
+        // 下限：tab 栏 + 内容区最小高度，再留 2px 余量，避免拖到底把汇总栏裁掉
+        double contentMin = BottomTabBar.ActualHeight + BottomContentGrid.MinHeight + 2;
+        if (contentMin > 2)
+            row.MinHeight = contentMin;
+
+        // 上限：可用高度 - 上方 treemap 行最小高度
+        double available = ContentGrid.ActualHeight
+                           - ContentGrid.RowDefinitions[0].ActualHeight   // tab bar
+                           - ContentGrid.RowDefinitions[2].ActualHeight   // splitter row
+                           - minUpperRowHeight;                           // treemap row minimum
+
+        // MinHeight > MaxHeight 会让 WPF 抛异常，下限兜住
+        row.MaxHeight = Math.Max(row.MinHeight, available);
+
+        // 当前高度已越界时立刻收回（例如窗口被缩小后）
+        if (row.Height.IsAbsolute && row.Height.Value > row.MaxHeight)
+            row.Height = new GridLength(row.MaxHeight);
+    }
+
 }

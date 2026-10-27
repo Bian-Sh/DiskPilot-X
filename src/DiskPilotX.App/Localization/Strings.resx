@@ -947,4 +947,98 @@
   <data name="SettingsModelProxyIncomplete" xml:space="preserve"><value>Complete the proxy address and valid port to retry automatically.</value></data>
   <data name="SettingsModelAutoFetchFailed" xml:space="preserve"><value>Unable to get the model list. Configure a proxy or a custom Models URL.</value></data>
   <data name="CopilotSubmitAnswers" xml:space="preserve"><value>Submit answers</value></data>
+  <data name="AnalysisStateNotStartedTitle" xml:space="preserve">
+    <value>Analysis not started</value>
+  </data>
+  <data name="AnalysisStateNotStartedDescription" xml:space="preserve">
+    <value>Start an analysis to assess the selected scope.</value>
+  </data>
+  <data name="AnalysisStateRunningDescription" xml:space="preserve">
+    <value>Assessing the current scope. Recommendations will appear when published.</value>
+  </data>
+  <data name="AnalysisStateWaitingForUserTitle" xml:space="preserve">
+    <value>Waiting for your input</value>
+  </data>
+  <data name="AnalysisStateWaitingForUserDescription" xml:space="preserve">
+    <value>Answer the assistant in chat to continue assessing this scope.</value>
+  </data>
+  <data name="AnalysisStateUnknownTitle" xml:space="preserve">
+    <value>Analysis result not confirmed</value>
+  </data>
+  <data name="AnalysisStateUnknownDescription" xml:space="preserve">
+    <value>No complete assessment has been confirmed for this scope. An empty list does not mean there are no recommendations.</value>
+  </data>
+  <data name="AnalysisStateRecommendationsTitle" xml:space="preserve">
+    <value>Analysis completed</value>
+  </data>
+  <data name="AnalysisStateRecommendationsDescription" xml:space="preserve">
+    <value>Published cleanup recommendations are available in the list.</value>
+  </data>
+  <data name="AnalysisStateNoRecommendationsTitle" xml:space="preserve">
+    <value>No cleanup recommendations</value>
+  </data>
+  <data name="AnalysisStateNoRecommendationsDescription" xml:space="preserve">
+    <value>This scope was fully assessed and no cleanup recommendations were accepted.</value>
+  </data>
+  <data name="AnalysisStatePartialTitle" xml:space="preserve">
+    <value>Analysis partially completed</value>
+  </data>
+  <data name="AnalysisStatePartialDescription" xml:space="preserve">
+    <value>Some items could not be assessed. Available recommendations do not cover the entire scope.</value>
+  </data>
+  <data name="AnalysisStateRestrictedTitle" xml:space="preserve">
+    <value>Analysis restricted</value>
+  </data>
+  <data name="AnalysisStateRestrictedDescription" xml:space="preserve">
+    <value>Protection or exclusion rules restricted this assessment. This does not mean there is nothing to clean up.</value>
+  </data>
+  <data name="AnalysisStateFailedTitle" xml:space="preserve">
+    <value>Analysis failed</value>
+  </data>
+  <data name="AnalysisStateFailedDescription" xml:space="preserve">
+    <value>This analysis did not complete. Any retained recommendations remain from their original analysis.</value>
+  </data>
+  <data name="AnalysisStateCancelledTitle" xml:space="preserve">
+    <value>Analysis cancelled</value>
+  </data>
+  <data name="AnalysisStateCancelledDescription" xml:space="preserve">
+    <value>This analysis was cancelled before completion. Any retained recommendations remain from their original analysis.</value>
+  </data>
+  <data name="AnalysisScopeFormat" xml:space="preserve">
+    <value>Scope: {0}</value>
+  </data>
+  <data name="AnalysisUnassessedCountFormat" xml:space="preserve">
+    <value>Unassessed: {0}</value>
+  </data>
+  <data name="AnalysisPreviousResultsNotice" xml:space="preserve">
+    <value>Showing recommendations from the previous analysis, not results of this task.</value>
+  </data>
+  <data name="CopilotTool_list_analysis_rules" xml:space="preserve">
+    <value>List analysis rules</value>
+  </data>
+  <data name="CopilotTool_read_analysis_rule" xml:space="preserve">
+    <value>Read analysis rule</value>
+  </data>
+  <data name="CopilotTool_preview_analysis_rule" xml:space="preserve">
+    <value>Preview analysis rule</value>
+  </data>
+  <data name="CopilotTool_get_analysis_context" xml:space="preserve">
+    <value>Read analysis context</value>
+  </data>
+  <data name="CopilotTool_complete_analysis" xml:space="preserve">
+    <value>Complete analysis</value>
+  </data>
+  <data name="CopilotTool_request_rule_creation" xml:space="preserve">
+    <value>Request rule creation</value>
+  </data>
+  <data name="CopilotTool_manage_analysis_memory" xml:space="preserve">
+    <value>Manage analysis memory</value>
+  </data>
+  <data name="CopilotTool_read_analysis_history" xml:space="preserve">
+    <value>Read analysis history</value>
+  </data>
+  <data name="ChatRuleCreationDraftButton" xml:space="preserve">
+    <value>Draft rule request</value>
+  </data>
+  <data name="CopilotTool_report_task_topics" xml:space="preserve"><value>Report public task topics</value></data>
 </root>

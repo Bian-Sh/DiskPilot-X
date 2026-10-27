@@ -90,6 +90,16 @@ public partial class App : Application
             ? System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(acceptanceSettings))!,"skills") : null));
         services.AddSingleton<DiskPilotX.Core.Services.Skills.CleanupSkillSourceService>();
         services.AddSingleton<IAgentTool, CleanupSkillTool>();
+        services.AddSingleton<DiskPilotX.Core.Services.Analysis.AnalysisRuleCatalog>(provider => new(
+            provider.GetRequiredService<ISkillPromptProvider>(), provider.GetRequiredService<DiskPilotX.Core.Services.Skills.CleanupSkillStore>()));
+        services.AddSingleton(_ =>
+        {
+            var acceptance = AcceptanceAutomationServer.IsEnabled() ? DiskPilotX.Core.AppCompatibility.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_SETTINGS") : null;
+            var directory = string.IsNullOrWhiteSpace(acceptance)
+                ? DiskPilotX.Core.AppCompatibility.ResolveDataPath(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "analysis-context")
+                : System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(acceptance))!, "analysis-context");
+            return new DiskPilotX.Core.Services.Analysis.AnalysisContextStore(directory);
+        });
         services.AddSingleton<AssistantWorkspace>();
         services.AddSingleton(_ =>
         {
@@ -106,7 +116,10 @@ public partial class App : Application
             provider.GetServices<IAgentTool>(), provider.GetRequiredService<AssistantWorkspace>(),
             provider.GetRequiredService<ISettingsService>(), provider.GetRequiredService<RecommendationEngine>(),
             provider.GetRequiredService<ILoggerFactory>(), provider.GetRequiredService<ConversationStore>(),
-            provider.GetRequiredService<NativeWebSearchService>()));
+            provider.GetRequiredService<NativeWebSearchService>(),
+            provider.GetRequiredService<DiskPilotX.Core.Services.Analysis.AnalysisRuleCatalog>(),
+            provider.GetRequiredService<DiskPilotX.Core.Services.Analysis.AnalysisContextStore>(),
+            provider.GetRequiredService<DiskPilotX.Core.Services.Skills.CleanupSkillStore>()));
         services.AddTransient<ChatViewModel>();
 
         // TreeView services

@@ -213,9 +213,21 @@ public partial class ChatViewModel : ObservableObject
         var conversationId = CurrentConversationId;
         try
         {
-            var result = await assistant.RunAsync(message.Text, options, null, CancellationToken.None);
+            var result = await assistant.RunAsync(message.Text, options with { MessageId = message.Id.ToString() }, null, CancellationToken.None);
             if (result.State == AgentSessionState.Completed && !string.IsNullOrWhiteSpace(result.Text))
                 OnUi(() => { if (CurrentConversationId == conversationId) StartConversationTitle(options, message.Text, result.Text); });
+            if (result.State == AgentSessionState.Completed && CurrentConversationId == conversationId)
+            {
+                try
+                {
+                    var draft = await assistant.SuggestShortcutAsync(CancellationToken.None);
+                    if (draft is not null) OnUi(() => {
+                        ruleCreationScanId = _currentSession?.Id;
+                        PendingRuleCreationPrompt = draft;
+                    });
+                }
+                catch (Exception exception) { _logger.LogDebug("检查快捷入口建议未完成 {ExceptionType}", exception.GetType().Name); }
+            }
             return result;
         }
         catch (OperationCanceledException) { StatusText = L.Text("CopilotStopped"); }

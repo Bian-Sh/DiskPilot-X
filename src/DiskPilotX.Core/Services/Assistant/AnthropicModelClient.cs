@@ -191,6 +191,7 @@ public sealed class AnthropicModelClient : IModelClient
         var toolIds = new HashSet<string>(StringComparer.Ordinal);
         var started = false;
         string? finishReason = null;
+        ModelTokenUsage? usage = null;
         while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -221,6 +222,7 @@ public sealed class AnthropicModelClient : IModelClient
             if (type == "message_start")
             {
                 if (started) throw ProtocolFault(tail, "duplicate-message-start");
+                if (root.TryGetProperty("message", out var message)) usage = ModelUsageParser.Read(message, anthropic: true);
                 started = true;
                 continue;
             }
@@ -307,6 +309,7 @@ public sealed class AnthropicModelClient : IModelClient
                     break;
                 }
                 case "message_delta":
+                    usage = ModelUsageParser.Read(root, anthropic: true, previous: usage);
                     if (blocks.Values.Any(block => !block.Closed))
                         throw ProtocolFault(tail, "message-delta-open-blocks", $"open={blocks.Values.Count(block => !block.Closed)}");
                     finishReason = String(root.GetProperty("delta"), "stop_reason") ?? finishReason;
@@ -336,7 +339,7 @@ public sealed class AnthropicModelClient : IModelClient
                             foreach (var id in toolIds) signedThinking[id] = thoughts;
                     }
                     cancellationToken.ThrowIfCancellationRequested();
-                    yield return new ModelCompletedEvent(finishReason);
+                    yield return new ModelCompletedEvent(finishReason, usage);
                     yield break;
                 }
                 // Anthropic 可能增加无关事件；未知事件不能代替 message_stop。

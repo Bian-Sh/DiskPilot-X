@@ -140,6 +140,7 @@ public partial class RecommendationEngine
             }
         }
 
+        result.Diagnostics.InputRecommendationCount = items.GetArrayLength();
         foreach (var item in items.EnumerateArray())
         {
             if (!TryReadCandidate(item, result.Diagnostics, out var recommendation))
@@ -199,11 +200,16 @@ public partial class RecommendationEngine
             return;
         }
 
-        if (EnumerateEntries(recommendation.Entry!).Any(entry => IsCleanupExcluded(entry.Path, whitelist)) ||
-            result.Recommendations.Any(existing =>
+        if (EnumerateEntries(recommendation.Entry!).Any(entry => IsCleanupExcluded(entry.Path, whitelist)))
+        {
+            result.Diagnostics.ExcludedFilteredCount++;
+            return;
+        }
+        if (result.Recommendations.Any(existing =>
                 IsSameOrUnderPrefix(NormalizePath(recommendation.TargetPath), existing.TargetPath) ||
                 IsSameOrUnderPrefix(NormalizePath(existing.TargetPath), recommendation.TargetPath)))
         {
+            result.Diagnostics.OverlapFilteredCount++;
             return;
         }
 
