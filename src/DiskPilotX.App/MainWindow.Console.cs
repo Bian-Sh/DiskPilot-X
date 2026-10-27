@@ -28,6 +28,22 @@ namespace DiskPilotX.App;
 
 public partial class MainWindow
 {
+    private void BottomPanelShadow_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is FrameworkElement shadow && e.NewSize.Width > 0 && e.NewSize.Height > 0)
+            shadow.Clip = CreateBottomPanelShadowClip(e.NewSize);
+    }
+
+    private static Geometry CreateBottomPanelShadowClip(Size size)
+    {
+        // 排除整个内部矩形，不让底板的投影渗入半透明文字区；圆角也不会向内部漏影。
+        var clip = new CombinedGeometry(GeometryCombineMode.Exclude,
+            new RectangleGeometry(new Rect(-24, -24, size.Width + 48, size.Height + 48)),
+            new RectangleGeometry(new Rect(size)));
+        clip.Freeze();
+        return clip;
+    }
+
     private void WriteConsoleLog(string message, LogEventLevel level = LogEventLevel.Information)
     {
         Log.Write(level, "{Message}", message);
@@ -68,6 +84,11 @@ public partial class MainWindow
         ConsoleFilterButton.ContextMenu.PlacementTarget = ConsoleFilterButton;
         ConsoleFilterButton.ContextMenu.IsOpen = true;
         e.Handled = true;
+    }
+
+    private void ConsoleClearMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        AppLog.UiSink.Clear();
     }
 
     private void ConsoleCopyButton_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)

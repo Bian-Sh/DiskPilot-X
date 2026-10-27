@@ -412,6 +412,9 @@
   <data name="ConsoleFilterToolTip" xml:space="preserve">
     <value>筛选控制台日志</value>
   </data>
+  <data name="ConsoleClearMenuItem" xml:space="preserve">
+    <value>清空控制台</value>
+  </data>
   <data name="TreemapNoDataText" xml:space="preserve">
     <value>无数据可供展示，请扫描~</value>
   </data>

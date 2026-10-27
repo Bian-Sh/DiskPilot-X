@@ -412,6 +412,9 @@
   <data name="ConsoleFilterToolTip" xml:space="preserve">
     <value>Filter console logs</value>
   </data>
+  <data name="ConsoleClearMenuItem" xml:space="preserve">
+    <value>Clear console</value>
+  </data>
   <data name="TreemapNoDataText" xml:space="preserve">
     <value>No data to display. Please scan~</value>
   </data>

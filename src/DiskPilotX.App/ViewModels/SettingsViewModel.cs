@@ -789,6 +789,7 @@ public partial class SettingsViewModel : ObservableObject
         {
             Name = "Custom",
             IsBuiltIn = false,
+            LogPaletteIsLight = _themeManager.CurrentProfile.UsesLightLogPalette,
             AccentColor = ThemeManager.ToHex(accent),
             AccentHoverColor = ThemeManager.ToHex(accentHover),
             BackgroundColor = bgHex,

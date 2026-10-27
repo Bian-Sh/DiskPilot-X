@@ -10,7 +10,7 @@ namespace DiskPilotX.App.Services;
 /// <summary>
 /// 将主题配色、统一磨砂材质和文字对比度实时应用到 WPF 资源。
 /// </summary>
-public class ThemeManager
+public partial class ThemeManager
 {
     private readonly ISettingsService _settingsService;
     private ThemeProfile _currentProfile;
@@ -166,6 +166,7 @@ public class ThemeManager
         SetColor("VP.BorderLight", Color.FromArgb((byte)profile.BorderLightAlpha, overlayR, overlayG, overlayB));
         SetColor("VP.BorderSubtle", Color.FromArgb((byte)profile.BorderSubtleAlpha, overlayR, overlayG, overlayB));
         SetColor("VP.Overlay", Color.FromArgb((byte)profile.OverlayAlpha, bgAlt.R, bgAlt.G, bgAlt.B));
+        ApplyConsoleResources(SetBrush);
     }
 
     /// <summary>
@@ -235,8 +236,24 @@ public class ThemeManager
             ? MinimumGlassTintOpacity + (1 - MinimumGlassTintOpacity) * _currentProfile.GlassOpacity
             : 1.0;
     }
-    // 语义色保留原色作背景和图标；文字单独保证与实色面板至少 4.5:1 的对比度。
-    private static Color ReadableSemanticText(Color color, Color background)
+    // 保留色系并校正亮度；日志玻璃模式可提高目标，其余文字默认 4.5:1。
+    private static Color ReadableSemanticText(Color color, Color background, double minimumContrast = 4.5)
+    {
+        double MinimumContrast(Color value) => ColorContrast(value, background);
+        var target = MinimumContrast(Colors.Black) >= MinimumContrast(Colors.White) ? Colors.Black : Colors.White;
+        color = Color.FromRgb(color.R, color.G, color.B);
+        for (var step = 0; step < 24; step++)
+        {
+            if (MinimumContrast(color) >= minimumContrast) return color;
+            color = Color.FromRgb(
+                (byte)Math.Round(color.R + (target.R - color.R) * 0.15),
+                (byte)Math.Round(color.G + (target.G - color.G) * 0.15),
+                (byte)Math.Round(color.B + (target.B - color.B) * 0.15));
+        }
+        return target;
+    }
+
+    private static double ColorContrast(Color left, Color right)
     {
         static double Luminance(Color value)
         {
@@ -247,20 +264,9 @@ public class ThemeManager
             }
             return 0.2126 * Channel(value.R) + 0.7152 * Channel(value.G) + 0.0722 * Channel(value.B);
         }
-        static double Contrast(double left, double right) => (Math.Max(left, right) + 0.05) / (Math.Min(left, right) + 0.05);
-
-        var backdrop = Luminance(background);
-        var target = Contrast(0, backdrop) >= Contrast(1, backdrop) ? Colors.Black : Colors.White;
-        color = Color.FromRgb(color.R, color.G, color.B);
-        for (var step = 0; step < 24; step++)
-        {
-            if (Contrast(Luminance(color), backdrop) >= 4.5) return color;
-            color = Color.FromRgb(
-                (byte)Math.Round(color.R + (target.R - color.R) * 0.15),
-                (byte)Math.Round(color.G + (target.G - color.G) * 0.15),
-                (byte)Math.Round(color.B + (target.B - color.B) * 0.15));
-        }
-        return target;
+        var a = Luminance(left);
+        var b = Luminance(right);
+        return (Math.Max(a, b) + 0.05) / (Math.Min(a, b) + 0.05);
     }
 
     private sealed class ThemeColor(Color value) : INotifyPropertyChanged

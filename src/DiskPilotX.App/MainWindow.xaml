@@ -30,6 +30,12 @@
                       CornerRadius="0"
                       UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
+    <Window.Resources>
+        <!-- 控制台右键菜单：清空日志 -->
+        <ContextMenu x:Key="ConsoleContextMenu">
+            <MenuItem Header="{loc:Loc ConsoleClearMenuItem}" Click="ConsoleClearMenuItem_Click" />
+        </ContextMenu>
+    </Window.Resources>
 
     <Grid x:Name="RootGrid" Background="{DynamicResource VP.BackgroundBrush}">
         <Grid.RowDefinitions>
@@ -320,20 +326,25 @@
                         </Border>
 
                         <!-- Content area (border connects to active tab) -->
-                        <Border Grid.Row="1"
-                                Background="{DynamicResource VP.SurfaceBrush}"
-                                BorderBrush="{DynamicResource VP.BorderLightBrush}"
-                                BorderThickness="0.5,0,0.5,0.5"
-                                CornerRadius="{DynamicResource VP.CardBottomCornerRadius}"
-                                Margin="0,0,0,0">
-                            <Border.Effect>
-                                <DropShadowEffect Color="Black"
-                                                  BlurRadius="12"
-                                                  ShadowDepth="2"
-                                                  Opacity="0.3"
-                                                  Direction="270" />
-                            </Border.Effect>
-                            <Grid x:Name="BottomContentGrid" MinHeight="120">
+                        <Grid Grid.Row="1">
+                            <!-- 投影只保留在面板外侧，避免透过半透明底板降低文字对比度。 -->
+                            <Grid x:Name="BottomPanelShadow" IsHitTestVisible="False"
+                                  SizeChanged="BottomPanelShadow_SizeChanged">
+                                <Border Background="{DynamicResource VP.SurfaceBrush}"
+                                        CornerRadius="{DynamicResource VP.CardBottomCornerRadius}">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="Black" BlurRadius="12" ShadowDepth="2"
+                                                          Opacity="0.3" Direction="270" />
+                                    </Border.Effect>
+                                </Border>
+                            </Grid>
+                            <Border x:Name="BottomPanelSurface"
+                                    IsHitTestVisible="False"
+                                    Background="{DynamicResource VP.SurfaceBrush}"
+                                    BorderBrush="{DynamicResource VP.BorderLightBrush}"
+                                    BorderThickness="0.5,0,0.5,0.5"
+                                    CornerRadius="{DynamicResource VP.CardBottomCornerRadius}" />
+                            <Grid x:Name="BottomContentGrid" Margin="0.5,0,0.5,0.5" MinHeight="120">
                                 <!-- Recommendations panel content -->
                                 <views:RecommendationsPanel x:Name="RecommendationsPanel"
                                                             Visibility="Visible" />
@@ -341,9 +352,10 @@
                                 <!-- Console panel content -->
                                 <Border x:Name="ConsoleFrame"
                                         Margin="4,0,4,4"
-                                        Background="{DynamicResource VP.BackgroundAltBrush}"
+                                        Background="Transparent"
                                         CornerRadius="{DynamicResource VP.CardBottomCornerRadius}"
                                         ClipToBounds="True"
+                                        ContextMenu="{StaticResource ConsoleContextMenu}"
                                         Visibility="Collapsed">
                                     <ScrollViewer x:Name="ConsoleScrollViewer"
                                                   Padding="12,10"
@@ -358,6 +370,7 @@
                                                     <Grid Margin="0,0,0,2">
                                                         <TextBlock TextWrapping="Wrap" Margin="0,0,28,0"><Run Text="{Binding TimeText, Mode=OneWay}" Foreground="{Binding TimeBrush, Mode=OneWay}" /><Run Text=" " /><Run Text="{Binding LevelText, Mode=OneWay}" Foreground="{Binding LevelBrush, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=" " /><Run Text="{Binding DisplayMessage, Mode=OneWay}" Foreground="{Binding MessageBrush, Mode=OneWay}" /></TextBlock>
                                                         <TextBox Text="{Binding DisplayText, Mode=OneWay}"
+                                                                 ContextMenu="{StaticResource ConsoleContextMenu}"
                                                                  IsReadOnly="True"
                                                                  TextWrapping="Wrap"
                                                                  BorderThickness="0"
@@ -410,7 +423,7 @@
                                     </ScrollViewer>
                                 </Border>
                             </Grid>
-                        </Border>
+                        </Grid>
                     </Grid>
                 </Grid>
 
