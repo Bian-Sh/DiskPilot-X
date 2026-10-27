@@ -42,6 +42,29 @@ public enum SkillUiSectionKind
 public enum ImageLoadState { None, Loading, Loaded, Failed }
 
 /// <summary>
+/// 条目的行内动作（海报卡 / 表格行上的按钮）。
+/// 技能只声明「这是一个什么动作」以及作用对象，真正的落地执行一律由宿主完成：
+/// 源码既不删文件也不起进程，宿主按 kind 调用对应能力。
+/// </summary>
+public sealed record SkillUiItemAction
+{
+    /// <summary>动作类型：uninstall = 交给应用自身的卸载程序（Steam 原生卸载）；open_path = 在资源管理器里定位。</summary>
+    public string Kind { get; init; } = "uninstall";
+
+    /// <summary>按钮文案。</summary>
+    public string Label { get; init; } = "卸载";
+
+    /// <summary>动作目标：Steam 卸载为 appid，open_path 为待定位的路径。</summary>
+    public string? Target { get; init; }
+
+    /// <summary>是否要求宿主执行前弹出强确认（卸载类默认要求）。</summary>
+    public bool ConfirmRequired { get; init; } = true;
+
+    public bool IsUninstall => string.Equals(Kind, "uninstall", StringComparison.OrdinalIgnoreCase);
+    public bool IsOpenPath => string.Equals(Kind, "open_path", StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>
 /// 视图条目：海报网格 / 统计行 / 表格行 / 条形图 / 文本的通用数据单元。
 /// 各区块按自身 Kind 取用所需字段，未使用的字段保持为空。
 /// </summary>
@@ -77,6 +100,11 @@ public sealed class SkillUiItem : INotifyPropertyChanged
 
     /// <summary>表格单元格（Table 区块的每行）。</summary>
     public IReadOnlyList<string> Cells { get; init; } = [];
+
+    /// <summary>行内动作（如游戏卡上的「卸载」）；为空则不渲染按钮。</summary>
+    public SkillUiItemAction? Action { get; init; }
+
+    public bool HasAction => Action is not null;
 
     /// <summary>本行的单元格数量，供表格行均分列宽。</summary>
     public int ColumnCount => Cells.Count;
@@ -277,6 +305,10 @@ public static class SkillUiSpecContract
     private static readonly HashSet<string> KnownActions = new(StringComparer.OrdinalIgnoreCase)
         { "preview", "continue", "close" };
 
+    /// <summary>支持的条目行内动作：卸载走应用自身卸载程序，定位只打开资源管理器。</summary>
+    private static readonly HashSet<string> KnownItemActions = new(StringComparer.OrdinalIgnoreCase)
+        { "uninstall", "open_path" };
+
     public static SkillUiSpec Parse(JsonElement payload)
     {
         if (payload.ValueKind != JsonValueKind.Object) return new() { Title = "视图" };
@@ -345,7 +377,8 @@ public static class SkillUiSpecContract
             Metric = ReadDouble(el, "metric"),
             SizeBytes = ReadInt64(el, "size_bytes"),
             Selectable = ReadBool(el, "selectable"),
-            Cells = ReadStrings(el, "cells", MaxColumns)
+            Cells = ReadStrings(el, "cells", MaxColumns),
+            Action = ParseItemAction(el)
         };
         // 仅海报网格自动补封面地址；表格行不需要图片。
         if (kind == SkillUiSectionKind.PosterGrid)
@@ -390,6 +423,25 @@ public static class SkillUiSpecContract
             });
         }
         return actions.Count > 0 ? actions : [new()];
+    }
+
+    /// <summary>解析条目的行内动作；未知类型一律忽略，保证宿主只执行认识的动作。</summary>
+    private static SkillUiItemAction? ParseItemAction(JsonElement el)
+    {
+        if (!el.TryGetProperty("action", out var actionEl) || actionEl.ValueKind != JsonValueKind.Object) return null;
+        var kind = GetString(actionEl, "kind");
+        if (kind is null || !KnownItemActions.Contains(kind)) return null;
+        kind = kind.ToLowerInvariant();
+        var uninstall = string.Equals(kind, "uninstall", StringComparison.Ordinal);
+        return new SkillUiItemAction
+        {
+            Kind = kind,
+            Label = TrimTo(GetString(actionEl, "label"), 16) ?? (uninstall ? "卸载" : "打开位置"),
+            // Steam 卸载的目标就是 appid；条目本身已有 appid 时允许省略 target。
+            Target = TrimTo(GetString(actionEl, "target"), 64) ?? TrimTo(GetString(el, "appid"), 32),
+            // 只认显式写 confirm=false 的跳过确认，缺省一律要求强确认。
+            ConfirmRequired = !actionEl.TryGetProperty("confirm", out var confirmEl) || confirmEl.ValueKind != JsonValueKind.False
+        };
     }
 
     private static string DefaultLabel(string kind) => kind.ToLowerInvariant() switch

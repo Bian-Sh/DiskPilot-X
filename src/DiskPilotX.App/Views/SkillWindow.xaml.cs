@@ -34,6 +34,9 @@ public sealed partial class SkillWindow : Window
         // 结果是顶部的统计行直接看不见。用户真正操作之前一律压住这个请求。
         ContentScroll.PreviewMouseDown += (_, _) => _allowAutoScroll = true;
         ContentScroll.PreviewKeyDown += (_, _) => _allowAutoScroll = true;
+
+        // 行内动作按钮（卸载等）由本方法统一接管。
+        AddHandler(System.Windows.Controls.Primitives.ButtonBase.ClickEvent, new System.Windows.RoutedEventHandler(OnItemActionClick));
         Loaded += (_, _) => Dispatcher.BeginInvoke(
             System.Windows.Threading.DispatcherPriority.Loaded,
             new Action(() => ContentScroll.ScrollToTop()));
@@ -58,6 +61,22 @@ public sealed partial class SkillWindow : Window
     public event Action<SkillUiSpec, IReadOnlyList<SkillUiItem>>? ContinueRequested;
     /// <summary>用户请求预览选中条目的清理候选。</summary>
     public event Action<SkillUiSpec, IReadOnlyList<SkillUiItem>>? PreviewRequested;
+
+    /// <summary>用户点击了条目上的行内动作（如游戏卡的「卸载」）。</summary>
+    public event Action<SkillUiSpec, SkillUiItem, SkillUiItemAction>? ItemActionRequested;
+
+    /// <summary>
+    /// 行内动作按钮写在共享模板里，拿不到窗口的命令，因此统一靠 Button.Click 冒泡到窗口：
+    /// 命中的是带 Action 的条目才接管，底栏的视图动作按钮 DataContext 是 SkillUiAction，不会走这条分支。
+    /// </summary>
+    private void OnItemActionClick(object sender, System.Windows.RoutedEventArgs e)
+    {
+        if (e.OriginalSource is not System.Windows.Controls.Button button) return;
+        if (button.DataContext is not SkillUiItem item || item.Action is not { } action) return;
+
+        e.Handled = true;
+        ItemActionRequested?.Invoke(viewModel.Spec, item, action);
+    }
 
     /// <summary>窗口里被勾选的条目。</summary>
     public IReadOnlyList<SkillUiItem> SelectedItems => viewModel.SelectedItems;

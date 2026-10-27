@@ -83,6 +83,55 @@ public sealed class SkillUiSpecContractTests
         Assert.True(item.HasImage);
     }
 
+    /// <summary>
+    /// 条目行内动作：uninstall 让宿主把卸载能力挂到按钮上，源码本身仍不删文件、不起进程。
+    /// target 省略时回退到条目的 appid，缺省一律要求强确认（只有显式 confirm=false 才跳过）。
+    /// </summary>
+    [Fact]
+    public void Parse_ReadsItemUninstallAction()
+    {
+        var spec = Parse("""
+        {"title":"T","sections":[{"kind":"poster_grid","items":[
+          {"title":"Short Circuit VR","appid":"970800","action":{"kind":"uninstall"}}]}]}
+        """);
+        var action = spec.Sections[0].Items[0].Action;
+
+        Assert.NotNull(action);
+        Assert.True(action!.IsUninstall);
+        Assert.Equal("卸载", action.Label);
+        Assert.Equal("970800", action.Target);
+        Assert.True(action.ConfirmRequired);
+        Assert.True(spec.Sections[0].Items[0].HasAction);
+    }
+
+    [Fact]
+    public void Parse_ItemActionHonoursExplicitTargetAndConfirm()
+    {
+        var spec = Parse("""
+        {"title":"T","sections":[{"kind":"table","items":[
+          {"cells":["A"],"action":{"kind":"uninstall","label":"删除","target":"220","confirm":false}}]}]}
+        """);
+        var action = spec.Sections[0].Items[0].Action;
+
+        Assert.NotNull(action);
+        Assert.Equal("删除", action!.Label);
+        Assert.Equal("220", action.Target);
+        Assert.False(action.ConfirmRequired);
+    }
+
+    /// <summary>未知动作类型一律忽略：宿主只执行自己认识的动作。</summary>
+    [Fact]
+    public void Parse_IgnoresUnknownItemAction()
+    {
+        var spec = Parse("""
+        {"title":"T","sections":[{"kind":"poster_grid","items":[
+          {"title":"A","action":{"kind":"format_disk"}}]}]}
+        """);
+
+        Assert.Null(spec.Sections[0].Items[0].Action);
+        Assert.False(spec.Sections[0].Items[0].HasAction);
+    }
+
     [Fact]
     public void Parse_TableKeepsHeadersAndCells()
     {

@@ -260,7 +260,10 @@ public sealed class Provider : IAppDataProvider
 
     /// <summary>
     /// 声明按需构建的视图：概览统计 + 封面海报网格（带上次游玩）+ 全量明细表。
-    /// 气泡里只放一张入口卡，完整界面在独立窗口中呈现，勾选后可回传继续分析。
+    /// 气泡里只放一张入口卡，完整界面在独立窗口中呈现。
+    ///
+    /// 条目的动作到此为止：每张卡自带「卸载」，宿主会用 Steam 原生方式卸载并在完成后做汇报。
+    /// 因此这里不勾选、不回传，也不再让助手对这些目录做深度扫描与清理分析。
     /// </summary>
     private static SkillUiSpec BuildView(
         string root,
@@ -316,7 +319,7 @@ public sealed class Provider : IAppDataProvider
         {
             Kind = SkillUiSectionKind.PosterGrid,
             Title = "占用排行",
-            Subtitle = "按实测体积从大到小，封面自动取自 Steam CDN，副标题显示上次游玩时间。",
+            Subtitle = "按实测体积从大到小，封面自动取自 Steam CDN，副标题显示上次游玩时间；卡片上的「卸载」会调用 Steam 原生卸载。",
             Columns = 4,
             Items = [.. entries.Take(TopPosterCount).Select(entry =>
             {
@@ -331,7 +334,7 @@ public sealed class Provider : IAppDataProvider
                     Path = entry.Path,
                     SizeBytes = entry.SizeBytes,
                     Metric = entry.SizeBytes,
-                    Selectable = true
+                    Action = new SkillUiItemAction { Kind = "uninstall", Label = "卸载", Target = entry.AppId }
                 };
             })]
         };
@@ -340,7 +343,7 @@ public sealed class Provider : IAppDataProvider
         {
             Kind = SkillUiSectionKind.Table,
             Title = "全部明细",
-            Subtitle = "共 " + entries.Count + " 行，可在窗口中滚动查看；勾选后可回传给助手继续清理分析。",
+            Subtitle = "共 " + entries.Count + " 行，可在窗口中滚动查看；每行右侧的「卸载」与卡片上的同样走 Steam 原生卸载。",
             Headers = ["游戏", "占用", "上次游玩", "所在库"],
             Items = [.. entries.Take(MaxTableRows).Select(entry => new SkillUiItem
             {
@@ -353,8 +356,9 @@ public sealed class Provider : IAppDataProvider
                 ],
                 Path = entry.Path,
                 AppId = entry.AppId,
+                Title = entry.Name,
                 SizeBytes = entry.SizeBytes,
-                Selectable = true
+                Action = new SkillUiItemAction { Kind = "uninstall", Label = "卸载", Target = entry.AppId }
             })]
         };
 
@@ -365,13 +369,10 @@ public sealed class Provider : IAppDataProvider
             // auto：气泡放入口卡的同时，把完整盘点界面直接弹出来。
             Surface = SkillUiSurface.Auto,
             EntryTitle = "Steam 游戏库盘点",
-            EntrySummary = entries.Count + " 个已安装项目 · 合计 " + FormatSize(total) + " · 点击查看海报与上次游玩时间",
+            EntrySummary = entries.Count + " 个已安装项目 · 合计 " + FormatSize(total) + " · 卡片上可直接调用 Steam 原生卸载",
             Sections = [stats, posters, table],
-            Actions =
-            [
-                new SkillUiAction { Kind = "continue", Label = "回传选中项继续分析" },
-                new SkillUiAction { Kind = "close", Label = "关闭" }
-            ]
+            // 这一屏就是终点：盘点 + 卸载，不再有「回传继续分析」。
+            Actions = [new SkillUiAction { Kind = "close", Label = "关闭" }]
         };
     }
 }

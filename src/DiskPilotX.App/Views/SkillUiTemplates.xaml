@@ -7,6 +7,17 @@
   <c:NullToVisibilityConverter x:Key="SecNullVis"/>
   <c:ToneToBrushConverter x:Key="SecToneBrush"/>
   <c:RatioToLengthConverter x:Key="SecRatioLen" Factor="260"/>
+  <!-- 卸载类动作用危险色按钮；资源必须声明在引用它的模板之前 -->
+  <c:ItemActionStyleConverter x:Key="SecItemActionStyle"/>
+
+  <!-- 条目行内动作按钮：卸载 = 危险色，其余走通用按钮 -->
+  <DataTemplate x:Key="ItemActionButton" DataType="{x:Type models:SkillUiItem}">
+    <Button Content="{Binding Action.Label}"
+            ToolTip="{Binding Action.Target}"
+            Visibility="{Binding HasAction,Converter={StaticResource SecBoolVis}}"
+            Style="{Binding Action.IsUninstall,Converter={StaticResource SecItemActionStyle}}"
+            Padding="8,4" FontSize="10.5" Cursor="Hand" HorizontalAlignment="Left"/>
+  </DataTemplate>
 
   <!-- 视图区块：按 kind 选择布局，气泡与窗口共用 -->
   <DataTemplate DataType="{x:Type models:SkillUiSection}">
@@ -35,6 +46,7 @@
                 <TextBlock Text="{Binding Value}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource VP.AccentBrush}" Margin="0,2,0,0"/>
                 <TextBlock Text="{Binding Subtitle}" FontSize="10" Foreground="{DynamicResource VP.TextTertiaryBrush}" TextWrapping="Wrap" Margin="0,2,0,0" Visibility="{Binding Subtitle,Converter={StaticResource SecNullVis}}"/>
                 <CheckBox IsChecked="{Binding Selected,Mode=TwoWay}" Content="选中" FontSize="10" Margin="0,4,0,0" Visibility="{Binding Selectable,Converter={StaticResource SecBoolVis}}"/>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource ItemActionButton}" Margin="0,6,0,0"/>
               </StackPanel>
             </Border>
           </DataTemplate>
@@ -66,10 +78,15 @@
         <ItemsControl ItemsSource="{Binding Items}">
           <ItemsControl.ItemTemplate>
             <DataTemplate>
-              <ItemsControl ItemsSource="{Binding Cells}">
-                <ItemsControl.ItemsPanel><ItemsPanelTemplate><primitives:UniformGrid Columns="{Binding DataContext.ColumnCount, RelativeSource={RelativeSource AncestorType=ItemsControl, AncestorLevel=2}}"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate><DataTemplate><Border Padding="6,3" BorderBrush="{DynamicResource VP.BorderSubtleBrush}" BorderThickness="0,0,0,1"><TextBlock Text="{Binding}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource VP.TextPrimaryBrush}" TextTrimming="CharacterEllipsis"/></Border></DataTemplate></ItemsControl.ItemTemplate>
-              </ItemsControl>
+              <!-- 行尾放行内动作（卸载）；单元格列表作为最后子节点撑满剩余宽度 -->
+              <DockPanel LastChildFill="True" Margin="0,0,0,1">
+                <ContentPresenter DockPanel.Dock="Right" VerticalAlignment="Center" Margin="8,0,0,0"
+                                  Content="{Binding}" ContentTemplate="{StaticResource ItemActionButton}"/>
+                <ItemsControl ItemsSource="{Binding Cells}" VerticalAlignment="Center">
+                  <ItemsControl.ItemsPanel><ItemsPanelTemplate><primitives:UniformGrid Columns="{Binding DataContext.ColumnCount, RelativeSource={RelativeSource AncestorType=ItemsControl, AncestorLevel=2}}"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate><DataTemplate><Border Padding="6,3" BorderBrush="{DynamicResource VP.BorderSubtleBrush}" BorderThickness="0,0,0,1"><TextBlock Text="{Binding}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource VP.TextPrimaryBrush}" TextTrimming="CharacterEllipsis"/></Border></DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </DockPanel>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>

@@ -1,7 +1,9 @@
 ﻿using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
+using DiskPilotX.App.Converters;
 using DiskPilotX.App.Services;
 using DiskPilotX.App.Views;
 using DiskPilotX.Core.Models;
@@ -143,8 +145,100 @@ public partial class MainWindow
             _chatViewModel.ExplorePromptCommand.Execute(
                 "请预览这些条目的清理候选，先读取真实扫描证据，不要直接清理：\n" + payload + MultiSelectionHint(items.Count));
         };
+
+        // 条目的行内动作（现在主要是 Steam 卡的「卸载」）：由宿主执行，执行前必须拿到强确认。
+        window.ItemActionRequested += (source, item, action) => _ = HandleItemActionAsync(item, action, window);
         window.Show();
     }
+
+    /// <summary>
+    /// 处理条目行内动作。卸载类走「强确认 → Steam 原生卸载 → 等待 → 把结果交给模型总结」这条闭环，
+    /// 期间不做任何空间分析、也不把条目回传去做清理推荐：游戏卸载本来就该止步于卸载本身。
+    /// </summary>
+    private async Task HandleItemActionAsync(SkillUiItem item, SkillUiItemAction action, Window source)
+    {
+        if (_chatViewModel is null) return;
+        var displayName = string.IsNullOrWhiteSpace(item.Title) ? ("应用 " + action.Target) : item.Title!;
+
+        if (action.IsOpenPath)
+        {
+            OpenInExplorer(item.Path ?? action.Target);
+            return;
+        }
+        if (!action.IsUninstall)
+        {
+            _chatViewModel.ErrorMessage = "暂不支持这个动作：" + action.Label;
+            return;
+        }
+
+        var appId = string.IsNullOrWhiteSpace(action.Target) ? item.AppId : action.Target;
+        if (string.IsNullOrWhiteSpace(appId))
+        {
+            _chatViewModel.ErrorMessage = "缺少应用编号，无法交给 Steam 卸载。";
+            return;
+        }
+
+        var installer = new SteamGameUninstaller();
+        var target = installer.Resolve(appId!, item.Path);
+        if (target is null)
+        {
+            _chatViewModel.ErrorMessage = "在本机的 Steam 卸载记录里找不到《" + displayName + "》，请直接在 Steam 里卸载。";
+            return;
+        }
+
+        if (action.ConfirmRequired)
+        {
+            var confirmed = await Dispatcher.InvokeAsync(() => UninstallConfirmWindow.Confirm(
+                displayName, appId!, string.IsNullOrWhiteSpace(item.Value) ? FormatBytes(item.SizeBytes) : item.Value,
+                target.InstallPath, source));
+            if (!confirmed) { WriteConsoleLog("已取消卸载：" + displayName); return; }
+        }
+
+        WriteConsoleLog("正在卸载：" + displayName + "（appid " + appId + "）");
+        SteamUninstallResult result;
+        try { result = await installer.RunAsync(target, item.SizeBytes, message => WriteConsoleLog(message)); }
+        catch (Exception ex) when (ex is OperationCanceledException or IOException or UnauthorizedAccessException)
+        {
+            _chatViewModel.ErrorMessage = "卸载未能完成：" + ex.Message;
+            return;
+        }
+
+        await _chatViewModel.ExplorePromptCommand.ExecuteAsync(BuildUninstallSummary(displayName, target, result));
+    }
+
+    /// <summary>卸载结果交给模型做总结；事实部分全部由宿主给出，模型只负责组织语言。</summary>
+    private static string BuildUninstallSummary(string displayName, SteamUninstallTarget target, SteamUninstallResult result)
+    {
+        var freed = result.FreedBytes > 0 ? FileSizeConverter.FormatSize(result.FreedBytes) : "未知";
+        var header = result.IsDone
+            ? "我已经卸载了 Steam 游戏《" + displayName + "》（appid " + target.AppId + "）。"
+            : "我请求卸载 Steam 游戏《" + displayName + "》（appid " + target.AppId + "），但没有确认完成。";
+        var builder = new System.Text.StringBuilder(header);
+        builder.Append("\n事实（由宿主给出，请直接采用，不要重新扫描或改写数字）：");
+        builder.Append("\n- 结果：").Append(result.IsDone ? "Steam 已完成卸载" : result.Detail);
+        builder.Append("\n- 卸载方式：Steam 原生卸载（").Append(target.Executable).Append(' ').Append(target.Arguments).Append(")");
+        builder.Append("\n- 卸载前占用：").Append(result.BeforeBytes > 0 ? FileSizeConverter.FormatSize(result.BeforeBytes) : "未知");
+        builder.Append("\n- 释放空间：").Append(freed);
+        if (!string.IsNullOrWhiteSpace(result.Detail)) builder.Append("\n- 备注：").Append(result.Detail);
+        builder.Append("\n\n请用一两句给我一个收尾总结：卸载了什么、释放了多少空间、是否需要我重新扫描一次才能看到最新占用。");
+        builder.Append("不要再建议清理这个文件目录下的其他东西，也不要调用任何工具。");
+        return builder.ToString();
+    }
+
+    private void OpenInExplorer(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path)) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", path) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            _chatViewModel!.ErrorMessage = "无法打开位置：" + ex.Message;
+        }
+    }
+
+    private static string FormatBytes(long bytes) => bytes > 0 ? FileSizeConverter.FormatSize(bytes) : "未统计";
 
     private static string DescribeSelection(IReadOnlyList<SkillUiItem> items)
     {
