@@ -93,6 +93,7 @@ public class TreemapControlTests
 
         Click(control, 100, 100, 1);
         using var selected = Render(control);
+        // 选中框为纯白粗框（外延到 cell 外），悬停为细白框。
         Assert.Equal(SKColors.White, selected.GetPixel(0, 150));
         Assert.NotEqual(SKColors.White, selected.GetPixel(1, 150));
         Assert.NotEqual(SKColors.White, selected.GetPixel(2, 150));
@@ -108,7 +109,7 @@ public class TreemapControlTests
     });
 
     [Fact]
-    public void FlatTiles_LightFollowsPointer_AndClearsOnLeave() => InSta(() =>
+    public void FlatTiles_LightSitsAtNodeCenter_AndClearsOnLeave() => InSta(() =>
     {
         var node = Node(false, 0, 0, 400, 300);
         node.Label = null;
@@ -121,10 +122,11 @@ public class TreemapControlTests
         Assert.NotNull(hover);
         hover.Invoke(control, [new Point(100, 150)]);
         using var first = Render(control);
-        Assert.True(first.GetPixel(100, 150).Red > first.GetPixel(300, 150).Red);
+        // 光斑固定在悬停 cell 的中心（跨块光照），不跟随指针。
+        Assert.True(first.GetPixel(200, 150).Red > first.GetPixel(20, 150).Red);
         hover.Invoke(control, [new Point(300, 150)]);
         using var second = Render(control);
-        Assert.True(second.GetPixel(300, 150).Red > second.GetPixel(100, 150).Red);
+        Assert.Equal(first.GetPixel(100, 150), second.GetPixel(100, 150));
         hover.Invoke(control, [new Point(-1, -1)]);
         using var cleared = Render(control);
         Assert.Equal(normal.GetPixel(100, 150), cleared.GetPixel(100, 150));
@@ -185,9 +187,11 @@ public class TreemapControlTests
         hover.Invoke(control, [new Point(100, 25)]);
         using var fileTitleHover = Render(control);
         Assert.True(fileTitleHover.GetPixel(150, 25).Red > normal.GetPixel(150, 25).Red);
+        // 悬停目录标题：标题条不被光照覆盖，内容区随父节点光斑（中心在节点中心）变亮。
         hover.Invoke(control, [new Point(100, 5)]);
         using var titleHover = Render(control);
-        Assert.Equal(normal.GetPixel(100, 60), titleHover.GetPixel(100, 60));
+        Assert.Equal(normal.GetPixel(150, 10), titleHover.GetPixel(150, 10));
+        Assert.True(titleHover.GetPixel(200, 140).Red > normal.GetPixel(200, 140).Red);
     });
 
     private static SKBitmap Render(TreemapControl control)
@@ -211,7 +215,7 @@ public class TreemapControlTests
     {
         var method = typeof(TreemapControl).GetMethod("HandleClick", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(method);
-        method.Invoke(control, [new Point(x, y), count]);
+        method.Invoke(control, [new Point(x, y), count, false]);
     }
 
     private static TreemapNode Node(bool directory, float x, float y, float width, float height) => new()

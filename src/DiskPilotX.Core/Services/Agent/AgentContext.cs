@@ -7,4 +7,5 @@ public sealed record AgentContext(
     FileEntry? CurrentViewRoot,
     FileEntry? LinkedEntry,
     CleanupRecommendation? LinkedRecommendation,
-    bool HasExistingRecommendations = false);
+    bool HasExistingRecommendations = false,
+    IReadOnlyList<string>? MultiSelection = null);

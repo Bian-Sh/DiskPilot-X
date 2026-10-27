@@ -265,6 +265,7 @@ public sealed partial class DiskAssistantService
             var c = await GetVisibleContext(ct, options.IsAnalysis).ConfigureAwait(false);
             return JsonSerializer.SerializeToNode(new { ok = true, scan_id = c.Session?.Id, root = c.Session?.RootEntry?.Path,
                 current_path = c.CurrentViewRoot?.Path, selected_path = c.LinkedEntry?.Path, selected_recommendation = c.LinkedRecommendation?.Id,
+                focus_path = c.LinkedEntry?.Path, multi_selection = c.MultiSelection ?? Array.Empty<string>(),
                 size_bytes = c.Session?.RootEntry?.Size, has_recommendations = c.HasExistingRecommendations })!;
         });
         Add("scan_path", "扫描用户指定路径并等待真实完成。", """{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}""",
@@ -280,6 +281,8 @@ public sealed partial class DiskAssistantService
             }, timeoutSeconds: 1800);
         Add("navigate_path", "定位已扫描目录，并可切换 treemap 或 tree 视图。", """{"type":"object","properties":{"path":{"type":"string"},"view":{"type":"string","enum":["treemap","tree"]}},"required":["path"]}""",
             async (a, ct) => await ExecuteVisible("navigate_path", a, ct).ConfigureAwait(false));
+        Add("focus_path", "把 treemap 视图定位（focus）到指定文件夹或文件并高亮，方便在地图上精确指向某个点位。目录会钻取定位，文件会定位到其所在层级并高亮该文件。", """{"type":"object","properties":{"path":{"type":"string"},"highlight":{"type":"boolean","default":true}},"required":["path"]}""",
+            async (a, ct) => await ExecuteVisible("focus_path", a, ct).ConfigureAwait(false));
         Add("set_view", "切换磁盘视图，treemap 为矩形树图，tree 为文件树。", """{"type":"object","properties":{"view":{"type":"string","enum":["treemap","tree"]}},"required":["view"]}""", (a, ct) => workspace.Execute("set_view", a, ct));
         Add("get_analysis_evidence", "读取当前范围的有界元数据、内容指纹和清理证据。", """{"type":"object","properties":{"path":{"type":"string"}}}""", async (a, ct) =>
         {
@@ -354,13 +357,13 @@ public sealed partial class DiskAssistantService
         var rules = analysisMode ? savedSettings.CleanupRecommendationWhitelist : savedSettings.AiConversationWhitelist;
         if (rules.Count == 0) return context;
         bool Hidden(string? p) => !string.IsNullOrEmpty(p) && whitelist.IsExcluded(p, rules);
-        if (context.Session?.RootEntry is not { } original || Hidden(original.Path)) return new(null, null, null, null);
+        if (context.Session?.RootEntry is not { } original || Hidden(original.Path)) return new(null, null, null, null, false, context.MultiSelection);
         var filtered = Copy(original);
         var source = context.Session;
         var session = new ScanSession { Id = source.Id, TargetPath = filtered.Path, RootEntry = filtered, TotalSize = filtered.Size,
             TotalFiles = filtered.SubtreeFileCount, TotalFolders = filtered.SubtreeFolderCount, StartTime = source.StartTime, EndTime = source.EndTime };
         return new(session, Hidden(context.CurrentViewRoot?.Path) ? filtered : query.FindByPath(session, context.CurrentViewRoot?.Path ?? filtered.Path),
-            Hidden(context.LinkedEntry?.Path) ? null : context.LinkedEntry, Hidden(context.LinkedRecommendation?.TargetPath) ? null : context.LinkedRecommendation, context.HasExistingRecommendations);
+            Hidden(context.LinkedEntry?.Path) ? null : context.LinkedEntry, Hidden(context.LinkedRecommendation?.TargetPath) ? null : context.LinkedRecommendation, context.HasExistingRecommendations, context.MultiSelection);
         FileEntry Copy(FileEntry entry)
         {
             var root = Clone(entry);

@@ -26,9 +26,11 @@ public partial class MainWindow
         {
             ct.ThrowIfCancellationRequested();
             var main = DataContext as MainViewModel;
+            var multiSelection = _treemapViewModel?.MultiSelection
+                ?.Select(n => n.Entry.Path).ToList();
             return new AgentContext(main?.CurrentSession, _treemapViewModel?.CurrentRoot,
                 _chatViewModel?.LinkedEntry ?? _treemapViewModel?.SelectedNode?.Entry, _chatViewModel?.LinkedRecommendation,
-                _recommendationsViewModel?.HasAnyRecommendations == true);
+                _recommendationsViewModel?.HasAnyRecommendations == true, multiSelection);
         }).Task;
         workspace.Execute = (operation, args, ct) => Dispatcher.InvokeAsync(() => ExecuteAssistantOperationAsync(operation,args,ct)).Task.Unwrap();
         if (_chatViewModel is not null) _chatViewModel.SkillTaskRequested += OpenSkillTask;
@@ -65,6 +67,18 @@ public partial class MainWindow
                 var view=args?["view"]?.GetValue<string>();
                 if(view is not null && !SetAssistantView(view)) return AssistantError("视图只支持 treemap 或 tree。");
                 return new JsonObject{["ok"]=true,["path"]=target,["current_path"]=_treemapViewModel?.CurrentRoot?.Path,["view"]=TreeViewControl.Visibility==Visibility.Visible?"tree":"treemap"};
+            }
+            case "focus_path":
+            {
+                var target=args?["path"]?.GetValue<string>();
+                var highlight=args?["highlight"]?.GetValue<bool>() ?? true;
+                if(main.CurrentSession is null || string.IsNullOrWhiteSpace(target)||Hidden(target)
+                    ||App.Services!.GetRequiredService<IFileTreeQueryService>().FindByPath(main.CurrentSession,target) is null) return AssistantError("路径未扫描或不允许 AI 访问。");
+                SetAssistantView("treemap");
+                bool hit = TreemapView.FocusPath(target, highlight);
+                return hit
+                    ? new JsonObject{["ok"]=true,["path"]=target,["focus_path"]=_treemapViewModel?.SelectedNode?.Entry.Path ?? target,["current_path"]=_treemapViewModel?.CurrentRoot?.Path}
+                    : AssistantError("无法在地图上定位该路径。");
             }
             case "set_view":
                 return new JsonObject{["ok"]=SetAssistantView(args?["view"]?.GetValue<string>()),["view"]=TreeViewControl.Visibility==Visibility.Visible?"tree":"treemap"};

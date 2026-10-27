@@ -24,6 +24,14 @@ namespace DiskPilotX.App;
 
 public partial class MainWindow
 {
+    /// <summary>验收注入滚轮缩放（程序化事件拿不到指定坐标，走与 OnMouseWheel 等价的内部路径）。</summary>
+    internal object AcceptanceTreemapWheel(int? x, int? y, int? delta)
+    {
+        var control = (Controls.TreemapControl)TreemapView.FindName("Treemap");
+        control.RaiseWheelAt(x ?? 0, y ?? 0, delta ?? 0);
+        return GetAcceptanceState();
+    }
+
     internal object AcceptanceTreemapPointer(int? x, int? y, string? action)
     {
         var control = (Controls.TreemapControl)TreemapView.FindName("Treemap");
@@ -32,8 +40,8 @@ public partial class MainWindow
         {
             case "move": control.HandleHover(position); break;
             case "leave": control.HandleHover(new Point(-1, -1)); break;
-            case "click": control.HandleClick(position, 1); break;
-            case "double_click": control.HandleClick(position, 2); break;
+            case "click": control.HandleClick(position, 1, false); break;
+            case "double_click": control.HandleClick(position, 2, false); break;
             case "nodes": break;
             default: throw new InvalidOperationException("不支持的树状图验收动作。");
         }

@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using DiskPilotX.App.Services;
 using System.Windows.Controls;
@@ -27,6 +28,32 @@ public partial class TreemapView : UserControl
 
     public event Action<FileEntry>? AskAiRequested;
 
+    /// <summary>用户请求把多选集合引用到 AI 对话框。参数为去重后的顶层条目。</summary>
+    public event Action<IReadOnlyList<FileEntry>>? MultiSelectionReferenced;
+
+    /// <summary>当前多选条目（父目录吸收去重后的顶层集合）。</summary>
+    public IReadOnlyList<FileEntry> ReferencedEntries
+    {
+        get
+        {
+            var selected = _viewModel?.MultiSelection ?? Array.Empty<TreemapNode>();
+            return CollapseToTopLevel(selected.Select(n => n.Entry).ToList());
+        }
+    }
+
+    private static IReadOnlyList<FileEntry> CollapseToTopLevel(List<FileEntry> entries)
+    {
+        if (entries.Count == 0) return entries;
+        var top = new List<FileEntry>();
+        foreach (var e in entries)
+        {
+            bool covered = entries.Any(other => other != e && other.IsDirectory
+                && IsUnderPath(e.Path, other.Path));
+            if (!covered) top.Add(e);
+        }
+        return top;
+    }
+
     public TreemapView()
     {
         InitializeComponent();
@@ -47,6 +74,13 @@ public partial class TreemapView : UserControl
         Treemap.Nodes = _viewModel.Nodes;
         Treemap.SelectedNode = _viewModel.SelectedNode;
         UpdateEmptyState();
+
+        // 同步多选集合到 ViewModel（供 AI 引用）。
+        Treemap.MultiSelectionChanged += (_, _) =>
+            _viewModel?.SetMultiSelection(Treemap.MultiSelection.ToList());
+
+        // 缩放级别变化 → 触发 LOD 重布局（zoom 增大展开更多层级）。
+        Treemap.ZoomChanged += (_, zoom) => _viewModel?.SetZoom(zoom);
     }
 
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -117,6 +151,15 @@ public partial class TreemapView : UserControl
         return _viewModel?.NavigateToPath(path) == true;
     }
 
+    /// <summary>定位到指定路径并高亮，供 AI focus_path 调用。返回是否命中。</summary>
+    public bool FocusPath(string path, bool highlight)
+    {
+        var node = _viewModel?.FocusPath(path, highlight);
+        if (node is null) return false;
+        Treemap.FocusNode(node, highlight);
+        return true;
+    }
+
     private void Treemap_NodeClicked(object? sender, TreemapNode node)
     {
         if (_viewModel is not null) _viewModel.SelectedNode = node;
@@ -149,6 +192,15 @@ public partial class TreemapView : UserControl
     private ContextMenu BuildContextMenu(FileEntry entry)
     {
         var contextMenu = new ContextMenu();
+
+        // 多选非空时提供「引用到对话框」。
+        if (ReferencedEntries.Count > 1)
+        {
+            var refItem = new MenuItem { Header = $"引用 {ReferencedEntries.Count} 项到对话框" };
+            refItem.Click += (_, _) => MultiSelectionReferenced?.Invoke(ReferencedEntries);
+            contextMenu.Items.Add(refItem);
+            contextMenu.Items.Add(new Separator());
+        }
 
         var askAiItem = new MenuItem { Header = "询问 AI" };
         askAiItem.Click += (_, _) => AskAiRequested?.Invoke(entry);
