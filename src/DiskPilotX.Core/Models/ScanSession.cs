@@ -3,6 +3,7 @@ namespace DiskPilotX.Core.Models;
 public class ScanSession
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public DiskPilotX.Core.Services.Analysis.ScanProvenance? Provenance { get; set; }
     public string TargetPath { get; set; } = string.Empty;
     public DateTime StartTime { get; set; }
     public DateTime? EndTime { get; set; }

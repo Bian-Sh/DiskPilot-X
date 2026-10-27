@@ -947,4 +947,98 @@
   <data name="SettingsModelProxyIncomplete" xml:space="preserve"><value>请完善代理地址和有效端口，完成编辑后将自动重试。</value></data>
   <data name="SettingsModelAutoFetchFailed" xml:space="preserve"><value>无法获取模型列表，请配置代理或自定义模型获取 URL。</value></data>
   <data name="CopilotSubmitAnswers" xml:space="preserve"><value>提交回答</value></data>
+  <data name="AnalysisStateNotStartedTitle" xml:space="preserve">
+    <value>尚未分析</value>
+  </data>
+  <data name="AnalysisStateNotStartedDescription" xml:space="preserve">
+    <value>开始分析以评估所选范围。</value>
+  </data>
+  <data name="AnalysisStateRunningDescription" xml:space="preserve">
+    <value>正在评估当前范围，建议发布后会显示在此处。</value>
+  </data>
+  <data name="AnalysisStateWaitingForUserTitle" xml:space="preserve">
+    <value>等待用户输入</value>
+  </data>
+  <data name="AnalysisStateWaitingForUserDescription" xml:space="preserve">
+    <value>请在聊天中回答助手的问题，以继续评估此范围。</value>
+  </data>
+  <data name="AnalysisStateUnknownTitle" xml:space="preserve">
+    <value>分析结果尚未确认</value>
+  </data>
+  <data name="AnalysisStateUnknownDescription" xml:space="preserve">
+    <value>此范围尚未确认完成评估，列表为空不代表没有可推荐项。</value>
+  </data>
+  <data name="AnalysisStateRecommendationsTitle" xml:space="preserve">
+    <value>分析已完成</value>
+  </data>
+  <data name="AnalysisStateRecommendationsDescription" xml:space="preserve">
+    <value>已发布的清理建议可在列表中查看。</value>
+  </data>
+  <data name="AnalysisStateNoRecommendationsTitle" xml:space="preserve">
+    <value>未发现清理建议</value>
+  </data>
+  <data name="AnalysisStateNoRecommendationsDescription" xml:space="preserve">
+    <value>此范围已完整评估，没有通过校验的清理建议。</value>
+  </data>
+  <data name="AnalysisStatePartialTitle" xml:space="preserve">
+    <value>分析部分完成</value>
+  </data>
+  <data name="AnalysisStatePartialDescription" xml:space="preserve">
+    <value>部分内容尚未完成评估，已有建议不代表覆盖整个范围。</value>
+  </data>
+  <data name="AnalysisStateRestrictedTitle" xml:space="preserve">
+    <value>分析受限</value>
+  </data>
+  <data name="AnalysisStateRestrictedDescription" xml:space="preserve">
+    <value>保护或排除规则限制了本次评估，不代表没有可清理内容。</value>
+  </data>
+  <data name="AnalysisStateFailedTitle" xml:space="preserve">
+    <value>分析失败</value>
+  </data>
+  <data name="AnalysisStateFailedDescription" xml:space="preserve">
+    <value>本次分析未完成，保留的建议仍归属于原来的分析结果。</value>
+  </data>
+  <data name="AnalysisStateCancelledTitle" xml:space="preserve">
+    <value>分析已取消</value>
+  </data>
+  <data name="AnalysisStateCancelledDescription" xml:space="preserve">
+    <value>本次分析在完成前已取消，保留的建议仍归属于原来的分析结果。</value>
+  </data>
+  <data name="AnalysisScopeFormat" xml:space="preserve">
+    <value>范围：{0}</value>
+  </data>
+  <data name="AnalysisUnassessedCountFormat" xml:space="preserve">
+    <value>未评估：{0}</value>
+  </data>
+  <data name="AnalysisPreviousResultsNotice" xml:space="preserve">
+    <value>当前显示上次分析的建议，并非本次任务的结果。</value>
+  </data>
+  <data name="CopilotTool_list_analysis_rules" xml:space="preserve">
+    <value>列出分析规则</value>
+  </data>
+  <data name="CopilotTool_read_analysis_rule" xml:space="preserve">
+    <value>读取分析规则</value>
+  </data>
+  <data name="CopilotTool_preview_analysis_rule" xml:space="preserve">
+    <value>预览分析规则</value>
+  </data>
+  <data name="CopilotTool_get_analysis_context" xml:space="preserve">
+    <value>读取分析上下文</value>
+  </data>
+  <data name="CopilotTool_complete_analysis" xml:space="preserve">
+    <value>完成分析</value>
+  </data>
+  <data name="CopilotTool_request_rule_creation" xml:space="preserve">
+    <value>请求创建规则</value>
+  </data>
+  <data name="CopilotTool_manage_analysis_memory" xml:space="preserve">
+    <value>管理分析记忆</value>
+  </data>
+  <data name="CopilotTool_read_analysis_history" xml:space="preserve">
+    <value>读取分析历史</value>
+  </data>
+  <data name="ChatRuleCreationDraftButton" xml:space="preserve">
+    <value>填写规则创建请求</value>
+  </data>
+  <data name="CopilotTool_report_task_topics" xml:space="preserve"><value>记录公开任务主题</value></data>
 </root>
