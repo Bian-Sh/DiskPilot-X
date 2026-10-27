@@ -230,7 +230,32 @@ public partial class RecommendationsViewModel : ObservableObject
             filtered = filtered.Where(r => r.SafetyRating == safetyRating);
         }
 
-        FilteredRecommendations = new ObservableCollection<CleanupRecommendation>(filtered);
+        FilteredRecommendations = new ObservableCollection<CleanupRecommendation>(GroupByScope(filtered));
+    }
+
+    /// <summary>
+    /// 多范围分析整合进同一份清单后，按来源范围归拢（组内保持原顺序），
+    /// 并给每组第一条挂上分组标题，让「这些候选来自哪个游戏/目录」一眼可见。
+    /// 单一来源或没有来源标记时，原样返回，不显示表头。
+    /// </summary>
+    private static IEnumerable<CleanupRecommendation> GroupByScope(IEnumerable<CleanupRecommendation> items)
+    {
+        var list = items.ToList();
+        foreach (var item in list) item.ScopeHeader = string.Empty;
+        var groups = list
+            .Select((item, index) => (Item: item, Index: index))
+            .GroupBy(entry => entry.Item.SourceScope, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(group => group.Min(entry => entry.Index))
+            .ToList();
+        if (groups.Count < 2) return list;
+        var result = new List<CleanupRecommendation>(list.Count);
+        foreach (var group in groups)
+        {
+            var members = group.Select(entry => entry.Item).ToList();
+            members[0].ScopeHeader = group.Key;
+            result.AddRange(members);
+        }
+        return result;
     }
 
     public void RefreshAfterCleanup()

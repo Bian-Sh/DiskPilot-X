@@ -37,10 +37,12 @@ public sealed record AiSkill(
     string Description,
     string Prompt);
 
+/// <summary>Kind 取值：rules = 纯路径规则；provider = 应用数据发现（无需扫描范围）；detector = 自定义识别源码。</summary>
 public sealed record AiSkillCatalogItem(
     string Id,
     string DisplayName,
-    string Description);
+    string Description,
+    string Kind = "rules");
 
 public sealed record AiSkillStoreResult(
     bool Success,

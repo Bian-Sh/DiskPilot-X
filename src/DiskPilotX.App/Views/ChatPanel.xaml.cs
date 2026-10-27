@@ -116,6 +116,14 @@ public partial class ChatPanel : UserControl
     private void Jump_Click(object sender,RoutedEventArgs e) { holdReading=false; followTail=true; MessagesScrollViewer.ScrollToEnd(); JumpButton.Visibility=Visibility.Collapsed; }
     private void Settings_Click(object sender,RoutedEventArgs e) => OpenSettingsRequested?.Invoke();
     private void OpenSkillTask_Click(object sender,RoutedEventArgs e) { if(sender is FrameworkElement { DataContext: SkillTaskCard card }) viewModel?.OpenSkillTask(card); }
+    private void OpenSkillWindow_Click(object sender,RoutedEventArgs e) { if(sender is FrameworkElement { DataContext: SkillUiSpec spec }) viewModel?.OpenSkillWindow(spec); }
+    /// <summary>整张入口卡可点：命中卡片任意位置都打开完整视图窗口。</summary>
+    private void EntryCard_MouseLeftButtonUp(object sender,MouseButtonEventArgs e)
+    {
+        if(sender is not FrameworkElement { DataContext: SkillUiSpec spec }) return;
+        e.Handled=true;
+        viewModel?.OpenSkillWindow(spec);
+    }
     private void Skills_Click(object sender,RoutedEventArgs e) { if(viewModel is null)return; viewModel.InputText="@"; FocusInput(); }
     private void Skill_Click(object sender,MouseButtonEventArgs e) { if(SkillList.SelectedItem is ChatSkillSuggestion skill) viewModel?.SelectSkillMentionCommand.Execute(skill); FocusInput(); }
     private void Slash_Click(object sender,MouseButtonEventArgs e) { if(SlashList.SelectedItem is ChatCommandSuggestion command) viewModel?.SelectSlashCommandCommand.Execute(command); FocusInput(); }

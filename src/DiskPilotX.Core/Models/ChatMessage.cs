@@ -26,6 +26,9 @@ public class ChatMessage : INotifyPropertyChanged
     public ObservableCollection<ChatSegment> Segments { get; } = new();
     public ObservableCollection<SkillTaskCard> SkillTasks { get; } = new();
 
+    /// <summary>气泡内渲染的按需视图（紧凑模式）。可在窗口中打开完整视图。</summary>
+    public ObservableCollection<SkillUiSpec> Views { get; } = new();
+
     private ChatSegment? _activeSegment;
     private bool _hasStepDeltas;
     private int _stepStartIndex;

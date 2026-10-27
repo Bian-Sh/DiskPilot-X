@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Xml;
 using DiskPilotX.Core.Services.Skills;
 
@@ -43,7 +43,7 @@ public sealed class CleanupSkillTool(CleanupSkillStore store) : AppCopilotToolBa
             {
                 case "list":
                     return Json(new { ok = true, skills = store.List().Select(p => new { p.Id, p.Title, p.Description, p.Version, p.Digest, has_ui = p.UiXaml is not null, has_source = p.Source is not null }) });
-                case "read": return Json(new { ok = true, package = store.Load(Required(arguments, "id")) });
+                case "read": return Json(new { ok = true, package = store.LoadReadOnly(Required(arguments, "id")) });
                 case "save":
                     if (!arguments.TryGetProperty("package", out var element)) throw new ArgumentException("save 需要 package。");
                     var package = element.Deserialize<CleanupSkillPackage>(CleanupSkillStore.JsonOptions) ?? throw new ArgumentException("package 无效。");

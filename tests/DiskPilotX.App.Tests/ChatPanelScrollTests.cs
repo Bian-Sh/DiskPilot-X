@@ -1,4 +1,3 @@
-using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -19,7 +18,7 @@ namespace DiskPilotX.App.Tests;
 public sealed class ChatPanelScrollTests
 {
     [Fact]
-    public void 回到最新根据真实滚动位置显示并保留阅读位置() => RunSta(() =>
+    public void 回到最新根据真实滚动位置显示并保留阅读位置() => StaHost.Run(() =>
     {
         var settings = Substitute.For<ISettingsService>();
         var saved = new AppSettings();
@@ -27,8 +26,6 @@ public sealed class ChatPanelScrollTests
         var router = Substitute.For<IAiSkillRouter>();
         router.GetSkillCatalog().Returns(Array.Empty<AiSkillCatalogItem>());
         var vm = new ChatViewModel(new DiskAssistantService(_ => throw new InvalidOperationException(), [], new AssistantWorkspace(), settings), settings, router);
-        var application = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-        application.Resources["VP.AccentButton"] = new Style(typeof(Button));
         var panel = new ChatPanel();
         panel.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/DiskPilot-X;component/Themes/VisionProTheme.xaml", UriKind.Relative) });
         using var source = new HwndSource(new HwndSourceParameters("聊天滚动回归")
@@ -114,7 +111,6 @@ public sealed class ChatPanelScrollTests
         Assert.Equal(Visibility.Collapsed, jump.Visibility);
         验证问答展示(panel, vm);
         验证问答替换输入区(panel, vm);
-        application.Shutdown();
     });
 
     private static void 验证问答展示(ChatPanel panel, ChatViewModel vm)
@@ -194,15 +190,6 @@ public sealed class ChatPanelScrollTests
         }
     }
 
-    private static void RunSta(Action action)
-    {
-        Exception? error = null;
-        var thread = new Thread(() => { try { action(); } catch (Exception ex) { error = ex; } }) { IsBackground = true };
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "聊天滚动测试未在时限内完成。");
-        if (error is not null) ExceptionDispatchInfo.Capture(error).Throw();
-    }
 }
 
 [CollectionDefinition("聊天滚动控件", DisableParallelization = true)]

@@ -184,6 +184,22 @@ public partial class MainViewModel : ObservableObject
         return CurrentSession;
     }
 
+    /// <summary>
+    /// 无头扫描：只拿到一份真实的扫描会话用于分析，不替换主工作区的 Treemap / 文件树 / 状态栏。
+    /// 多范围分析（例如用户一次勾了 2 个游戏）靠它同时容纳多份扫描结果，互不覆盖。
+    /// </summary>
+    public async Task<ScanSession> ScanHeadlessAsync(string path, CancellationToken ct, IProgress<ScanProgress>? progress = null)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (!_fileScanner.IsReady) throw new InvalidOperationException("扫描器正在准备，请稍后再试。");
+        var target = ScanPathResolver.Resolve(path ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(target)) throw new ArgumentException("路径为空。");
+        var session = await _fileScanner.ScanAsync(target, progress ?? new Progress<ScanProgress>(), ct);
+        if (session.IsCancelled || ct.IsCancellationRequested) throw new OperationCancelledByUserException("用户中断了扫描。");
+        if (session.RootEntry is null) throw new InvalidOperationException($"无法读取 {target}。");
+        return session;
+    }
+
     private bool CanScan() => !IsCopilotBusy && !IsScanning && SelectedPath is not null && _fileScanner.IsReady;
 
     partial void OnIsScanningChanged(bool value)

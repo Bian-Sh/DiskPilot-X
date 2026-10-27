@@ -190,22 +190,27 @@ public class ThemeManager
             app.Resources.Add("VP.GlassEnabled", profile.GlassEnabled);
     }
 
-    private void ApplyGlassBackdrop()
+    /// <summary>
+    /// 把当前磨砂透明主题施加到指定窗口。
+    /// 传 null 表示刷新主窗口；动态弹窗创建时调用本方法即可与宿主保持同一套材质。
+    /// </summary>
+    public void ApplyGlassBackdrop(Window? window = null)
     {
-        if (_mainWindow == null) return;
+        var target = window ?? _mainWindow;
+        if (target is null) return;
         var profile = _currentProfile;
 
         if (!profile.GlassEnabled || profile.GlassBackdropType == 0)
         {
-            Helpers.AcrylicHelper.DisableBackdrop(_mainWindow);
+            Helpers.AcrylicHelper.DisableBackdrop(target);
             return;
         }
 
         switch (profile.GlassBackdropType)
         {
-            case 1: Helpers.AcrylicHelper.EnableMica(_mainWindow); break;
-            case 2: Helpers.AcrylicHelper.EnableAcrylic(_mainWindow); break;
-            case 3: Helpers.AcrylicHelper.EnableAcrylic(_mainWindow); break;
+            case 1: Helpers.AcrylicHelper.EnableMica(target); break;
+            case 2: Helpers.AcrylicHelper.EnableAcrylic(target); break;
+            case 3: Helpers.AcrylicHelper.EnableAcrylic(target); break;
         }
     }
 

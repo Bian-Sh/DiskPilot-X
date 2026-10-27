@@ -1,0 +1,55 @@
+---
+name: steam-library-organizer
+description: "盘点本机 Steam 游戏库：自动定位客户端安装目录（注册表）、解析全部库文件夹（含多盘库）、逐个游戏读取 appid、名称、安装目录、安装大小与上次游玩时间；以海报网格卡片呈现，可勾选后回传助手进入清理分析。只读发现，不删除任何文件。"
+---
+
+# Steam 游戏库盘点
+
+## Purpose
+
+帮用户搞清楚「Steam 游戏到底占了多少空间、哪些游戏最占地方、有多久没玩了」，从而决定要不要清理。
+
+**面向小白用户**：用户不需要知道 Steam 装在哪、游戏放在哪个盘、什么是注册表。所有机器细节由 `src/Provider.cs` 经 **API Bridge** 自行发现；对话里只问人话（如「你想盘点哪个平台」）。
+
+## 只读边界
+
+源码以当前用户权限运行，**不是安全沙箱**，但严格只读：
+
+- ✅ 读注册表（`context.Host.ReadRegistry`）
+- ✅ 枚举目录 / 读文本文件
+- ✅ 统计目录大小
+- ❌ 不写文件、不删文件、不启进程、不联网
+
+清理必须走宿主的建议清单 + `cleanup_recommendations` 确认链路，源码不得绕过。
+
+## 发现步骤
+
+1. **定位客户端根目录**
+   依次尝试注册表 `SOFTWARE\Valve\Steam` 的 `InstallPath` / `SteamPath`（HKLM 与 HKCU，宿主自动处理 WOW6432Node）。找不到则如实返回空结果并 Log 原因。
+
+2. **解析全部库**
+   读 `<root>/steamapps/libraryfolders.vdf`，用 `"path"\s+"(...)"` 取出所有库目录；若文件缺失则只保留根目录。
+
+3. **逐个游戏读取**
+   对每个库的 `steamapps/appmanifest_*.acf`：
+   - `appid` ← 文件名数字段
+   - `name` ← `"name"` 行
+   - `installdir` ← `"installdir"` 行 → 安装目录 = `steamapps/common/<installdir>`
+   - 大小 ← **实测目录大小**（`GetDirectorySize`），比 ACF 的 `SizeOnDisk` 更能反映真实占用
+   - 上次游玩 ← `localconfig.vdf` 的 `LastPlayed`（Unix 秒）；缺失则回退安装目录最后修改时间
+
+4. **声明视图**
+   返回 `AppDataDiscoveryResult(entries, view)`，`view` 为：
+   - `stat_row`：游戏数 / 总占用 / 最大游戏
+   - `poster_grid`：按占用降序的海报卡（含"上次游玩"）
+   - `table`：全部明细（游戏 / 大小 / 上次游玩 / 所在库）
+
+## 使用方式
+
+- 保存后宿主会提示授权运行；运行前展示完整源码与包摘要。
+- 结果先以气泡紧凑呈现，点「在窗口中查看」可在新窗口核对海报与游玩时间、勾选条目并回传助手。
+
+## 约定
+
+- 不硬编码任何本机安装路径；一律经 Bridge 发现。
+- 找不到时如实说明并给出下一步（如让用户确认是否已安装），不编造数据。

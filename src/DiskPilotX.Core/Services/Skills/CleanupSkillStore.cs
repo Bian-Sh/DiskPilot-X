@@ -58,6 +58,80 @@ public sealed class CleanupSkillStore
         return LoadRevision(id, digest);
     }
 
+    /// <summary>
+    /// 只读载入：用户包走版本指针，内置技能则从内置根读取 SKILL.md 与 src/*.cs。
+    /// 内置内容仍不可保存或删除，但必须<b>可运行</b>——随包发布的发现类技能否则毫无用处。
+    /// </summary>
+    public CleanupSkillPackage LoadReadOnly(string id)
+    {
+        CleanupSkillSafety.ValidateId(id);
+        if (!IsProtected(id)) return Load(id);
+        foreach (var root in builtInRoots)
+        {
+            var directory = Path.Combine(root, id);
+            if (!File.Exists(Path.Combine(directory, "SKILL.md"))) continue;
+            return LoadBuiltIn(directory, id);
+        }
+        throw new ArgumentException("内置技能缺少可读内容：" + id);
+    }
+
+    private static CleanupSkillPackage LoadBuiltIn(string directory, string id)
+    {
+        CleanupSkillSafety.EnsureNoReparsePoints(directory);
+        var markdown = File.ReadAllText(Path.Combine(directory, "SKILL.md"), Utf8);
+        var package = new CleanupSkillPackage
+        {
+            Id = id,
+            Title = ReadHeading(markdown) ?? id,
+            Description = ReadFrontmatter(markdown, "description") ?? "",
+            Version = "1.0",
+            HostProtocolVersion = 1,
+            SkillMarkdown = markdown,
+            Rules = [],
+            References = [],
+            Source = ReadBuiltInSource(directory)
+        };
+        // 内置包不套用用户包的字段校验：纯规则技能没有源码也合法。
+        if (package.Source is not null && Utf8.GetByteCount(package.Source) > 256 * 1024) throw new InvalidDataException("内置技能源码超过 256 KiB 限制。");
+        return package with { Digest = HashPackage(package) };
+    }
+
+    private static string? ReadBuiltInSource(string directory)
+    {
+        foreach (var name in BuiltInSourceNames)
+        {
+            var path = Path.Combine(directory, "src", name);
+            if (File.Exists(path)) return File.ReadAllText(path, Utf8);
+        }
+        return null;
+    }
+
+    private static readonly string[] BuiltInSourceNames = ["Provider.cs", "Detector.cs"];
+
+    private static string? ReadHeading(string markdown)
+    {
+        foreach (var line in markdown.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("# ", StringComparison.Ordinal)) return trimmed[2..].Trim();
+        }
+        return null;
+    }
+
+    private static string? ReadFrontmatter(string markdown, string key)
+    {
+        var lines = markdown.Split('\n');
+        if (lines.Length < 3 || lines[0].Trim() != "---") return null;
+        var prefix = key + ":";
+        for (var index = 1; index < lines.Length; index++)
+        {
+            var line = lines[index].Trim();
+            if (line == "---") return null;
+            if (line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return line[prefix.Length..].Trim().Trim('"');
+        }
+        return null;
+    }
+
     private CleanupSkillPackage LoadRevision(string id, string digest)
     {
         var directory = CleanupSkillSafety.SafePath(UserRoot, id);

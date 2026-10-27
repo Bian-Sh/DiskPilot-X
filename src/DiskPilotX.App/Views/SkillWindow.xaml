@@ -1,0 +1,81 @@
+<Window x:Class="DiskPilotX.App.Views.SkillWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="clr-namespace:DiskPilotX.App.Converters"
+        xmlns:controls="clr-namespace:DiskPilotX.App.Controls"
+        xmlns:models="clr-namespace:DiskPilotX.Core.Models;assembly=DiskPilotX.Core"
+        FontFamily="{DynamicResource VP.FontFamily}"
+        Title="视图" Width="1000" Height="780" MinWidth="700" MinHeight="500"
+        WindowStartupLocation="CenterOwner" ShowActivated="False"
+        WindowStyle="None" AllowsTransparency="False"
+        ResizeMode="CanResizeWithGrip" Background="Transparent"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType">
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="SkillUiTemplates.xaml"/>
+      </ResourceDictionary.MergedDictionaries>
+      <!-- 窗口自备转换器：不依赖合并字典的解析时序 -->
+      <c:BoolToVisibilityConverter x:Key="WinBoolVis"/>
+      <c:NullToVisibilityConverter x:Key="WinNullVis"/>
+      <c:ActionButtonStyleConverter x:Key="ActionButtonStyle"/>
+    </ResourceDictionary>
+  </Window.Resources>
+
+  <!-- 与宿主主窗口同构：无系统标题栏；圆角、裁切、磨砂材质统一交给 HostWindowChrome -->
+  <Border x:Name="Frame" BorderThickness="1"
+          Background="{DynamicResource VP.BackgroundAltBrush}"
+          BorderBrush="{DynamicResource VP.BorderLightBrush}"
+          CornerRadius="{DynamicResource VP.WindowCornerRadius}">
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="36"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+
+      <controls:WindowTitleBar x:Name="HostTitleBar" Grid.Row="0" ApplicationToolsVisibility="Collapsed"/>
+
+      <!-- 头部：标题 + 副标题 + 强调色引导条 -->
+      <Border Grid.Row="1" Padding="28,12,28,18" BorderBrush="{DynamicResource VP.BorderSubtleBrush}" BorderThickness="0,0,0,1">
+        <StackPanel>
+          <Border Width="42" Height="4" CornerRadius="2" Background="{DynamicResource VP.AccentBrush}" HorizontalAlignment="Left" Margin="0,0,0,12"/>
+          <TextBlock Text="{Binding Spec.Title}" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource VP.TextPrimaryBrush}" TextWrapping="Wrap"/>
+          <TextBlock Text="{Binding Spec.Subtitle}" FontSize="12" Foreground="{DynamicResource VP.TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0"
+                     Visibility="{Binding Spec.Subtitle,Converter={StaticResource WinNullVis}}"/>
+        </StackPanel>
+      </Border>
+
+      <!-- 主体：区块列表（海报网格 / 统计行 / 表格 / 条形图 / 文本） -->
+      <ScrollViewer Grid.Row="2" x:Name="ContentScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28,20,28,20"
+                    RequestBringIntoView="ContentScroll_RequestBringIntoView">
+        <ItemsControl ItemsSource="{Binding Spec.Sections}"/>
+      </ScrollViewer>
+
+      <!-- 底栏：选择概况 + 动作按钮（直接使用宿主通用按钮样式） -->
+      <Border Grid.Row="3" Padding="28,14,28,18" BorderBrush="{DynamicResource VP.BorderSubtleBrush}" BorderThickness="0,1,0,0">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock Grid.Column="0" Text="{Binding SelectionSummary}" FontSize="11" Foreground="{DynamicResource VP.TextTertiaryBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+          <ItemsControl Grid.Column="1" ItemsSource="{Binding Actions}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Button Margin="8,0,0,0" Content="{Binding Label}"
+                        Command="{Binding DataContext.ActionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        CommandParameter="{Binding}"
+                        Style="{Binding IsContinue,Converter={StaticResource ActionButtonStyle}}"/>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </Grid>
+      </Border>
+    </Grid>
+  </Border>
+</Window>

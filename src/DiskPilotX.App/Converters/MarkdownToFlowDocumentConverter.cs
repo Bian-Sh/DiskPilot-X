@@ -99,7 +99,11 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
                             document.Blocks.Add(currentParagraph);
                             currentParagraph = new Paragraph();
                         }
-                        document.Blocks.Add(CreateCodeBlock(codeBlock));
+                        // 自定义图表围栏块优先渲染为原生图表，其余走代码块
+                        if (MarkdownChartRenderer.IsChartLanguage(codeBlock.Info))
+                            document.Blocks.Add(MarkdownChartRenderer.Render(codeBlock.Info, string.Join(Environment.NewLine, codeBlock.Lines)));
+                        else
+                            document.Blocks.Add(CreateCodeBlock(codeBlock));
                         break;
 
                     case ThematicBreakBlock:
