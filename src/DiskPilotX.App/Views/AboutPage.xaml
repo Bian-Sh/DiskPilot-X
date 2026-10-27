@@ -45,8 +45,8 @@
                            VerticalAlignment="Bottom"
                            Margin="0,0,0,4"
                            MouseLeftButtonDown="DonateLink_Click">
-                    <Run Text="☕ " Foreground="{DynamicResource VP.AccentBrush}" />
-                    <Run Text="{loc:Loc BuyMeCoffee}" Foreground="{DynamicResource VP.AccentBrush}" />
+                    <Run Text="☕ " Foreground="{DynamicResource VP.AccentTextBrush}" />
+                    <Run Text="{loc:Loc BuyMeCoffee}" Foreground="{DynamicResource VP.AccentTextBrush}" />
                 </TextBlock>
             </Grid>
             <TextBlock Margin="0,6,0,0"
@@ -74,7 +74,7 @@
                 <Run Text="{loc:Loc GithubLabel}" Foreground="{DynamicResource VP.TextSecondaryBrush}" />
                 <Run Text=": " Foreground="{DynamicResource VP.TextSecondaryBrush}" />
                 <Hyperlink NavigateUri="https://github.com/Bian-Sh/DiskPilot-X"
-                           Foreground="{DynamicResource VP.AccentBrush}"
+                           Foreground="{DynamicResource VP.AccentTextBrush}"
                            TextDecorations="None"
                            RequestNavigate="Hyperlink_RequestNavigate">
                     <Run Text="github.com/Bian-Sh/DiskPilot-X" />
@@ -106,7 +106,7 @@
                             BorderThickness="1.5"
                             CornerRadius="3">
                         <TextBlock Text="&#x2713;"
-                                   Foreground="{DynamicResource VP.SuccessBrush}"
+                                   Foreground="{DynamicResource VP.SuccessTextBrush}"
                                    FontSize="11"
                                    FontWeight="SemiBold"
                                    HorizontalAlignment="Center"
@@ -114,7 +114,7 @@
                                    Margin="0,-1,0,0" />
                     </Border>
                     <TextBlock Text="{loc:Loc UpToDateStatus}"
-                               Foreground="{DynamicResource VP.SuccessBrush}"
+                               Foreground="{DynamicResource VP.SuccessTextBrush}"
                                FontSize="14"
                                VerticalAlignment="Center" />
                 </StackPanel>
@@ -140,14 +140,14 @@
                     <TextBlock x:Name="UpdateTitleDetail"
                                Margin="0,2,0,0"
                                FontSize="14"
-                               Foreground="{DynamicResource VP.SuccessBrush}" />
+                               Foreground="{DynamicResource VP.SuccessTextBrush}" />
 
                     <!-- 更新日志 -->
                     <TextBlock Margin="0,16,0,6"
                                Text="{loc:Loc ReleaseNotesHeader}"
                                FontSize="13" FontWeight="SemiBold"
                                Foreground="{DynamicResource VP.TextPrimaryBrush}" />
-                    <Border Background="#1A1B26"
+                    <Border Background="{DynamicResource VP.BackgroundAltBrush}"
                             CornerRadius="8"
                             Padding="12,8"
                             MaxHeight="200">
@@ -238,7 +238,7 @@
                 <StackPanel>
                     <TextBlock x:Name="DownloadCompleteStatus"
                                FontSize="14"
-                               Foreground="{DynamicResource VP.SuccessBrush}"
+                               Foreground="{DynamicResource VP.SuccessTextBrush}"
                                HorizontalAlignment="Center" />
 
                     <StackPanel Margin="0,16,0,0"

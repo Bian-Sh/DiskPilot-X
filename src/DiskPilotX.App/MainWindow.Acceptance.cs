@@ -114,7 +114,10 @@ public partial class MainWindow
     }
     internal object AcceptanceSetTheme(string? name)
     {
-        App.Services!.GetRequiredService<DiskPilotX.App.Services.ThemeManager>().ApplyTheme(name == "light" ? DiskPilotX.Core.Models.Theme.ThemeProfile.VisionProLight : DiskPilotX.Core.Models.Theme.ThemeProfile.VisionProDark); return GetAcceptanceState();
+        if (_settingsViewModel is null) throw new InvalidOperationException("设置尚未初始化。");
+        var preset = name == "light" ? DiskPilotX.Core.Models.Theme.ThemeProfile.VisionProLight : DiskPilotX.Core.Models.Theme.ThemeProfile.VisionProDark;
+        _settingsViewModel.ApplyThemePresetCommand.Execute(preset);
+        return GetAcceptanceState();
     }
     internal void AcceptanceNavigateToPath(string path)
     {

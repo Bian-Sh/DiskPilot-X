@@ -130,7 +130,7 @@
             </Border.Style>
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                 <ProgressBar IsIndeterminate="True" Width="180" Height="3" Margin="0,0,0,12"
-                             Foreground="{DynamicResource VP.AccentBrush}"
+                             Foreground="{DynamicResource VP.AccentTextBrush}"
                              Background="{DynamicResource VP.SurfaceBrush}" />
                 <TextBlock Text="{loc:Loc AnalyzingFilesText}"
                            FontSize="14"
@@ -166,7 +166,7 @@
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="520">
                 <TextBlock Text="{Binding AnalysisError}"
                            TextWrapping="Wrap"
-                           Foreground="{DynamicResource VP.DangerBrush}"
+                           Foreground="{DynamicResource VP.DangerTextBrush}"
                            FontSize="13"
                            HorizontalAlignment="Center"
                            TextAlignment="Center">

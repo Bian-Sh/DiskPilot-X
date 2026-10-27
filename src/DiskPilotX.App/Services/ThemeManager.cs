@@ -1,20 +1,22 @@
+using System.ComponentModel;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using DiskPilotX.Core.Models.Theme;
 using DiskPilotX.Core.Services.Settings;
 
 namespace DiskPilotX.App.Services;
 
 /// <summary>
-/// Central theme manager — applies ThemeProfile to the WPF resource dictionary at runtime.
-/// Handles color injection, blur effects, glass backdrop, and text contrast auto-computation.
+/// 将主题配色、统一磨砂材质和文字对比度实时应用到 WPF 资源。
 /// </summary>
 public class ThemeManager
 {
     private readonly ISettingsService _settingsService;
     private ThemeProfile _currentProfile;
     private Window? _mainWindow;
+    private bool _glassBackdropActive;
+    private const double MinimumGlassTintOpacity = 0.08;
 
     public ThemeProfile CurrentProfile => _currentProfile;
 
@@ -38,22 +40,22 @@ public class ThemeManager
     public void RegisterMainWindow(Window window)
     {
         _mainWindow = window;
-        ApplyGlassBackdrop();
+        _glassBackdropActive = false;
+        Refresh();
     }
 
     public void ApplyTheme(ThemeProfile profile)
     {
         _currentProfile = profile;
-        ApplyToResources();
-        ApplyGlassBackdrop();
+        Refresh();
         Persist();
         ThemeChanged?.Invoke();
     }
 
     public void Refresh()
     {
-        ApplyToResources();
         ApplyGlassBackdrop();
+        ApplyToResources();
     }
 
     public void Persist()
@@ -89,16 +91,28 @@ public class ThemeManager
 
         var profile = _currentProfile;
 
+        // 显式颜色源让共享画刷始终保持绑定，已有文字无需重建也能收到更新。
         void SetBrush(string key, Color color)
         {
-            // 复用可变画刷，使现有 Markdown 文档也能跟随明暗主题切换。
-            if (app.Resources[key] is SolidColorBrush existing && !existing.IsFrozen) existing.Color = color;
-            else app.Resources[key] = new SolidColorBrush(color);
+            var brush = app.Resources[key] as SolidColorBrush;
+            if (brush is not null && !brush.IsFrozen
+                && BindingOperations.GetBinding(brush, SolidColorBrush.ColorProperty)?.Source is ThemeColor source)
+            {
+                source.Value = color;
+                return;
+            }
+
+            if (brush is null || brush.IsFrozen) brush = new SolidColorBrush();
+            BindingOperations.SetBinding(brush, SolidColorBrush.ColorProperty,
+                new Binding(nameof(ThemeColor.Value)) { Source = new ThemeColor(color), Mode = BindingMode.OneWay });
+            app.Resources[key] = brush;
         }
 
         void SetColor(string key, Color color)
         {
             app.Resources[key] = color;
+            if (key != "VP.Background")
+                SetBrush(key == "VP.BackgroundTint" ? "VP.BackgroundBrush" : key + "Brush", color);
         }
 
         var bg = ParseColor(profile.BackgroundColor);
@@ -121,7 +135,8 @@ public class ThemeManager
         byte overlayB = isLightTheme ? (byte)0 : (byte)255;
 
         SetColor("VP.Background", bg);
-        SetColor("VP.BackgroundAlt", bgAlt);
+        SetColor("VP.BackgroundTint", Color.FromArgb((byte)(255 * GetGlassOpacity()), bg.R, bg.G, bg.B));
+        SetColor("VP.BackgroundAlt", Color.FromArgb(255, bgAlt.R, bgAlt.G, bgAlt.B));
         SetColor("VP.Accent", accent);
         SetColor("VP.AccentHover", accentHover);
         SetColor("VP.TextPrimary", tPrimary);
@@ -131,6 +146,11 @@ public class ThemeManager
         SetColor("VP.DangerPressed", dangerPressed);
         SetColor("VP.Success", success);
         SetColor("VP.Warning", warning);
+        SetColor("VP.AccentText", ReadableSemanticText(accent, bgAlt));
+        SetColor("VP.AccentHoverText", ReadableSemanticText(accentHover, bgAlt));
+        SetColor("VP.SuccessText", ReadableSemanticText(success, bgAlt));
+        SetColor("VP.WarningText", ReadableSemanticText(warning, bgAlt));
+        SetColor("VP.DangerText", ReadableSemanticText(danger, bgAlt));
 
         SetColor("VP.Surface", Color.FromArgb((byte)profile.SurfaceAlpha, overlayR, overlayG, overlayB));
         SetColor("VP.SurfaceHover", Color.FromArgb((byte)profile.SurfaceHoverAlpha, overlayR, overlayG, overlayB));
@@ -140,73 +160,31 @@ public class ThemeManager
         SetColor("VP.BorderLight", Color.FromArgb((byte)profile.BorderLightAlpha, overlayR, overlayG, overlayB));
         SetColor("VP.BorderSubtle", Color.FromArgb((byte)profile.BorderSubtleAlpha, overlayR, overlayG, overlayB));
         SetColor("VP.Overlay", Color.FromArgb((byte)profile.OverlayAlpha, bgAlt.R, bgAlt.G, bgAlt.B));
-
-        // When glass is enabled, make backgrounds semi-transparent so the system backdrop shows through
-        var bgOpacity = profile.GlassEnabled ? profile.GlassOpacity : 1.0;
-        var bgWithOpacity = Color.FromArgb((byte)(bg.A * bgOpacity), bg.R, bg.G, bg.B);
-        var bgAltWithOpacity = Color.FromArgb((byte)(bgAlt.A * bgOpacity), bgAlt.R, bgAlt.G, bgAlt.B);
-
-        SetBrush("VP.BackgroundBrush", bgWithOpacity);
-        SetBrush("VP.BackgroundAltBrush", bgAltWithOpacity);
-        SetBrush("VP.SurfaceBrush", Color.FromArgb((byte)profile.SurfaceAlpha, overlayR, overlayG, overlayB));
-        SetBrush("VP.SurfaceHoverBrush", Color.FromArgb((byte)profile.SurfaceHoverAlpha, overlayR, overlayG, overlayB));
-        SetBrush("VP.SurfaceActiveBrush", Color.FromArgb((byte)profile.SurfaceActiveAlpha, overlayR, overlayG, overlayB));
-        SetBrush("VP.SettingsCardBrush", Color.FromArgb((byte)profile.SettingsCardAlpha, overlayR, overlayG, overlayB));
-        SetBrush("VP.CardBrush", Color.FromArgb((byte)profile.CardAlpha, overlayR, overlayG, overlayB));
-        SetBrush("VP.BorderLightBrush", Color.FromArgb((byte)profile.BorderLightAlpha, overlayR, overlayG, overlayB));
-        SetBrush("VP.BorderSubtleBrush", Color.FromArgb((byte)profile.BorderSubtleAlpha, overlayR, overlayG, overlayB));
-        SetBrush("VP.TextPrimaryBrush", tPrimary);
-        SetBrush("VP.TextSecondaryBrush", tSecondary);
-        SetBrush("VP.TextTertiaryBrush", tTertiary);
-        SetBrush("VP.AccentBrush", accent);
-        SetBrush("VP.AccentHoverBrush", accentHover);
-        SetBrush("VP.DangerBrush", danger);
-        SetBrush("VP.DangerPressedBrush", dangerPressed);
-        SetBrush("VP.SuccessBrush", success);
-        SetBrush("VP.WarningBrush", warning);
-        SetBrush("VP.OverlayBrush", Color.FromArgb((byte)profile.OverlayAlpha, bgAlt.R, bgAlt.G, bgAlt.B));
-
-        UpdateGlassResources(profile);
-    }
-
-    private void UpdateGlassResources(ThemeProfile profile)
-    {
-        var app = Application.Current;
-        if (app == null) return;
-
-        if (app.Resources.Contains("VP.GlassOpacity"))
-            app.Resources["VP.GlassOpacity"] = profile.GlassOpacity;
-        else
-            app.Resources.Add("VP.GlassOpacity", profile.GlassOpacity);
-
-        if (app.Resources.Contains("VP.BlurRadius"))
-            app.Resources["VP.BlurRadius"] = profile.BlurRadius;
-        else
-            app.Resources.Add("VP.BlurRadius", profile.BlurRadius);
-
-        if (app.Resources.Contains("VP.GlassEnabled"))
-            app.Resources["VP.GlassEnabled"] = profile.GlassEnabled;
-        else
-            app.Resources.Add("VP.GlassEnabled", profile.GlassEnabled);
     }
 
     private void ApplyGlassBackdrop()
     {
-        if (_mainWindow == null) return;
-        var profile = _currentProfile;
-
-        if (!profile.GlassEnabled || profile.GlassBackdropType == 0)
+        if (_mainWindow == null)
         {
-            Helpers.AcrylicHelper.DisableBackdrop(_mainWindow);
+            _glassBackdropActive = false;
             return;
         }
 
-        switch (profile.GlassBackdropType)
+        var background = ParseColor(_currentProfile.BackgroundColor);
+        var isDark = (0.299 * background.R + 0.587 * background.G + 0.114 * background.B) / 255.0 <= 0.5;
+        Helpers.AcrylicHelper.SetDarkMode(_mainWindow, isDark);
+        if (_currentProfile.GlassEnabled)
         {
-            case 1: Helpers.AcrylicHelper.EnableMica(_mainWindow); break;
-            case 2: Helpers.AcrylicHelper.EnableAcrylic(_mainWindow); break;
-            case 3: Helpers.AcrylicHelper.EnableAcrylic(_mainWindow); break;
+            // 调整滑杆只更新画刷，不反复重建原生材质，避免拖动时闪烁。
+            if (!_glassBackdropActive)
+                _glassBackdropActive = Helpers.AcrylicHelper.TryEnableAcrylic(_mainWindow);
         }
+        else
+        {
+            _glassBackdropActive = false;
+        }
+        if (!_glassBackdropActive)
+            Helpers.AcrylicHelper.DisableBackdrop(_mainWindow);
     }
 
     public static Color ParseColor(string hex)
@@ -232,19 +210,56 @@ public class ThemeManager
         return $"#{newAlpha:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
     }
 
-    public BlurEffect? CreateBlurEffect()
-    {
-        if (_currentProfile.BlurRadius <= 0) return null;
-        return new BlurEffect
-        {
-            Radius = _currentProfile.BlurRadius,
-            KernelType = KernelType.Gaussian,
-            RenderingBias = RenderingBias.Quality,
-        };
-    }
-
     public double GetGlassOpacity()
     {
-        return _currentProfile.GlassEnabled ? _currentProfile.GlassOpacity : 1.0;
+        // 最通透档也保留少量主题色，避免宿主底色不可见而只有设置页变色。
+        return _glassBackdropActive
+            ? MinimumGlassTintOpacity + (1 - MinimumGlassTintOpacity) * _currentProfile.GlassOpacity
+            : 1.0;
     }
+    // 语义色保留原色作背景和图标；文字单独保证与实色面板至少 4.5:1 的对比度。
+    private static Color ReadableSemanticText(Color color, Color background)
+    {
+        static double Luminance(Color value)
+        {
+            static double Channel(byte channel)
+            {
+                var value = channel / 255.0;
+                return value <= 0.04045 ? value / 12.92 : Math.Pow((value + 0.055) / 1.055, 2.4);
+            }
+            return 0.2126 * Channel(value.R) + 0.7152 * Channel(value.G) + 0.0722 * Channel(value.B);
+        }
+        static double Contrast(double left, double right) => (Math.Max(left, right) + 0.05) / (Math.Min(left, right) + 0.05);
+
+        var backdrop = Luminance(background);
+        var target = Contrast(0, backdrop) >= Contrast(1, backdrop) ? Colors.Black : Colors.White;
+        color = Color.FromRgb(color.R, color.G, color.B);
+        for (var step = 0; step < 24; step++)
+        {
+            if (Contrast(Luminance(color), backdrop) >= 4.5) return color;
+            color = Color.FromRgb(
+                (byte)Math.Round(color.R + (target.R - color.R) * 0.15),
+                (byte)Math.Round(color.G + (target.G - color.G) * 0.15),
+                (byte)Math.Round(color.B + (target.B - color.B) * 0.15));
+        }
+        return target;
+    }
+
+    private sealed class ThemeColor(Color value) : INotifyPropertyChanged
+    {
+        private Color _value = value;
+        public Color Value
+        {
+            get => _value;
+            set
+            {
+                if (_value == value) return;
+                _value = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Value)));
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+    }
+
 }

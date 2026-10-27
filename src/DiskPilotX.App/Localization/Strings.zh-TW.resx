@@ -698,10 +698,10 @@
     <value>預設</value>
   </data>
   <data name="ThemeAccentColorLabel" xml:space="preserve">
-    <value>強調色</value>
+    <value>背景色</value>
   </data>
   <data name="ThemeAccentColorHint" xml:space="preserve">
-    <value>輸入十六進位制顏色值（例如 #FF2562A7）</value>
+    <value>選擇應用程式背景色，或輸入十六進位色碼（例如 #FF2562A7）</value>
   </data>
   <data name="ThemeApplyButton" xml:space="preserve">
     <value>應用</value>
@@ -734,10 +734,10 @@
     <value>毛玻璃面板模糊半徑（0 = 關閉，最大 = 60）</value>
   </data>
   <data name="ThemeOpacityLabel" xml:space="preserve">
-    <value>不透明度</value>
+    <value>透明度</value>
   </data>
   <data name="ThemeOpacityHint" xml:space="preserve">
-    <value>毛玻璃面板不透明度（0.1 幾乎透明，1.0 完全不透明）</value>
+    <value>0% 最通透，100% 完全不透明；背景色在各檔位均參與預覽。</value>
   </data>
   <data name="ThemeAutoContrastLabel" xml:space="preserve">
     <value>自動對比</value>

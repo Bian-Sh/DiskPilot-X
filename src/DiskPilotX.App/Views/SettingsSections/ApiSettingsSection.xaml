@@ -27,7 +27,7 @@
                               Data="M 10,5 A 1,1 0 1 1 8,5 A 1,1 0 1 1 10,5 M 10,12 A 1,1 0 1 1 8,12 A 1,1 0 1 1 10,12 M 10,19 A 1,1 0 1 1 8,19 A 1,1 0 1 1 10,19 M 16,5 A 1,1 0 1 1 14,5 A 1,1 0 1 1 16,5 M 16,12 A 1,1 0 1 1 14,12 A 1,1 0 1 1 16,12 M 16,19 A 1,1 0 1 1 14,19 A 1,1 0 1 1 16,19"/>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource VP.AccentBrush}"/><Setter TargetName="HandleSurface" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}"/></Trigger>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource VP.AccentTextBrush}"/><Setter TargetName="HandleSurface" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}"/></Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="HandleSurface" Property="BorderBrush" Value="{DynamicResource VP.AccentBrush}"/><Setter TargetName="HandleSurface" Property="BorderThickness" Value="1"/></Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate></Setter.Value></Setter>
@@ -142,12 +142,12 @@
                                         <DataTrigger Binding="{Binding ValidationState}"
                                                      Value="{x:Static vm:ValidationState.Valid}">
                                             <Setter Property="Visibility" Value="Visible" />
-                                            <Setter Property="Foreground" Value="{DynamicResource VP.SuccessBrush}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource VP.SuccessTextBrush}" />
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding ValidationState}"
                                                      Value="{x:Static vm:ValidationState.Invalid}">
                                             <Setter Property="Visibility" Value="Visible" />
-                                            <Setter Property="Foreground" Value="{DynamicResource VP.DangerBrush}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource VP.DangerTextBrush}" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -298,7 +298,7 @@
                                                                     </ControlTemplate.Triggers>
                                                                 </ControlTemplate>
                                                             </Setter.Value></Setter>
-                                                            <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource VP.DangerBrush}"/></Trigger></Style.Triggers>
+                                                            <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource VP.DangerTextBrush}"/></Trigger></Style.Triggers>
                                                         </Style>
                                                     </Button.Style>
                                                     <Path Width="13" Height="15" Stretch="Uniform" Stroke="{Binding Foreground,RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"

@@ -116,10 +116,8 @@ public partial class MainWindow : Window
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         Log.Information("MainWindow loaded");
-        // Enable DWM backdrop and dark mode
+        // 材质统一由主题管理器应用，启动时不再覆盖当前选择。
         var hwnd = new WindowInteropHelper(this).EnsureHandle();
-        AcrylicHelper.EnableDarkMode(hwnd);
-        AcrylicHelper.EnableMica(hwnd);
 
         // Hook WndProc for WM_GETMINMAXINFO (maximize bounds)
         var source = HwndSource.FromHwnd(hwnd);

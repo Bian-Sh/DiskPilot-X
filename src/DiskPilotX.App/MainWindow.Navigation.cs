@@ -531,13 +531,15 @@ public partial class MainWindow
         // ItemTemplate: simple TextBlock bound to BreadcrumbItem.Name
         var textFactory = new FrameworkElementFactory(typeof(TextBlock));
         textFactory.SetBinding(TextBlock.TextProperty, new Binding("Name"));
+        textFactory.SetBinding(TextBlock.ForegroundProperty, new Binding("Foreground")
+        { RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(MenuItem), 1) });
         textFactory.SetValue(TextBlock.PaddingProperty, new Thickness(8, 6, 8, 6));
         textFactory.SetValue(TextBlock.FontSizeProperty, 13.0);
         textFactory.SetValue(TextBlock.FontFamilyProperty, (System.Windows.Media.FontFamily)FindResource("VP.FontFamily"));
         menu.ItemTemplate = new DataTemplate(typeof(BreadcrumbItem)) { VisualTree = textFactory };
 
         // ItemContainerStyle: hover highlight + click handler
-        var style = new Style(typeof(MenuItem));
+        var style = new Style(typeof(MenuItem), (Style)FindResource(typeof(MenuItem)));
 
         // Hover background
         var hoverTrigger = new Trigger { Property = MenuItem.IsHighlightedProperty, Value = true };

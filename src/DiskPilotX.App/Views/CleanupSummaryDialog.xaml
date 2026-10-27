@@ -29,7 +29,7 @@
             <TextBlock x:Name="SuccessSummary"
                        FontSize="17"
                        FontWeight="SemiBold"
-                       Foreground="{DynamicResource VP.SuccessBrush}"
+                       Foreground="{DynamicResource VP.SuccessTextBrush}"
                        TextWrapping="Wrap"
                        Margin="0,0,0,12" />
 

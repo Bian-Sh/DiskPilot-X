@@ -299,33 +299,21 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _glassEnabled;
 
-    partial void OnGlassEnabledChanged(bool value)
-    {
-        if (!_isLoadingSettings) SyncAndSaveTheme();
-    }
+    partial void OnGlassEnabledChanged(bool value) => ApplyGlassSettings();
 
     [ObservableProperty]
-    private int _glassBackdropType;
+    private double _glassOpacityPercent = 60;
 
-    partial void OnGlassBackdropTypeChanged(int value)
+    partial void OnGlassOpacityPercentChanged(double value) => ApplyGlassSettings();
+
+    private void ApplyGlassSettings()
     {
-        if (!_isLoadingSettings) SyncAndSaveTheme();
-    }
-
-    [ObservableProperty]
-    private double _blurRadius;
-
-    partial void OnBlurRadiusChanged(double value)
-    {
-        if (!_isLoadingSettings) SyncAndSaveTheme();
-    }
-
-    [ObservableProperty]
-    private double _glassOpacity = 0.85;
-
-    partial void OnGlassOpacityChanged(double value)
-    {
-        if (!_isLoadingSettings) SyncAndSaveTheme();
+        if (_isLoadingSettings) return;
+        var profile = _themeManager.CurrentProfile.Clone();
+        profile.GlassEnabled = GlassEnabled;
+        profile.GlassOpacity = GlassOpacityPercent / 100;
+        _themeManager.ApplyTheme(profile);
+        SettingsChanged?.Invoke();
     }
 
     [ObservableProperty]
@@ -438,7 +426,10 @@ public partial class SettingsViewModel : ObservableObject
     {
         if (preset == null) return;
 
-        _themeManager.ApplyTheme(preset);
+        var profile = preset.Clone();
+        profile.GlassEnabled = GlassEnabled;
+        profile.GlassOpacity = _themeManager.CurrentProfile.GlassOpacity;
+        _themeManager.ApplyTheme(profile);
         _themeManager.Persist();
 
         _isLoadingSettings = true;
@@ -460,9 +451,7 @@ public partial class SettingsViewModel : ObservableObject
         SelectedThemeProfile = p;
         ThemeBackgroundColor = ThemeManager.ParseColor(p.BackgroundColor);
         GlassEnabled = p.GlassEnabled;
-        GlassBackdropType = p.GlassBackdropType;
-        BlurRadius = p.BlurRadius;
-        GlassOpacity = p.GlassOpacity;
+        GlassOpacityPercent = 100 * p.GlassOpacity;
         AutoTextContrast = p.AutoTextContrast;
     }
 
@@ -610,7 +599,7 @@ public partial class SettingsViewModel : ObservableObject
         settings.Language = string.IsNullOrWhiteSpace(Language) ? "zh-CN" : Language.Trim();
         L.SetLanguage(settings.Language);
 
-        SyncThemeToManager();
+        settings.ThemeProfile = _themeManager.CurrentProfile.Clone();
 
         _settingsService.SaveSettings(settings);
         SettingsChanged?.Invoke();
@@ -812,9 +801,7 @@ public partial class SettingsViewModel : ObservableObject
             SuccessColor = "#FF30D158",
             WarningColor = "#FFFFD60A",
             GlassEnabled = GlassEnabled,
-            GlassBackdropType = GlassBackdropType,
-            BlurRadius = BlurRadius,
-            GlassOpacity = GlassOpacity,
+            GlassOpacity = GlassOpacityPercent / 100,
             AutoTextContrast = AutoTextContrast,
             SurfaceAlpha = _themeManager.CurrentProfile.SurfaceAlpha,
             SurfaceHoverAlpha = _themeManager.CurrentProfile.SurfaceHoverAlpha,

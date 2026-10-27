@@ -701,10 +701,10 @@
     <value>Presets</value>
   </data>
   <data name="ThemeAccentColorLabel" xml:space="preserve">
-    <value>Accent Color</value>
+    <value>Background Color</value>
   </data>
   <data name="ThemeAccentColorHint" xml:space="preserve">
-    <value>Hex color for accent (e.g., #FF2562A7)</value>
+    <value>Choose the app background color or enter a hex value (e.g., #FF2562A7)</value>
   </data>
   <data name="ThemeApplyButton" xml:space="preserve">
     <value>Apply</value>
@@ -740,7 +740,7 @@
     <value>Transparency</value>
   </data>
   <data name="ThemeOpacityHint" xml:space="preserve">
-    <value>Glass panel opacity (0.1 nearly transparent, 1.0 fully opaque)</value>
+    <value>0% is the clearest; 100% is opaque. The background color remains visible at every level.</value>
   </data>
   <data name="ThemeAutoContrastLabel" xml:space="preserve">
     <value>Auto Contrast</value>
