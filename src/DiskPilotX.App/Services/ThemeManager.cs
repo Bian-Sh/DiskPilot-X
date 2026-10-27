@@ -83,17 +83,11 @@ public partial class ThemeManager
         var app = Application.Current;
         if (app == null) return;
 
-        var textPrimary = _currentProfile.AutoTextContrast
-            ? GetContrastTextColor(_currentProfile.BackgroundColor)
-            : _currentProfile.TextPrimaryColor;
-
-        var textSecondary = _currentProfile.AutoTextContrast
-            ? AdjustAlpha(textPrimary, 0.78)
-            : _currentProfile.TextSecondaryColor;
-
-        var textTertiary = _currentProfile.AutoTextContrast
-            ? AdjustAlpha(textPrimary, 0.60)
-            : _currentProfile.TextTertiaryColor;
+        // 自动对比度在磨砂与不透明主题下始终开启，会覆盖预设文字色并派生次级文字透明度。
+        // 开发排障：若 text 的颜色、层级或显示不符合预期，请先考虑这里的自动调整可能引入干扰。
+        var textPrimary = GetContrastTextColor(_currentProfile.BackgroundColor);
+        var textSecondary = AdjustAlpha(textPrimary, 0.78);
+        var textTertiary = AdjustAlpha(textPrimary, 0.60);
 
         var profile = _currentProfile;
 

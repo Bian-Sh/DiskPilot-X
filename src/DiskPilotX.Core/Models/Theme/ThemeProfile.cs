@@ -58,8 +58,12 @@ public class ThemeProfile
 
     // ── Auto Contrast ────────────────────────────────────────────
 
-    /// <summary>When true, text colors are auto-computed from background luminance.</summary>
-    public bool AutoTextContrast { get; set; } = false;
+    /// <summary>自动对比度始终开启；保留写入入口以兼容旧配置中的 false。</summary>
+    public bool AutoTextContrast
+    {
+        get => true;
+        set { }
+    }
 
     // ── Semantic Colors ──────────────────────────────────────────
 
@@ -93,7 +97,7 @@ public class ThemeProfile
         TextSecondaryColor = "#FF9AA8BC",
         TextTertiaryColor = "#FF8796AB",
         GlassEnabled = false,
-        AutoTextContrast = false,
+        AutoTextContrast = true,
     };
 
     public static ThemeProfile VisionProLight { get; } = new()
@@ -109,7 +113,7 @@ public class ThemeProfile
         TextSecondaryColor = "#FF5E6B7A",
         TextTertiaryColor = "#FF758295",
         GlassEnabled = false,
-        AutoTextContrast = false,
+        AutoTextContrast = true,
         SurfaceAlpha = 26,
         SurfaceHoverAlpha = 40,
         SurfaceActiveAlpha = 55,

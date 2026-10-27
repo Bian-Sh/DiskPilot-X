@@ -102,11 +102,6 @@
 
                 <Grid Grid.Column="0" Margin="16,46,8,20">
                     <StackPanel>
-                        <Button x:Name="ApiNavButton"
-                                Style="{StaticResource SettingsNavButtonStyle}"
-                                Content="{loc:Loc AnthropicApiKeyHeader}"
-                                Tag="ApiSectionControl"
-                                Click="SettingsNavButton_Click" />
                         <Button x:Name="GeneralNavButton"
                                 Style="{StaticResource SettingsNavButtonStyle}"
                                 Content="{loc:Loc SettingsGeneralNav}"
@@ -116,6 +111,11 @@
                                 Style="{StaticResource SettingsNavButtonStyle}"
                                 Content="{loc:Loc ThemeSectionLabel}"
                                 Tag="ThemeSectionControl"
+                                Click="SettingsNavButton_Click" />
+                        <Button x:Name="ApiNavButton"
+                                Style="{StaticResource SettingsNavButtonStyle}"
+                                Content="{loc:Loc AnthropicApiKeyHeader}"
+                                Tag="ApiSectionControl"
                                 Click="SettingsNavButton_Click" />
                         <Button x:Name="WhitelistNavButton"
                                 Style="{StaticResource SettingsNavButtonStyle}"
@@ -134,11 +134,12 @@
                 <ScrollViewer x:Name="SettingsScrollViewer" Grid.Column="1" VerticalScrollBarVisibility="Auto" Margin="20,56,20,18" ScrollChanged="SettingsScrollViewer_ScrollChanged">
                     <StackPanel x:Name="SettingsContentPanel" SizeChanged="SettingsContentPanel_SizeChanged">
 
-                        <settings:ApiSettingsSection x:Name="ApiSectionControl" />
                         <settings:GeneralSettingsSection x:Name="GeneralSectionControl"
                                                          Margin="0,18,0,0" />
                         <settings:ThemeSettingsSection x:Name="ThemeSectionControl"
                                                        Margin="0,18,0,0" />
+                        <settings:ApiSettingsSection x:Name="ApiSectionControl"
+                                                     Margin="0,18,0,0" />
                         <settings:WhitelistSettingsSection x:Name="WhitelistSectionControl"
                                                            Margin="0,18,0,0" />
                         <settings:DisclaimerSettingsSection x:Name="DisclaimerSectionControl"
@@ -160,15 +161,15 @@
                                VerticalAlignment="Center"
                                HorizontalAlignment="Center" />
                 </Button>
-                <!-- Save Toast -->
-                <Border Grid.Column="1" HorizontalAlignment="Right"
+                <!-- 设置操作反馈 -->
+                <Border x:Name="SettingsToast" Grid.Column="1" HorizontalAlignment="Right" IsHitTestVisible="False"
                         VerticalAlignment="Top"
                         Background="{DynamicResource VP.AccentBrush}"
                         CornerRadius="10"
                         Padding="14,8"
-                        Margin="0,16,16,0"
+                        Margin="0,16,56,0"
                         Visibility="{Binding IsSaveToastVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <TextBlock Text="{Binding SaveToastMessage}"
+                    <TextBlock Text="{Binding SaveToastMessage}" MaxWidth="280" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"
                                Foreground="White"
                                FontSize="12" />
                 </Border>

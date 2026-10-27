@@ -115,7 +115,7 @@
     <value>AI Settings</value>
   </data>
   <data name="ApiKeyToolTip" xml:space="preserve">
-    <value>Enter your Anthropic API key. The key will be encrypted at rest.</value>
+    <value>Enter your API key. It will be encrypted and stored locally.</value>
   </data>
   <data name="ValidateButton" xml:space="preserve">
     <value>Validate</value>
@@ -545,19 +545,19 @@
     <value>Disclaimer</value>
   </data>
   <data name="SettingsDisclaimerIntro" xml:space="preserve">
-    <value>Before using this app, please review the following notes. The app helps you inspect local storage usage, understand file distribution, and organize disk space. Scan results, analysis, recommendations, and cleanup suggestions are provided as assistance only and should not be treated as final judgments about whether a file is valuable or safe to remove.</value>
+    <value>DiskPilot-X helps you understand local storage usage, explore files, and reclaim space. Scan results, cleanup recommendations, and AI responses are guidance only. They may be incomplete, incorrect, or outdated, and cannot determine which files you should keep.</value>
   </data>
   <data name="SettingsDisclaimerPrivacy" xml:space="preserve">
-    <value>The app scans only the local paths you choose and displays related file or folder names, paths, sizes, hierarchy, and similar information. If you enable AI analysis or AI chat, the app may send the file tree summary, paths, sizes, recommendation results, and context necessary to generate suggestions or answer your questions to the model service you configured. Any third-party model service processes such data according to its own terms and privacy policy.</value>
+    <value>AI features may send relevant file or folder names, paths, sizes, file-tree summaries, recommendations, and conversation context to your configured model service. How a third-party service processes and retains this data depends on its own terms and privacy policy. Review them before use.</value>
   </data>
   <data name="SettingsDisclaimerRisk" xml:space="preserve">
-    <value>Because file purpose, business context, and personal workflows cannot be fully determined automatically, scan results, rule-based analysis, cleanup recommendations, and AI responses may be incomplete, inaccurate, or outdated. Deleting, moving, or cleaning files may affect software behavior, project builds, sync or backup workflows, and business processes; permanent deletion may cause unrecoverable data loss.</value>
+    <value>Deleting, moving, or cleaning files can affect apps, project builds, synced backups, and other workflows. Permanent deletion may be irreversible. Take extra care with system folders, project files, synced drives, and unfamiliar paths.</value>
   </data>
   <data name="SettingsDisclaimerResponsibility" xml:space="preserve">
-    <value>You should review target files, confirm the basis for recommendations, assess potential impact, and back up important data before cleanup. Actual deletion, movement, or cleanup actions are confirmed and performed by you, and you are responsible for their consequences. The developer is not responsible for accidental deletion, data loss, business interruption, third-party model service behavior, or losses caused by improper use.</value>
+    <value>Review target paths, the reasons for each recommendation, and the potential impact before confirming an operation. You decide which actions to run. Neither the tool nor AI advice guarantees data safety or a particular cleanup outcome.</value>
   </data>
   <data name="SettingsDisclaimerRecommendation" xml:space="preserve">
-    <value>We recommend starting with low-risk items and using recycle bin mode or another recoverable move option whenever possible. For work documents, project files, system folders, synced drives, or unfamiliar paths, back up first or postpone action until you are confident it is safe to proceed.</value>
+    <value>Tip: Back up important data, start with low-risk items, and prefer the Recycle Bin or recoverable moves.</value>
   </data>
   <data name="SettingsValidationValidating" xml:space="preserve">
     <value>Validating...</value>
@@ -767,19 +767,19 @@
     <value>Whitelist</value>
   </data>
   <data name="SettingsWhitelistDescription" xml:space="preserve">
-    <value>Whitelist entries are excluded or protected: scan skips them, cleanup recommendations hide them, and AI chat cannot query them.</value>
+    <value>Listed folders and their contents are excluded from the corresponding feature. Scanning and cleanup recommendations use separate lists.</value>
   </data>
   <data name="SettingsWhitelistScanTitle" xml:space="preserve">
     <value>Scan whitelist</value>
   </data>
   <data name="SettingsWhitelistScanHint" xml:space="preserve">
-    <value>Skipped during normal scans and fast NTFS scans. If the scan target itself is excluded, scanning is blocked.</value>
+    <value>Paths configured here will not be scanned.</value>
   </data>
   <data name="SettingsWhitelistCleanupTitle" xml:space="preserve">
     <value>Cleanup recommendation whitelist</value>
   </data>
   <data name="SettingsWhitelistCleanupHint" xml:space="preserve">
-    <value>Hidden before sending data to the model and filtered again from returned recommendations.</value>
+    <value>Paths configured here will not appear in cleanup recommendations.</value>
   </data>
   <data name="SettingsWhitelistAiTitle" xml:space="preserve">
     <value>AI chat whitelist</value>
@@ -788,10 +788,10 @@
     <value>Hidden from context summaries, selected items, related recommendations, and agent tools.</value>
   </data>
   <data name="SettingsWhitelistPathPlaceholder" xml:space="preserve">
-    <value>Path</value>
+    <value>Type or paste a path, then press Enter</value>
   </data>
   <data name="SettingsWhitelistDescriptionPlaceholder" xml:space="preserve">
-    <value>Description</value>
+    <value>Note (optional)</value>
   </data>
   <data name="SettingsWhitelistBrowse" xml:space="preserve">
     <value>Browse</value>
@@ -803,13 +803,13 @@
     <value>Delete</value>
   </data>
   <data name="SettingsWhitelistCopyJson" xml:space="preserve">
-    <value>Copy JSON</value>
+    <value>Copy whitelist configuration</value>
   </data>
   <data name="SettingsWhitelistPasteJson" xml:space="preserve">
-    <value>Paste JSON</value>
+    <value>Paste whitelist configuration</value>
   </data>
   <data name="SettingsWhitelistPasteInvalidJson" xml:space="preserve">
-    <value>Clipboard content is not a valid whitelist JSON array.</value>
+    <value>The clipboard does not contain a valid whitelist configuration. Copy the configuration again and retry.</value>
   </data>
   <data name="ScanTargetExcludedByWhitelist" xml:space="preserve">
     <value>The selected scan target is excluded by whitelist settings.</value>
@@ -1044,4 +1044,40 @@
     <value>Draft rule request</value>
   </data>
   <data name="CopilotTool_report_task_topics" xml:space="preserve"><value>Report public task topics</value></data>
+  <data name="SettingsDisclaimerHeadline" xml:space="preserve">
+    <value>A little clarity before you clean</value>
+  </data>
+  <data name="SettingsDisclaimerSubtitle" xml:space="preserve">
+    <value>Understand the tool, the risks, and how AI uses your data before taking the next step.</value>
+  </data>
+  <data name="SettingsDisclaimerUsageTitle" xml:space="preserve">
+    <value>Using the app · Guidance, not a final decision</value>
+  </data>
+  <data name="SettingsDisclaimerRiskTitle" xml:space="preserve">
+    <value>File operations · Review before you clean</value>
+  </data>
+  <data name="SettingsDisclaimerAiTitle" xml:space="preserve">
+    <value>AI &amp; privacy · Choose what you share</value>
+  </data>
+  <data name="SettingsDisclaimerAiPrivacy" xml:space="preserve">
+    <value>Your API key is encrypted on this device using Windows current-user protection. When calling a model, it is used to authenticate with your configured service endpoint. Use only trusted service addresses.</value>
+  </data>
+  <data name="SettingsDisclaimerAiSensitive" xml:space="preserve">
+    <value>Do not paste API keys, passwords, identity details, customer data, or business secrets into AI chats. Whitelists can reduce path information automatically included by the app, but they do not redact content you type or paste yourself.</value>
+  </data>
+  <data name="SettingsWhitelistPathInputHint" xml:space="preserve">
+    <value>Press Enter to add a path, or use the folder icon inside this field to choose and add a folder. Press Esc to close the field.</value>
+  </data>
+  <data name="SettingsWhitelistEmptyHint" xml:space="preserve">
+    <value>No entries yet. Use ＋ in the upper right to add a path.</value>
+  </data>
+  <data name="SettingsWhitelistAddHint" xml:space="preserve">
+    <value>Add a path</value>
+  </data>
+  <data name="SettingsWhitelistClipboardUnavailable" xml:space="preserve">
+    <value>The clipboard is temporarily unavailable or in use by another app. Please try again shortly.</value>
+  </data>
+  <data name="SettingsWhitelistCopiedToast" xml:space="preserve">
+    <value>Whitelist configuration copied</value>
+  </data>
 </root>
