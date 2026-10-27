@@ -41,7 +41,10 @@ public partial class MainWindow
             case "move": control.HandlePointerMove(position); break;
             case "left_down": control.HandleLeftPress(position, 1, false); break;
             case "left_up": control.HandleLeftRelease(position); break;
-            case "middle_click": control.HandleMiddleClick(position); break;
+            case "middle_click":
+                control.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Middle)
+                    { RoutedEvent = Mouse.MouseDownEvent });
+                break;
             case "leave": control.HandleHover(new Point(-1, -1)); break;
             case "click": control.HandleClick(position, 1, false); break;
             case "double_click": control.HandleClick(position, 2, false); break;

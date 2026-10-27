@@ -91,6 +91,26 @@ public class TreemapLayoutTests
         Assert.True(first.Width * first.Height < 1200 * 800 / 300f);
     }
 
+    [Fact]
+    public void FilePalette_UsesMutedDisktreeStyle_InsteadOfSaturatedRedAndPink()
+    {
+        var root = Directory("根");
+        foreach (string ext in new[] { ".png", ".mp4", ".dll", ".pdb", ".exe", ".js", ".pdf", ".zip", ".tmp", ".bin" })
+            File("文件" + ext, root, 100);
+        root.Size = 1000;
+        var nodes = new SquarifiedTreemapLayout().ComputeLayout(root, 1000, 600, 64);
+        foreach (var node in nodes.Where(n => !n.Entry.IsDirectory))
+        {
+            int red = Convert.ToInt32(node.ColorHex.Substring(1, 2), 16);
+            int green = Convert.ToInt32(node.ColorHex.Substring(3, 2), 16);
+            int blue = Convert.ToInt32(node.ColorHex.Substring(5, 2), 16);
+            Assert.True(Math.Max(red, Math.Max(green, blue)) - Math.Min(red, Math.Min(green, blue)) <= 65,
+                $"{node.Entry.Name} 应使用低饱和配色，实际为 {node.ColorHex}");
+            Assert.InRange((red + green + blue) / 3, 150, 230);
+        }
+        Assert.Equal(nodes.Single(n => n.Entry.Name == "文件.png").ColorHex, nodes.Single(n => n.Entry.Name == "文件.mp4").ColorHex);
+    }
+
     private static FileEntry Directory(string name, FileEntry? parent = null)
     {
         var entry = new FileEntry { Name = name, Path = name, IsDirectory = true, Parent = parent };

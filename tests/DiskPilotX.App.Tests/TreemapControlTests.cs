@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Windows;
+using System.Windows.Input;
 using SkiaSharp;
 using SkiaSharp.Views.Desktop;
 using DiskPilotX.App.Controls;
@@ -306,27 +307,7 @@ public class TreemapControlTests
         Assert.Equal(0f, Field(control, "_panY"));
     });
 
-    [Fact]
-    public void MiddleClick_CentersFileParent_AndDoesNotStartPanning() => InSta(() =>
-    {
-        var (control, vm, root, child) = NavigationFixture();
-        var file = control.Nodes!.First(n => !n.Entry.IsDirectory && ReferenceEquals(n.Entry.Parent, child));
-        var click = new Point(file.X + file.Width / 2, file.Y + file.Height / 2);
-        float beforeZoom = vm.Zoom;
-        float beforeWidth = file.Width;
-        Call(control, "HandleMiddleClick", click);
-        Assert.Same(root, vm.CurrentRoot);
-        Assert.Equal(beforeZoom, vm.Zoom);
-        Assert.Equal(beforeWidth, file.Width);
-        var folder = control.Nodes!.Single(n => ReferenceEquals(n.Entry, child));
-        float cx = (folder.X + folder.Width / 2) * vm.Zoom + Field(control, "_panX");
-        float cy = (folder.Y + folder.Height / 2) * vm.Zoom + Field(control, "_panY");
-        Assert.InRange(cx, 199f, 201f);
-        Assert.InRange(cy, 149f, 151f);
-        float before = Field(control, "_panX");
-        Call(control, "HandlePointerMove", new Point(click.X + 40, click.Y + 20));
-        Assert.Equal(before, Field(control, "_panX"));
-    });
+
 
     private static (TreemapControl, TreemapViewModel, FileEntry, FileEntry) NavigationFixture(bool tiny = false)
     {
@@ -342,6 +323,7 @@ public class TreemapControlTests
         Folder("乙");
         var vm = new TreemapViewModel(new SquarifiedTreemapLayout());
         var control = Sized([]);
+        SetWheelClock(control, new TestWheelClock());
         vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(vm.CurrentRoot)) Call(control, "SetViewRoot", vm.CurrentRoot, vm.ScanRoot);
@@ -365,23 +347,7 @@ public class TreemapControlTests
         Assert.Same(control.HitTest(90, 150), hovered);
     });
 
-    [Fact]
-    public void MiddleClick_TinyEdgeFolderKeepsScaleAndCentersWithoutNavigation() => InSta(() =>
-    {
-        var (control, vm, root, child) = NavigationFixture(tiny: true);
-        var node = control.Nodes!.Single(n => ReferenceEquals(n.Entry, child));
-        float beforeWidth = node.Width;
-        Call(control, "HandleMiddleClick", new Point(node.X + node.Width / 2, node.Y + node.Height / 2));
-        Assert.Same(root, vm.CurrentRoot);
-        Assert.Equal(1f, vm.Zoom);
-        Assert.Equal(beforeWidth, node.Width);
-        Assert.Equal(200f, node.X + node.Width / 2 + Field(control, "_panX"), 1);
-        Assert.Equal(150f, node.Y + node.Height / 2 + Field(control, "_panY"), 1);
-        Call(control, "RaiseWheelAt", 200f, 150f, -120);
-        Assert.Equal(0f, Field(control, "_panX"));
-        Assert.Equal(0f, Field(control, "_panY"));
-        Assert.Same(root, vm.CurrentRoot);
-    });
+
 
     [Fact]
     public void AggregateZoom_PreservesItsOwnAnchorInsteadOfParent_AndHasNoDirectoryTitle() => InSta(() =>
@@ -430,17 +396,100 @@ public class TreemapControlTests
         Assert.Same(root, vm.CurrentRoot);
     });
 
+
+
     [Fact]
-    public void FocusNode_AfterMiddleCenterRestoresNormalFullViewPanBounds() => InSta(() =>
+    public void MiddleButton_DoesNothing_AndNormalDragCannotExposeMargins() => InSta(() =>
     {
-        var (control, _, _, _) = NavigationFixture();
-        Call(control, "HandleMiddleClick", new Point(90, 150));
-        control.FocusNode(control.Nodes![0]);
-        Call(control, "HandleLeftPress", new Point(200, 150), 1, false);
-        Call(control, "HandlePointerMove", new Point(260, 170));
-        Call(control, "HandleLeftRelease", new Point(260, 170));
+        var (control, vm, root, _) = NavigationFixture();
+        var before = control.Nodes;
+        control.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Middle) { RoutedEvent = Mouse.MouseDownEvent });
+        control.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 1, MouseButton.Middle) { RoutedEvent = Mouse.MouseUpEvent });
+        Assert.Same(root, vm.CurrentRoot);
+        Assert.Same(before, control.Nodes);
+        Assert.Equal(1f, vm.Zoom);
         Assert.Equal(0f, Field(control, "_panX"));
         Assert.Equal(0f, Field(control, "_panY"));
+        Call(control, "HandleLeftPress", new Point(100, 100), 1, false);
+        Call(control, "HandlePointerMove", new Point(350, 250));
+        Call(control, "HandleLeftRelease", new Point(350, 250));
+        Assert.Equal(0f, Field(control, "_panX"));
+        Assert.Equal(0f, Field(control, "_panY"));
+    });
+
+    [Fact]
+    public void WheelSnap_ShowsFullNewLevelAndConsumesWheelBurstBeforeContinuing() => InSta(() =>
+    {
+        var (control, vm, root, child) = NavigationFixture();
+        var clock = new TestWheelClock { AutoAdvance = false };
+        SetWheelClock(control, clock);
+        for (int i = 0; i < 25 && ReferenceEquals(vm.CurrentRoot, root); i++)
+            Call(control, "RaiseWheelAt", 90f, 150f, 120);
+        Assert.Same(child, vm.CurrentRoot);
+        Assert.Equal(1f, vm.Zoom);
+        for (int i = 0; i < 10; i++)
+        {
+            clock.Advance(100);
+            Call(control, "RaiseWheelAt", 90f, 150f, 120);
+            Assert.Equal(1f, vm.Zoom);
+            Assert.Equal(0f, Field(control, "_panY"));
+            Assert.NotNull(control.Nodes![0].Label);
+        }
+        clock.Advance(200);
+        Call(control, "RaiseWheelAt", 90f, 150f, 120);
+        Assert.True(vm.Zoom > 1f);
+    });
+
+    [Fact]
+    public void WheelSnap_AlsoPausesAfterReturningToParent() => InSta(() =>
+    {
+        var (control, vm, root, child) = NavigationFixture();
+        var clock = new TestWheelClock { AutoAdvance = false };
+        SetWheelClock(control, clock);
+        for (int i = 0; i < 25 && ReferenceEquals(vm.CurrentRoot, root); i++) Call(control, "RaiseWheelAt", 90f, 150f, 120);
+        clock.Advance(600);
+        Call(control, "RaiseWheelAt", 90f, 150f, -120);
+        Assert.Same(root, vm.CurrentRoot);
+        float restoredZoom = vm.Zoom;
+        Call(control, "RaiseWheelAt", 90f, 150f, -120);
+        Assert.Equal(restoredZoom, vm.Zoom);
+        clock.Advance(600);
+        Call(control, "RaiseWheelAt", 90f, 150f, -120);
+        Assert.True(vm.Zoom < restoredZoom);
+    });
+
+    private sealed class TestWheelClock : TimeProvider
+    {
+        private DateTimeOffset _now = new(2026, 10, 27, 0, 0, 0, TimeSpan.Zero);
+        public bool AutoAdvance { get; set; } = true;
+        public void Advance(int milliseconds) => _now += TimeSpan.FromMilliseconds(milliseconds);
+        public override DateTimeOffset GetUtcNow()
+        {
+            if (AutoAdvance) Advance(1000);
+            return _now;
+        }
+    }
+
+    private static void SetWheelClock(TreemapControl control, TimeProvider clock)
+    {
+        var property = typeof(TreemapControl).GetProperty("WheelClock", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(property);
+        property.SetValue(control, clock);
+    }
+
+    [Fact]
+    public void FileFill_HasSubtleSameHueTransition_WithoutStrongShading() => InSta(() =>
+    {
+        var node = Node(false, 0, 0, 400, 300);
+        node.Label = null; node.ColorHex = "#B8C3D0";
+        var control = Sized([node]);
+        using var image = Render(control);
+        var top = image.GetPixel(100, 40);
+        var bottom = image.GetPixel(100, 260);
+        Assert.InRange(top.Red - bottom.Red, 1, 15);
+        Assert.InRange(top.Green - bottom.Green, 1, 15);
+        Assert.InRange(top.Blue - bottom.Blue, 1, 15);
+        Assert.Equal(image.GetPixel(100, 150), image.GetPixel(300, 150));
     });
 
     private static TreemapControl Sized(List<TreemapNode> nodes)

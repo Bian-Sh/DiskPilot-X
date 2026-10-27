@@ -34,11 +34,17 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
     // 目录（含标题栏区域）使用中性深灰，不做彩色编码；仅文件 cell 按类型上色。
     private const string DirectoryColor = "#303030";
 
-    // 文件按类型使用高饱和亮色。
+    // 参考 Disktree：统一低饱和与接近的明度，按内容类别区分柔和色相。
     private static readonly string[] FilePalette =
     [
-        "#EF5350", "#FF9800", "#CDDC39", "#2196F3",
-        "#4CAF50", "#E91E63", "#00BCD4", "#9C27B0",
+        "#B8C3D0", // 源码：蓝灰
+        "#B5CCBF", // 工具与运行库：灰绿
+        "#C7BCD6", // 媒体：淡紫
+        "#D2C9AA", // 缓存：沙色
+        "#B6CDCB", // 归档：灰青
+        "#C4C7CC", // 文档：中性灰蓝
+        "#BDC3C2", // 其它：低彩度灰
+        "#D0BFAF", // 构建产物：暖灰
     ];
 
     private static string GetFileColor(FileEntry entry)
@@ -46,14 +52,14 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         string extension = (entry.Extension ?? System.IO.Path.GetExtension(entry.Name)).ToLowerInvariant();
         return extension switch
         {
-            ".nvph" or ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif" => FilePalette[0],
-            ".dll" or ".node" or ".lib" => FilePalette[1],
-            ".exe" or ".pak" or ".pack" => FilePalette[2],
-            ".js" or ".ts" or ".cs" or ".py" or ".css" or ".html" => FilePalette[3],
-            ".asar" or ".vpk" or ".msi" => FilePalette[4],
-            ".sys" or ".pdf" => FilePalette[5],
-            ".zip" or ".7z" or ".rar" or ".mp4" or ".mp3" or ".wav" => FilePalette[6],
-            "" or ".json" or ".log" or ".txt" or ".vhdx" or ".bin" => FilePalette[7],
+            ".js" or ".ts" or ".cs" or ".py" or ".css" or ".html" or ".rs" or ".cpp" or ".h" or ".xaml" or ".json" => FilePalette[0],
+            ".dll" or ".node" or ".lib" or ".exe" or ".sys" or ".pdb" or ".ilk" => FilePalette[1],
+            ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif" or ".mp4" or ".mp3" or ".wav" or ".mkv" or ".svg" => FilePalette[2],
+            ".nvph" or ".cache" or ".tmp" or ".log" or ".bak" => FilePalette[3],
+            ".zip" or ".7z" or ".rar" or ".tar" or ".gz" => FilePalette[4],
+            ".pdf" or ".txt" or ".md" or ".docx" or ".xlsx" or ".csv" => FilePalette[5],
+            "" or ".vhdx" or ".bin" or ".dat" => FilePalette[6],
+            ".asar" or ".vpk" or ".msi" or ".pak" or ".pack" or ".obj" => FilePalette[7],
             _ => FilePalette[GetExtensionColorIndex(extension)],
         };
     }
