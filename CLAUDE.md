@@ -1,5 +1,13 @@
 # CLAUDE.md
 
+## 统一仓库约定（优先遵循）
+
+开始任务前读取根目录 `AGENTS.md`，以其中的实际应用规则为准；本文件下方保留的是历史模板，不得据此否认现有 .NET/WPF 应用或跳过构建验收。
+
+- 所有新 worktree：`D:/AppData/Visual Studio/Projects/DiskPilot-X/.worktrees/<任务名>/`。
+- 所有发布包：`D:/AppData/Visual Studio/Projects/DiskPilot-X/outputs/<可读时间>_<任务名>_<测试包或用户交付包>/`。
+- 从 worktree 打包也必须使用上述统一发布目录的绝对路径，不能写入 worktree 自己的 `outputs/`；打包前按 `AGENTS.md` 核对源码来源，不移动或清理已有产物。
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
