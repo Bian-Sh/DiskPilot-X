@@ -421,22 +421,29 @@ public class TreemapControlTests
     public void WheelSnap_ShowsFullNewLevelAndConsumesWheelBurstBeforeContinuing() => InSta(() =>
     {
         var (control, vm, root, child) = NavigationFixture();
+        // 新层仍有更深目录可进入，才能区分 Snap 滞留与末级目录停止机制。
+        var deeper = new FileEntry { Name = "更深目录", Path = child.Path + "/更深目录", IsDirectory = true, Size = 10, Parent = child };
+        deeper.Children.Add(new FileEntry { Name = "细节.cs", Path = deeper.Path + "/细节.cs", Size = 10, Parent = deeper });
+        child.Children.Add(deeper); child.Size += 10; root.Size += 10;
+        vm.UpdateSize(400, 300);
         var clock = new TestWheelClock { AutoAdvance = false };
         SetWheelClock(control, clock);
         for (int i = 0; i < 25 && ReferenceEquals(vm.CurrentRoot, root); i++)
             Call(control, "RaiseWheelAt", 90f, 150f, 120);
         Assert.Same(child, vm.CurrentRoot);
         Assert.Equal(1f, vm.Zoom);
+        var next = control.Nodes!.Single(n => ReferenceEquals(n.Entry, deeper));
+        float nextX = next.X + next.Width / 2, nextY = next.Y + next.Height / 2;
         for (int i = 0; i < 10; i++)
         {
             clock.Advance(100);
-            Call(control, "RaiseWheelAt", 90f, 150f, 120);
+            Call(control, "RaiseWheelAt", nextX, nextY, 120);
             Assert.Equal(1f, vm.Zoom);
             Assert.Equal(0f, Field(control, "_panY"));
             Assert.NotNull(control.Nodes![0].Label);
         }
         clock.Advance(200);
-        Call(control, "RaiseWheelAt", 90f, 150f, 120);
+        Call(control, "RaiseWheelAt", nextX, nextY, 120);
         Assert.True(vm.Zoom > 1f);
     });
 
@@ -490,6 +497,55 @@ public class TreemapControlTests
         Assert.InRange(top.Green - bottom.Green, 1, 15);
         Assert.InRange(top.Blue - bottom.Blue, 1, 15);
         Assert.Equal(image.GetPixel(100, 150), image.GetPixel(300, 150));
+    });
+
+    [Fact]
+    public void WheelZoom_StopsAtLastDirectoryEvenAfterSnapExpires() => InSta(() =>
+    {
+        var (control, vm, root, child) = NavigationFixture();
+        for (int i = 0; i < 25 && ReferenceEquals(vm.CurrentRoot, root); i++)
+            Call(control, "RaiseWheelAt", 90f, 150f, 120);
+        Assert.Same(child, vm.CurrentRoot);
+        var finalLayout = control.Nodes;
+        // 测试时钟每次前进一秒，确保终止并非仅由换层 Snap 暂停造成。
+        for (int i = 0; i < 40; i++) Call(control, "RaiseWheelAt", 90f, 150f, 120);
+        Assert.Same(child, vm.CurrentRoot);
+        Assert.Equal(1f, vm.Zoom);
+        Assert.Equal(0f, Field(control, "_panX"));
+        Assert.Equal(0f, Field(control, "_panY"));
+        Assert.Same(finalLayout, control.Nodes);
+        Assert.NotNull(control.Nodes![0].Label);
+        Assert.InRange(control.Nodes[0].Y, 0f, 3f);
+        Call(control, "RaiseWheelAt", 90f, 150f, -120);
+        Assert.Same(root, vm.CurrentRoot);
+    });
+
+    [Fact]
+    public void WheelZoom_FileOnlyScanRootStaysAtFullView() => InSta(() =>
+    {
+        var (control, vm, _, child) = NavigationFixture();
+        vm.SetRoot(child);
+        for (int i = 0; i < 20; i++) Call(control, "RaiseWheelAt", 200f, 150f, 120);
+        Assert.Same(child, vm.CurrentRoot);
+        Assert.Equal(1f, vm.Zoom);
+        Call(control, "RaiseWheelAt", 200f, 150f, -120);
+        Assert.Same(child, vm.CurrentRoot);
+        Assert.Equal(1f, vm.Zoom);
+    });
+
+    [Fact]
+    public void WheelZoom_StopsOnRootFileButStillAllowsPointedSubdirectory() => InSta(() =>
+    {
+        var (control, vm, root, child) = NavigationFixture();
+        var largeFile = new FileEntry { Name = "大文件.bin", Path = root.Path + "/大文件.bin", Parent = root, Size = 1500 };
+        root.Children.Add(largeFile); root.Size += largeFile.Size;
+        vm.UpdateSize(400, 300);
+        var file = control.Nodes!.Single(n => ReferenceEquals(n.Entry, largeFile));
+        Call(control, "RaiseWheelAt", file.X + file.Width / 2, file.Y + file.Height / 2, 120);
+        Assert.Equal(1f, vm.Zoom);
+        var directory = control.Nodes!.Single(n => ReferenceEquals(n.Entry, child));
+        Call(control, "RaiseWheelAt", directory.X + directory.Width / 2, directory.Y + directory.Height / 2, 120);
+        Assert.True(vm.Zoom > 1f || !ReferenceEquals(vm.CurrentRoot, root));
     });
 
     private static TreemapControl Sized(List<TreemapNode> nodes)

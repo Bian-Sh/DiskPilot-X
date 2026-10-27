@@ -615,6 +615,8 @@ public class TreemapControl : SKElement
             return;
         }
         var target = DirectoryAt(position);
+        // 没有更深的可进入目录时停止放大，末级目录保留完整标题与文件名。
+        if (factor > 1f && target is null && _viewRoot is not null) return;
         float ceiling = MaxZoom;
         if (target is not null)
         {
