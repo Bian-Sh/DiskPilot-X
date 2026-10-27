@@ -28,7 +28,7 @@ public partial class SettingsPage : UserControl
         };
     }
 
-    private IReadOnlyList<Button> NavButtons => _navButtons ??= [ApiNavButton, GeneralNavButton, ThemeNavButton, WhitelistNavButton, DisclaimerNavButton];
+    private IReadOnlyList<Button> NavButtons => _navButtons ??= [GeneralNavButton, ThemeNavButton, ApiNavButton, WhitelistNavButton, DisclaimerNavButton];
 
     private void SettingsNavButton_Click(object sender, RoutedEventArgs e)
     {
@@ -77,9 +77,9 @@ public partial class SettingsPage : UserControl
     {
         const double activationOffset = 64;
         var scrollOffset = SettingsScrollViewer.VerticalOffset + activationOffset;
-        FrameworkElement activeSection = ApiSectionControl;
+        FrameworkElement activeSection = GeneralSectionControl;
 
-        foreach (var section in new FrameworkElement[] { ApiSectionControl, GeneralSectionControl, ThemeSectionControl, WhitelistSectionControl, DisclaimerSectionControl })
+        foreach (var section in new FrameworkElement[] { GeneralSectionControl, ThemeSectionControl, ApiSectionControl, WhitelistSectionControl, DisclaimerSectionControl })
         {
             if (GetSectionOffset(section) <= scrollOffset)
             {

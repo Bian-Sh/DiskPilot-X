@@ -15,6 +15,13 @@ public class ThemeProfile
     [JsonIgnore]
     public bool IsBuiltIn { get; set; } = true;
 
+    /// <summary>日志色板独立于背景拾色；空值按旧预设名称兼容，自定义旧配置默认深色。</summary>
+    public bool? LogPaletteIsLight { get; set; }
+
+    [JsonIgnore]
+    public bool UsesLightLogPalette => LogPaletteIsLight
+        ?? (Name == "浅色" || string.Equals(Name, "Vision Pro Light", StringComparison.OrdinalIgnoreCase));
+
     // ── Primary Palette ──────────────────────────────────────────
 
     /// <summary>Accent color as hex ARGB (e.g. "#FF2563EB").</summary>
@@ -51,8 +58,12 @@ public class ThemeProfile
 
     // ── Auto Contrast ────────────────────────────────────────────
 
-    /// <summary>When true, text colors are auto-computed from background luminance.</summary>
-    public bool AutoTextContrast { get; set; } = false;
+    /// <summary>自动对比度始终开启；保留写入入口以兼容旧配置中的 false。</summary>
+    public bool AutoTextContrast
+    {
+        get => true;
+        set { }
+    }
 
     // ── Semantic Colors ──────────────────────────────────────────
 
@@ -76,6 +87,7 @@ public class ThemeProfile
     public static ThemeProfile VisionProDark { get; } = new()
     {
         Name = "深色",
+        LogPaletteIsLight = false,
         IsBuiltIn = true,
         AccentColor = "#FF2563EB",
         AccentHoverColor = "#FF3B82F6",
@@ -85,12 +97,13 @@ public class ThemeProfile
         TextSecondaryColor = "#FF9AA8BC",
         TextTertiaryColor = "#FF8796AB",
         GlassEnabled = false,
-        AutoTextContrast = false,
+        AutoTextContrast = true,
     };
 
     public static ThemeProfile VisionProLight { get; } = new()
     {
         Name = "浅色",
+        LogPaletteIsLight = true,
         IsBuiltIn = true,
         AccentColor = "#FF2563EB",
         AccentHoverColor = "#FF3B82F6",
@@ -100,7 +113,7 @@ public class ThemeProfile
         TextSecondaryColor = "#FF5E6B7A",
         TextTertiaryColor = "#FF758295",
         GlassEnabled = false,
-        AutoTextContrast = false,
+        AutoTextContrast = true,
         SurfaceAlpha = 26,
         SurfaceHoverAlpha = 40,
         SurfaceActiveAlpha = 55,

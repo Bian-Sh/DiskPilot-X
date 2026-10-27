@@ -34,7 +34,8 @@ internal static class CrashDiagnostics
 
     public static void Log(string category, string message)
     {
-        Serilog.Log.Information("Crash diagnostics {Category}: {Message}", category, message);
+        // 正常操作的排障埋点只记为调试日志，不在默认控制台误报崩溃。
+        Serilog.Log.Debug("运行诊断 {Category}: {Message}", category, message);
     }
 
     public static void CaptureException(string source, Exception exception)

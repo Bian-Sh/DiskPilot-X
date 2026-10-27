@@ -122,21 +122,6 @@
                                VerticalAlignment="Center" Margin="8,0,0,0" FontSize="11" />
                 </Grid>
 
-                <!-- Auto Text Contrast -->
-                <Separator Margin="14,0" />
-                <Grid Margin="14,12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="170" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="{loc:Loc ThemeAutoContrastLabel}"
-                               Style="{StaticResource SettingsLabelStyle}"
-                               ToolTip="{loc:Loc ThemeAutoContrastHint}" />
-                    <CheckBox Grid.Column="1"
-                              Style="{DynamicResource VP.CheckBox}"
-                              IsChecked="{Binding AutoTextContrast}"
-                              Content="{loc:Loc ThemeAutoContrastOption}" />
-                </Grid>
             </StackPanel>
         </Border>
     </StackPanel>

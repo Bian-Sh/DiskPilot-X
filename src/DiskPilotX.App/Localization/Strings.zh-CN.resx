@@ -115,7 +115,7 @@
     <value>AI 设置</value>
   </data>
   <data name="ApiKeyToolTip" xml:space="preserve">
-    <value>Enter your Anthropic API key. The key will be encrypted at rest.</value>
+    <value>输入 API Key，密钥将加密保存在本机。</value>
   </data>
   <data name="ValidateButton" xml:space="preserve">
     <value>验证</value>
@@ -412,6 +412,9 @@
   <data name="ConsoleFilterToolTip" xml:space="preserve">
     <value>筛选控制台日志</value>
   </data>
+  <data name="ConsoleClearMenuItem" xml:space="preserve">
+    <value>清空控制台</value>
+  </data>
   <data name="TreemapNoDataText" xml:space="preserve">
     <value>无数据可供展示，请扫描~</value>
   </data>
@@ -539,19 +542,19 @@
     <value>免责声明</value>
   </data>
   <data name="SettingsDisclaimerIntro" xml:space="preserve">
-    <value>使用本应用前，请了解以下说明。本应用用于辅助你查看本地存储占用、理解文件分布并整理磁盘空间，所有扫描、分析、建议和清理结果都应作为辅助信息，而不是对文件价值或可删除性的最终判断。</value>
+    <value>DiskPilot-X 帮助你了解本地存储占用、查看文件分布并整理磁盘空间。扫描结果、清理推荐和 AI 回答仅供参考，可能存在遗漏、误判或过期信息，不能替代你对文件用途与保留价值的判断。</value>
   </data>
   <data name="SettingsDisclaimerPrivacy" xml:space="preserve">
-    <value>应用只会扫描你主动选择的本地路径，并在界面中展示相关文件或目录的名称、路径、大小、层级关系等信息。若你启用 AI 分析或 AI 对话，为生成清理建议或回答问题，应用可能会把必要的文件树摘要、路径、大小、推荐结果和上下文发送给你配置的模型服务；第三方模型服务对这些数据的处理方式由其自身条款和隐私政策约束。</value>
+    <value>启用 AI 功能时，相关文件或目录的名称、路径、大小、文件树摘要、推荐结果及对话上下文可能发送至你配置的模型服务。第三方服务如何处理和保留这些数据，取决于其自身条款与隐私政策；使用前请先了解。</value>
   </data>
   <data name="SettingsDisclaimerRisk" xml:space="preserve">
-    <value>由于文件用途、业务场景和用户习惯无法被完全自动判断，扫描结果、规则分析、清理推荐和 AI 回答都可能存在遗漏、误判或过期信息。删除、移动或清理文件可能影响软件运行、项目构建、同步备份或业务流程，且永久删除可能造成无法恢复的数据损失。</value>
+    <value>删除、移动或清理文件可能影响软件运行、项目构建、同步备份及工作流程。永久删除可能无法恢复；对系统目录、项目资料、同步盘及不熟悉的路径，请格外谨慎。</value>
   </data>
   <data name="SettingsDisclaimerResponsibility" xml:space="preserve">
-    <value>你应在执行清理前自行核对目标文件、确认推荐依据、评估影响范围，并根据需要提前备份重要数据。实际删除、移动或清理操作由你确认并执行，相关后果由你自行承担；开发者不对误删、数据丢失、业务中断、第三方模型服务行为或不当使用造成的损失承担责任。</value>
+    <value>执行前，请核对目标路径、推荐依据和影响范围。实际操作由你确认并执行，请审慎评估相关后果；工具及 AI 建议不构成数据安全或清理结果的保证。</value>
   </data>
   <data name="SettingsDisclaimerRecommendation" xml:space="preserve">
-    <value>建议先从低风险项目开始清理，优先使用回收站模式或其他可恢复的移动方式；对工作资料、项目文件、系统目录、同步盘和不熟悉的路径，应先备份或暂缓处理，确认无误后再继续。</value>
+    <value>建议：先备份重要数据，从低风险项目开始，优先使用回收站或可恢复的移动方式。</value>
   </data>
   <data name="SettingsValidationValidating" xml:space="preserve">
     <value>验证中...</value>
@@ -761,19 +764,19 @@
     <value>白名单</value>
   </data>
   <data name="SettingsWhitelistDescription" xml:space="preserve">
-    <value>白名单表示排除/保护：扫描跳过、清理推荐不推荐、AI 对话不查询也不暴露匹配路径。</value>
+    <value>白名单中的文件夹及其子项，将在对应功能中排除。扫描与清理推荐的规则分别生效。</value>
   </data>
   <data name="SettingsWhitelistScanTitle" xml:space="preserve">
     <value>扫描白名单</value>
   </data>
   <data name="SettingsWhitelistScanHint" xml:space="preserve">
-    <value>普通扫描和 NTFS 快速扫描都会跳过；如果扫描目标本身被排除，将阻止扫描。</value>
+    <value>在此处配置的路径不会被扫描。</value>
   </data>
   <data name="SettingsWhitelistCleanupTitle" xml:space="preserve">
     <value>清理推荐白名单</value>
   </data>
   <data name="SettingsWhitelistCleanupHint" xml:space="preserve">
-    <value>构造模型输入前过滤，模型返回结果后再次过滤，避免受保护路径进入推荐列表。</value>
+    <value>在此处配置的路径不会进入推荐清理。</value>
   </data>
   <data name="SettingsWhitelistAiTitle" xml:space="preserve">
     <value>AI 对话白名单</value>
@@ -782,10 +785,10 @@
     <value>从上下文摘要、选中项、推荐关联项和只读文件树工具中隐藏。</value>
   </data>
   <data name="SettingsWhitelistPathPlaceholder" xml:space="preserve">
-    <value>路径</value>
+    <value>输入或粘贴路径，按 Enter 添加</value>
   </data>
   <data name="SettingsWhitelistDescriptionPlaceholder" xml:space="preserve">
-    <value>备注</value>
+    <value>备注（可选）</value>
   </data>
   <data name="SettingsWhitelistBrowse" xml:space="preserve">
     <value>选择文件夹</value>
@@ -797,13 +800,13 @@
     <value>删除</value>
   </data>
   <data name="SettingsWhitelistCopyJson" xml:space="preserve">
-    <value>复制 JSON</value>
+    <value>复制白名单配置</value>
   </data>
   <data name="SettingsWhitelistPasteJson" xml:space="preserve">
-    <value>粘贴 JSON</value>
+    <value>粘贴白名单配置</value>
   </data>
   <data name="SettingsWhitelistPasteInvalidJson" xml:space="preserve">
-    <value>剪贴板内容不是有效的白名单 JSON 数组。</value>
+    <value>剪贴板内容不是有效的白名单配置，请重新复制后再试。</value>
   </data>
   <data name="ScanTargetExcludedByWhitelist" xml:space="preserve">
     <value>所选扫描目标已被白名单设置排除。</value>
@@ -1041,4 +1044,40 @@
     <value>填写规则创建请求</value>
   </data>
   <data name="CopilotTool_report_task_topics" xml:space="preserve"><value>记录公开任务主题</value></data>
+  <data name="SettingsDisclaimerHeadline" xml:space="preserve">
+    <value>安心整理，从了解边界开始</value>
+  </data>
+  <data name="SettingsDisclaimerSubtitle" xml:space="preserve">
+    <value>了解工具能力、操作风险与 AI 数据使用方式，再决定下一步。</value>
+  </data>
+  <data name="SettingsDisclaimerUsageTitle" xml:space="preserve">
+    <value>使用须知 · 辅助判断，不替你做决定</value>
+  </data>
+  <data name="SettingsDisclaimerRiskTitle" xml:space="preserve">
+    <value>操作风险 · 先确认，再清理</value>
+  </data>
+  <data name="SettingsDisclaimerAiTitle" xml:space="preserve">
+    <value>AI 与隐私 · 由你决定分享什么</value>
+  </data>
+  <data name="SettingsDisclaimerAiPrivacy" xml:space="preserve">
+    <value>API Key 加密保存在本机，并使用 Windows 当前用户保护。调用模型时，密钥会用于向你配置的服务端点认证；请仅使用可信的服务地址。</value>
+  </data>
+  <data name="SettingsDisclaimerAiSensitive" xml:space="preserve">
+    <value>请勿在 AI 对话中粘贴 API Key、密码、身份信息、客户资料或商业机密。可用白名单减少应用自动附带的路径信息，但白名单不会替你脱敏主动输入或粘贴的内容。</value>
+  </data>
+  <data name="SettingsWhitelistPathInputHint" xml:space="preserve">
+    <value>按 Enter 添加路径；点击输入框内的文件夹图标也可直接选择并添加。按 Esc 收起输入框。</value>
+  </data>
+  <data name="SettingsWhitelistEmptyHint" xml:space="preserve">
+    <value>暂无条目，点击右上角“＋”新增路径。</value>
+  </data>
+  <data name="SettingsWhitelistAddHint" xml:space="preserve">
+    <value>新增路径</value>
+  </data>
+  <data name="SettingsWhitelistClipboardUnavailable" xml:space="preserve">
+    <value>暂时无法访问剪贴板，可能正被其他应用占用。请稍后重试。</value>
+  </data>
+  <data name="SettingsWhitelistCopiedToast" xml:space="preserve">
+    <value>白名单配置已复制</value>
+  </data>
 </root>
