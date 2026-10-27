@@ -128,6 +128,13 @@ public sealed partial class DiskAssistantService
         LastAnalysisResult = null;
     }
 
+    public void DeleteConversation(string id)
+    {
+        if (IsRunning) throw new InvalidOperationException("请先停止当前任务再删除会话。");
+        conversationStore?.Delete(id);
+        if (currentConversationId == id) ClearHistory();
+    }
+
     public IReadOnlyList<ConversationSummary> GetConversations() => conversationStore?.List() ?? [];
 
     public void SaveConversation(IEnumerable<DiskPilotX.Core.Models.ChatMessage> messages)

@@ -1080,4 +1080,10 @@
   <data name="SettingsWhitelistCopiedToast" xml:space="preserve">
     <value>Whitelist configuration copied</value>
   </data>
+  <data name="CopilotDeleteConversation" xml:space="preserve"><value>Delete conversation</value></data>
+  <data name="CopilotDeleteConversationPrompt" xml:space="preserve"><value>Delete conversation “{0}” and its chat messages?
+
+This cannot be undone.</value></data>
+  <data name="CopilotDeleteConversationConfirm" xml:space="preserve"><value>Confirm deletion</value></data>
+  <data name="CopilotHistoryDeleteFailed" xml:space="preserve"><value>Could not delete this conversation. Check file access permissions. The current conversation has been preserved.</value></data>
 </root>

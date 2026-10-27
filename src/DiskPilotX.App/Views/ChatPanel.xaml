@@ -334,10 +334,16 @@
               </TextBlock>
               <ScrollViewer Grid.Row="1" MaxHeight="330" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Visibility="{Binding HasConversationHistory,Converter={StaticResource BoolVis}}" Focusable="False">
                 <ItemsControl ItemsSource="{Binding ConversationHistory}"><ItemsControl.ItemContainerStyle><Style TargetType="ContentPresenter"><Setter Property="AutomationProperties.Name" Value="{Binding Title}"/></Style></ItemsControl.ItemContainerStyle><ItemsControl.ItemTemplate><DataTemplate>
-                  <Button Command="{Binding DataContext.LoadConversationCommand,RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" HorizontalContentAlignment="Stretch" Padding="8,8" Margin="0,1" ToolTip="{Binding Title}" AutomationProperties.Name="{Binding Title}">
-                    <Button.Style><Style TargetType="Button" BasedOn="{StaticResource QuietButton}"><Style.Triggers><DataTrigger Binding="{Binding IsCurrent}" Value="True"><Setter Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}"/></DataTrigger></Style.Triggers></Style></Button.Style>
-                    <StackPanel Width="266"><TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontSize="12" Foreground="{DynamicResource VP.TextPrimaryBrush}"/><TextBlock Text="{Binding UpdatedAtText}" FontSize="10" Foreground="{DynamicResource VP.TextTertiaryBrush}" Margin="0,4,0,0"/></StackPanel>
-                  </Button>
+                  <Grid x:Name="HistoryRow" Background="Transparent" Margin="0,1">
+                    <Button Command="{Binding DataContext.LoadConversationCommand,RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" HorizontalContentAlignment="Stretch" Padding="8,8,40,8" ToolTip="{Binding Title}" AutomationProperties.Name="{Binding Title}">
+                      <Button.Style><Style TargetType="Button" BasedOn="{StaticResource QuietButton}"><Style.Triggers><DataTrigger Binding="{Binding IsCurrent}" Value="True"><Setter Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}"/></DataTrigger></Style.Triggers></Style></Button.Style>
+                      <StackPanel><TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontSize="12" Foreground="{DynamicResource VP.TextPrimaryBrush}"/><TextBlock Text="{Binding UpdatedAtText}" FontSize="10" Foreground="{DynamicResource VP.TextTertiaryBrush}" Margin="0,4,0,0"/></StackPanel>
+                    </Button>
+                    <Button x:Name="DeleteHistoryButton" HorizontalAlignment="Right" VerticalAlignment="Center" Width="28" Height="28" Margin="0,0,6,0" Padding="0" Command="{Binding DataContext.DeleteConversationCommand,RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="{loc:Loc CopilotDeleteConversation}" AutomationProperties.Name="{loc:Loc CopilotDeleteConversation}" AutomationProperties.HelpText="{Binding Title}" Foreground="{DynamicResource VP.DangerTextBrush}">
+                      <Button.Style><Style TargetType="Button" BasedOn="{StaticResource QuietButton}"><Setter Property="Visibility" Value="Hidden"/><Style.Triggers><DataTrigger Binding="{Binding IsMouseOver,ElementName=HistoryRow}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger><DataTrigger Binding="{Binding IsKeyboardFocusWithin,ElementName=HistoryRow}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Button.Style>
+                      <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE74D;" FontSize="13"/>
+                    </Button>
+                  </Grid>
                 </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
               </ScrollViewer>
             </Grid>

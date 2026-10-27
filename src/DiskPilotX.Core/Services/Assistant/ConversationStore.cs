@@ -119,6 +119,14 @@ public sealed class ConversationStore(string rootDirectory)
         }
     }
 
+    public void Delete(string id)
+    {
+        var path = PathFor(id);
+        // 先移除授权元数据；正文删除失败时仍保留会话，不会误报删除成功。
+        File.Delete(Path.ChangeExtension(path, ".metadata"));
+        File.Delete(path);
+    }
+
     public ConversationSnapshot Load(string id)
     {
         var snapshot = JsonSerializer.Deserialize<ConversationSnapshot>(File.ReadAllText(PathFor(id)), JsonOptions)

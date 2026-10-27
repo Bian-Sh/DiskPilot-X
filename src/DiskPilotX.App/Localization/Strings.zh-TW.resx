@@ -1080,4 +1080,10 @@
   <data name="SettingsWhitelistCopiedToast" xml:space="preserve">
     <value>已複製白名單設定</value>
   </data>
+  <data name="CopilotDeleteConversation" xml:space="preserve"><value>刪除對話</value></data>
+  <data name="CopilotDeleteConversationPrompt" xml:space="preserve"><value>即將刪除對話「{0}」及其聊天記錄。
+
+刪除後無法復原，確定刪除嗎？</value></data>
+  <data name="CopilotDeleteConversationConfirm" xml:space="preserve"><value>確認刪除</value></data>
+  <data name="CopilotHistoryDeleteFailed" xml:space="preserve"><value>無法刪除此對話，請檢查檔案或存取權限。目前對話已保留。</value></data>
 </root>

@@ -48,6 +48,32 @@ public partial class ChatViewModel
         }
     }
 
+    // 未连接确认界面时一律拒绝删除，避免调用命令绕过用户确认。
+    public Func<ConversationSummary, Task<bool>>? ConfirmConversationDeletion { get; set; }
+
+    [RelayCommand(CanExecute = nameof(CanChangeConversation))]
+    private async Task DeleteConversationAsync(ConversationSummary? summary)
+    {
+        if (!CanChangeConversation || summary is null || ConfirmConversationDeletion is not { } confirm) return;
+        if (!await confirm(summary) || !CanChangeConversation) return;
+        try
+        {
+            var isCurrent = summary.Id == CurrentConversationId;
+            assistant.DeleteConversation(summary.Id);
+            if (isCurrent)
+            {
+                Messages.Clear();
+                ResetConversationUi();
+            }
+            RefreshConversationHistory();
+        }
+        catch (Exception exception) when (ConversationStore.IsStorageError(exception))
+        {
+            _logger.LogWarning("历史对话删除失败 {ExceptionType}", exception.GetType().Name);
+            ErrorMessage = L.Text("CopilotHistoryDeleteFailed");
+        }
+    }
+
     public bool HasConversationHistory => ConversationHistory.Count > 0;
     public bool CanChangeConversation => !IsOperationRunning && !assistant.IsRunning;
 
@@ -57,6 +83,7 @@ public partial class ChatViewModel
         ClearConversationCommand.NotifyCanExecuteChanged();
         ToggleHistoryCommand.NotifyCanExecuteChanged();
         LoadConversationCommand.NotifyCanExecuteChanged();
+        DeleteConversationCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand(CanExecute = nameof(CanChangeConversation))]

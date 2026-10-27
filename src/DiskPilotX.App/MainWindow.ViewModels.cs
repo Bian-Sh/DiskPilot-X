@@ -137,7 +137,9 @@ public partial class MainWindow
 
     public void SetChatViewModel(ChatViewModel chatVm)
     {
+        if (_chatViewModel is not null) _chatViewModel.ConfirmConversationDeletion = null;
         _chatViewModel = chatVm;
+        chatVm.ConfirmConversationDeletion = ConfirmConversationDeletionAsync;
         ChatPanel.SetViewModel(chatVm);
         ConnectAssistantWorkspace();
         chatVm.ClearConsoleRequested += AppLog.UiSink.Clear;
