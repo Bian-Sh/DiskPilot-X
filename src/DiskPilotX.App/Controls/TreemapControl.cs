@@ -41,8 +41,8 @@ public class TreemapControl : SKElement
     private Point _hoverPosition;
     private readonly DispatcherTimer _toolTipTimer;
 
-    // ── 视口变换（逻辑坐标 → 屏幕坐标：screen = logical + pan）──
-    // zoom 是语义缩放级别（LOD），不做几何放大，cell 规格保持固定。
+    // ── 视口变换（逻辑坐标 → 屏幕坐标：screen = logical * zoom + pan）──
+    // zoom 同时驱动 LOD 重布局；cell 规格（标题栏/字号/边框）按屏幕像素恒定。
     private float _zoom = 1f;
     private float _panX;
     private float _panY;
@@ -147,8 +147,9 @@ public class TreemapControl : SKElement
         clipPath.Close();
         canvas.ClipPath(clipPath);
 
-        // 视口变换：仅平移（screen = logical + pan）。缩放走 LOD 重布局，不做几何放大。
+        // 视口变换：screen = logical * zoom + pan。cell 规格（标题栏/字号/边框）由布局按 zoom 折算，屏幕上恒定。
         canvas.Translate(_panX, _panY);
+        canvas.Scale(_zoom);
 
         if (_nodes is null || _nodes.Count == 0)
             return;
@@ -172,7 +173,7 @@ public class TreemapControl : SKElement
             IsAntialias = true,
         };
 
-        using var labelFont = CreateTreemapFont(11f);
+        using var labelFont = CreateTreemapFont(Spec(11f));
 
         // Render in depth order: shallow first, deep on top.
         // Directories first at each depth, then files on top.
@@ -199,61 +200,64 @@ public class TreemapControl : SKElement
         // 多选集合先画蓝色描边（除当前选中焦点外）。
         foreach (var node in _multiSelection)
         {
-            if (node != SelectedNode) DrawOutline(canvas, node, 2f, new SKColor(66, 165, 245));
+            if (node != SelectedNode) DrawOutline(canvas, node, Spec(2f), new SKColor(66, 165, 245));
         }
 
         // 最后叠加选中态纯白粗框 + 悬停细白框，目录选择框不会被子块覆盖。
-        if (_lastHoveredNode != SelectedNode) DrawOutline(canvas, _lastHoveredNode, 1f, SKColors.White);
-        DrawOutline(canvas, SelectedNode, 2.5f, SKColors.White);
+        if (_lastHoveredNode != SelectedNode) DrawOutline(canvas, _lastHoveredNode, Spec(1f), SKColors.White);
+        DrawOutline(canvas, SelectedNode, Spec(2.5f), SKColors.White);
 
     }
 
-    private static void DrawDirectoryNode(
+    private void DrawDirectoryNode(
         SKCanvas canvas, TreemapNode node,
         SKPaint fillPaint, SKPaint borderPaint, SKPaint textPaint, SKFont font)
     {
         var rect = NodeRect(node);
         // 目录（含标题栏）使用中性色，颜色由布局引擎统一分配。
-        fillPaint.Color = SKColor.Parse(string.IsNullOrWhiteSpace(node.ColorHex) ? "#42A5F5" : node.ColorHex);
+        fillPaint.Color = SKColor.Parse(string.IsNullOrWhiteSpace(node.ColorHex) ? "#303030" : node.ColorHex);
         canvas.DrawRect(rect, fillPaint);
         borderPaint.Color = DarkenColor(fillPaint.Color, 0.20f);
-        borderPaint.StrokeWidth = 1f;
+        borderPaint.StrokeWidth = Spec(1f);
         var frame = rect;
-        frame.Inflate(-0.5f, -0.5f);
+        frame.Inflate(-Spec(0.5f), -Spec(0.5f));
         canvas.DrawRect(frame, borderPaint);
 
-        float headerHeight = GetHeaderHeight(node.Depth, node.Height);
-        if (node.Label is not null && headerHeight >= 14f)
-            DrawLabel(canvas, node.Label, node.X + 3f, node.Y + headerHeight / 2f + 3.5f,
-                node.Width - 6f, textPaint, font, fillPaint.Color);
+        float headerHeight = GetHeaderHeight(node.Height);
+        if (node.Label is not null && headerHeight >= Spec(14f))
+            DrawLabel(canvas, node.Label, node.X + Spec(3f), node.Y + headerHeight / 2f + Spec(3.5f),
+                node.Width - Spec(6f), textPaint, font, fillPaint.Color);
 
         if (node.Entry.IsAccessDenied)
             DrawAccessDeniedOverlay(canvas, rect);
     }
 
-    private static void DrawFileNode(
+    private void DrawFileNode(
         SKCanvas canvas, TreemapNode node,
         SKPaint fillPaint, SKPaint borderPaint, SKPaint textPaint, SKFont font)
     {
         var rect = NodeRect(node);
-        rect.Inflate(-0.5f, -0.5f); // cell 间留 1px 细缝，边界更清晰
+        rect.Inflate(-Spec(0.5f), -Spec(0.5f)); // cell 间留 1px 细缝（屏幕像素恒定），边界更清晰
         var color = SKColor.Parse(node.ColorHex);
         fillPaint.Color = color;
         canvas.DrawRect(rect, fillPaint);
 
         borderPaint.Color = DarkenColor(color, 0.65f);
-        borderPaint.StrokeWidth = 0.5f;
+        borderPaint.StrokeWidth = Spec(0.5f);
         var frame = rect;
-        frame.Inflate(-0.25f, -0.25f);
+        frame.Inflate(-Spec(0.25f), -Spec(0.25f));
         canvas.DrawRect(frame, borderPaint);
 
-        if (node.Label is not null && rect.Height >= 14f)
-            DrawLabel(canvas, node.Label, rect.Left + 3f, rect.Top + 11f,
-                rect.Width - 6f, textPaint, font, color);
+        if (node.Label is not null && rect.Height >= Spec(14f))
+            DrawLabel(canvas, node.Label, rect.Left + Spec(3f), rect.Top + Spec(11f),
+                rect.Width - Spec(6f), textPaint, font, color);
 
         if (node.Entry.IsAccessDenied)
             DrawAccessDeniedOverlay(canvas, rect);
     }
+
+    /// <summary>屏幕像素规格 → 逻辑坐标（除以 zoom 后绘制，屏幕上保持恒定）。</summary>
+    private float Spec(float screenPx) => screenPx / _zoom;
 
     private static SKRect NodeRect(TreemapNode node) =>
         new(node.X, node.Y, node.X + node.Width, node.Y + node.Height);
@@ -264,7 +268,7 @@ public class TreemapControl : SKElement
         // 用悬停节点在逻辑坐标里的中心做光斑，避免与视口缩放/平移错位。
         var node = _lastHoveredNode;
         var center = new SKPoint(node.X + node.Width / 2f, node.Y + node.Height / 2f);
-        using var light = SKShader.CreateRadialGradient(center, 150f,
+        using var light = SKShader.CreateRadialGradient(center, Spec(150f),
             [new SKColor(255, 255, 255, 42), new SKColor(255, 255, 255, 0)],
             [0f, 1f], SKShaderTileMode.Clamp);
         using var paint = new SKPaint { Shader = light, IsAntialias = true };
@@ -277,15 +281,15 @@ public class TreemapControl : SKElement
         }
         canvas.Save();
         canvas.ClipPath(titleAreas, SKClipOperation.Difference, false);
-        canvas.DrawCircle(center, 150f, paint);
+        canvas.DrawCircle(center, Spec(150f), paint);
         canvas.Restore();
     }
 
-    private static float GetDirectoryTitleHeight(TreemapNode node)
+    private float GetDirectoryTitleHeight(TreemapNode node)
     {
         if (!node.Entry.IsDirectory || node.Label is null) return 0f;
-        float height = GetHeaderHeight(node.Depth, node.Height);
-        return height >= 14f && node.Height >= height ? height : 0f;
+        float height = GetHeaderHeight(node.Height);
+        return height >= Spec(14f) && node.Height >= height ? height : 0f;
     }
 
     private static void DrawOutline(SKCanvas canvas, TreemapNode? node, float width, SKColor color)
@@ -323,12 +327,9 @@ public class TreemapControl : SKElement
         return luminance >= 150f;
     }
 
-    // cell 规格固定：标题栏高度不随深度/缩放变化（与布局引擎保持一致）。
-    private static float GetHeaderHeight(int depth, float availableHeight)
-    {
-        _ = depth;
-        return Math.Min(18f, availableHeight * 0.4f);
-    }
+    // cell 规格按屏幕像素恒定：标题栏始终 18 屏幕像素（与布局引擎 SquarifiedTreemapLayout 一致）。
+    private float GetHeaderHeight(float availableHeight)
+        => Math.Min(Spec(18f), availableHeight * 0.4f);
 
     internal static SKFont CreateTreemapFont(float fontSize) => new(TreemapTypeface.Value, fontSize);
 
@@ -365,9 +366,9 @@ public class TreemapControl : SKElement
         if (_nodes is null || _nodes.Count == 0)
             return null;
 
-        // 屏幕坐标 → 逻辑坐标（逆视口变换，视口仅含平移）。
-        double lx = x - _panX;
-        double ly = y - _panY;
+        // 屏幕坐标 → 逻辑坐标（逆视口变换：screen = logical * zoom + pan）。
+        double lx = (x - _panX) / _zoom;
+        double ly = (y - _panY) / _zoom;
 
         TreemapNode? deepest = null;
 
@@ -455,9 +456,10 @@ public class TreemapControl : SKElement
         SelectedNode = node;
         NodeClicked?.Invoke(this, node);
 
-        float headerHeight = GetHeaderHeight(node.Depth, node.Height);
+        float headerHeight = GetHeaderHeight(node.Height);
+        double logicalY = (position.Y - _panY) / _zoom;
         if (clickCount == 2 && node.Entry.IsDirectory && node.Label is not null
-            && headerHeight >= 14f && position.Y < node.Y + headerHeight)
+            && headerHeight >= Spec(14f) && logicalY < node.Y + headerHeight)
         {
             // 双击钻取目录。
             ClearHover();
@@ -521,6 +523,7 @@ public class TreemapControl : SKElement
             _panDragExceededThreshold = true;
             _panX = _panStartPanX + (float)dx;
             _panY = _panStartPanY + (float)dy;
+            ClampPan();
             Cursor = Cursors.SizeAll;
             _toolTipTimer.Stop();
             _toolTip.IsOpen = false;
@@ -540,6 +543,7 @@ public class TreemapControl : SKElement
         {
             // Shift + 滚轮：水平平移。
             _panX += e.Delta > 0 ? 40 : -40;
+            ClampPan();
         }
         else
         {
@@ -566,25 +570,32 @@ public class TreemapControl : SKElement
         var anchorNode = HitTest(screenX, screenY);
         if (anchorNode is not null && anchorNode.Width > 0 && anchorNode.Height > 0)
         {
+            float anchorLogicalX = ((float)screenX - _panX) / _zoom;
+            float anchorLogicalY = ((float)screenY - _panY) / _zoom;
             _zoomAnchorEntry = anchorNode.Entry;
-            _zoomAnchorFx = ((float)screenX - _panX - anchorNode.X) / anchorNode.Width;
-            _zoomAnchorFy = ((float)screenY - _panY - anchorNode.Y) / anchorNode.Height;
+            _zoomAnchorFx = (anchorLogicalX - anchorNode.X) / anchorNode.Width;
+            _zoomAnchorFy = (anchorLogicalY - anchorNode.Y) / anchorNode.Height;
             _zoomAnchorScreen = new Point(screenX, screenY);
         }
 
+        // 先按几何比例保持锚点不动（重布局前画面平滑），LOD 重布局后再精确对齐。
+        float ratio = newZoom / _zoom;
+        _panX = screenX - (screenX - _panX) * ratio;
+        _panY = screenY - (screenY - _panY) * ratio;
         _zoom = newZoom;
         if (_zoom <= MinZoom)
         {
-            // 回到 1x：整图可见，复位平移。
+            // 回到 1x：整图恰好铺满视口，复位平移。
             _panX = 0f;
             _panY = 0f;
             _zoomAnchorEntry = null;
         }
+        ClampPan();
         ZoomChanged?.Invoke(this, _zoom);
         InvalidateVisual();
     }
 
-    /// <summary>LOD 重布局后，把锚定节点对齐回指针下的相对位置（cell 不缩放，仅平移对齐）。</summary>
+    /// <summary>LOD 重布局后，把锚定节点对齐回指针下的相对位置。</summary>
     private void ApplyZoomAnchor()
     {
         if (_zoomAnchorEntry is null)
@@ -597,8 +608,20 @@ public class TreemapControl : SKElement
             return;
         float anchorX = node.X + _zoomAnchorFx * node.Width;
         float anchorY = node.Y + _zoomAnchorFy * node.Height;
-        _panX = (float)_zoomAnchorScreen.X - anchorX;
-        _panY = (float)_zoomAnchorScreen.Y - anchorY;
+        _panX = (float)_zoomAnchorScreen.X - anchorX * _zoom;
+        _panY = (float)_zoomAnchorScreen.Y - anchorY * _zoom;
+        ClampPan();
+    }
+
+    /// <summary>钳制平移量：地图始终铺满视口，任何 zoom 下都不露出空白。</summary>
+    private void ClampPan()
+    {
+        if (ActualWidth <= 0 || ActualHeight <= 0)
+            return;
+        float minX = (float)ActualWidth * (1f - _zoom);
+        float minY = (float)ActualHeight * (1f - _zoom);
+        _panX = Math.Clamp(_panX, minX, 0f);
+        _panY = Math.Clamp(_panY, minY, 0f);
     }
 
     public void ResetView()
@@ -737,20 +760,20 @@ public class TreemapControl : SKElement
         }
     }
 
-    private static void DrawAccessDeniedOverlay(SKCanvas canvas, SKRect rect)
+    private void DrawAccessDeniedOverlay(SKCanvas canvas, SKRect rect)
     {
         using var hatchPaint = new SKPaint
         {
             Style = SKPaintStyle.Stroke,
             Color = new SKColor(255, 80, 80, 160),
-            StrokeWidth = 1.5f,
+            StrokeWidth = Spec(1.5f),
             IsAntialias = true,
         };
 
         canvas.Save();
         canvas.ClipRect(rect);
 
-        float step = 8f;
+        float step = Spec(8f);
         float totalSpan = rect.Width + rect.Height;
         for (float offset = 0; offset < totalSpan; offset += step)
         {

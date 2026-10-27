@@ -40,6 +40,40 @@ public class TreemapLayoutTests
         Assert.Equal(color, drilled.Single(n => n.Entry == second).ColorHex);
     }
 
+    [Fact]
+    public void EmptyDirectories_AreExcluded()
+    {
+        var root = Directory("根");
+        var empty = Directory("空目录", root);
+        empty.Size = 0;
+        File("a.js", root, 100);
+        root.Size = 100;
+
+        var nodes = new SquarifiedTreemapLayout().ComputeLayout(root, 800, 600, 8);
+
+        Assert.DoesNotContain(nodes, n => n.Entry.Name == "空目录");
+        Assert.Contains(nodes, n => n.Entry.Name == "a.js");
+    }
+
+    [Fact]
+    public void Zoom_HeaderHeightIsScreenConstant()
+    {
+        var root = Directory("根");
+        var child = Directory("子", root);
+        File("a.js", child, 100);
+        child.Size = root.Size = 100;
+
+        var engine = new SquarifiedTreemapLayout();
+        var z1 = engine.ComputeLayout(root, 800, 600, 8, zoom: 1f);
+        var z2 = engine.ComputeLayout(root, 800, 600, 8, zoom: 2f);
+
+        // 标题栏在屏幕上恒定 18px：逻辑高度 = 18/zoom。
+        float h1 = z1.Single(n => n.Entry.Name == "子").Y - z1[0].Y;
+        float h2 = z2.Single(n => n.Entry.Name == "子").Y - z2[0].Y;
+        Assert.Equal(18f, h1, 1);
+        Assert.Equal(9f, h2, 1);
+    }
+
     private static FileEntry Directory(string name, FileEntry? parent = null)
     {
         var entry = new FileEntry { Name = name, Path = name, IsDirectory = true, Parent = parent };

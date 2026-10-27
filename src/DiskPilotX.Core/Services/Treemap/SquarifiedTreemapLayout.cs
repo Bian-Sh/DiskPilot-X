@@ -5,9 +5,11 @@ namespace DiskPilotX.Core.Services.Treemap;
 public class SquarifiedTreemapLayout : ITreemapLayoutEngine
 {
     private const float HeaderBaseHeight = 18f;
-    private const float BorderBasePadding = 1f;
-    private const float BorderMinPadding = 1f;
     private const float MinNodeDimension = 14f;
+
+    // 逻辑坐标 = 屏幕像素 / zoom：cell 规格（标题栏、边框、最小尺寸）按屏幕像素恒定，
+    // 缩放只改变内容区大小与 LOD 细节，title 区域在屏幕上始终不变。
+    private static float Spec(float screenPx, float zoom) => screenPx / Math.Max(zoom, 1e-6f);
 
     // A directory only expands its children if the content area (after header
     // and border) meets this minimum.  Below this threshold the directory is
@@ -28,9 +30,10 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
     private static float LodContentArea(float zoom) =>
         MinContentArea / Math.Max(zoom * zoom, 1f);
 
-    // LOD 深度预算随 zoom 增大：zoom=1 只展开约 3 层，zoom=8 展开到底。
+    // LOD 深度预算：zoom=1 展开 5 层，之后每放大 1 级多展开 2 层，zoom=3 起展开到底。
+    // 每档滚轮都会重新锚定到指针下更深的节点，预算必须领先钻取速度 1 层以上，否则指针下的目录只显示纯色块。
     private static int LodMaxDepth(float zoom) =>
-        (int)Math.Clamp(MathF.Round(2f + zoom * 0.75f), 2, 8);
+        (int)Math.Clamp(MathF.Round(3f + zoom * 2f), 2, 8);
 
     // 目录（含标题栏区域）使用中性深灰，不做彩色编码；仅文件 cell 按类型上色。
     private const string DirectoryColor = "#303030";
@@ -91,8 +94,9 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         // zoom 驱动 LOD：有效深度预算随 zoom 增大（但不突破调用方给定的上限）。
         int effectiveMaxDepth = Math.Min(maxDepth, LodMaxDepth(zoom));
 
-        // 固定预留外描边空间，选中时无需缩小或重排任何 cell。
-        var rootRect = new Rect(2, 2, width - 4, height - 4);
+        // 固定预留外描边空间（屏幕像素恒定），选中时无需缩小或重排任何 cell。
+        float rootPad = Spec(2f, zoom);
+        var rootRect = new Rect(rootPad, rootPad, width - rootPad * 2, height - rootPad * 2);
         EmitDirectoryNode(root, rootRect, 0, effectiveMaxDepth, zoom, result);
 
         return result;
@@ -102,9 +106,9 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         FileEntry dir, Rect rect, int depth, int maxDepth, float zoom,
         List<TreemapNode> result)
     {
-        float headerHeight = GetHeaderHeight(depth, rect.Height);
+        float headerHeight = GetHeaderHeight(rect.Height, zoom);
 
-        string? label = rect.Width >= 20 && headerHeight >= 14f
+        string? label = rect.Width >= Spec(20f, zoom) && headerHeight >= Spec(14f, zoom)
             ? $"{dir.Name} ({FormatSize(dir.Size)})"
             : null;
 
@@ -119,7 +123,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
             Height = rect.Height,
             ColorHex = color,
             Depth = depth,
-            IsVisible = rect.Width >= MinNodeDimension && rect.Height >= MinNodeDimension,
+            IsVisible = rect.Width >= Spec(MinNodeDimension, zoom) && rect.Height >= Spec(MinNodeDimension, zoom),
             Label = label
         };
         result.Add(node);
@@ -127,7 +131,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         if (depth >= maxDepth || result.Count >= MaxVisibleNodes)
             return;
 
-        float borderPad = GetBorderPadding(depth, rect.Width, rect.Height);
+        float borderPad = GetBorderPadding(rect.Width, rect.Height, zoom);
         float contentX = rect.X + borderPad;
         float contentY = rect.Y + headerHeight;
         float contentW = rect.Width - borderPad * 2;
@@ -135,7 +139,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
 
         // LOD 面积阈值随 zoom 缩放：放大后更多目录跨过阈值、展开子节点。
         float lodArea = LodContentArea(zoom);
-        if (contentW < MinNodeDimension || contentH < MinNodeDimension
+        if (contentW < Spec(MinNodeDimension, zoom) || contentH < Spec(MinNodeDimension, zoom)
             || contentW * contentH < lodArea)
             return;
 
@@ -162,7 +166,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         if (depth > maxDepth || items.Count == 0 || rect.Area <= 0 || result.Count >= MaxVisibleNodes)
             return;
 
-        if (rect.Width < MinNodeDimension || rect.Height < MinNodeDimension)
+        if (rect.Width < Spec(MinNodeDimension, zoom) || rect.Height < Spec(MinNodeDimension, zoom))
             return;
 
         if (items.Count == 1)
@@ -274,7 +278,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         FileEntry entry, Rect rect, int depth, int maxDepth, float zoom,
         List<TreemapNode> result)
     {
-        if (result.Count >= MaxVisibleNodes || rect.Width < MinNodeDimension || rect.Height < MinNodeDimension)
+        if (result.Count >= MaxVisibleNodes || rect.Width < Spec(MinNodeDimension, zoom) || rect.Height < Spec(MinNodeDimension, zoom))
             return;
 
         if (entry.IsDirectory)
@@ -287,7 +291,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
 
             // Always provide a label if the rectangle has any visible area.
             // The renderer handles truncation and fitting.
-            string? label = rect.Width >= 20 && rect.Height >= 10
+            string? label = rect.Width >= Spec(20f, zoom) && rect.Height >= Spec(10f, zoom)
                 ? $"{entry.Name} ({FormatSize(entry.Size)})"
                 : null;
 
@@ -306,17 +310,13 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         }
     }
 
-    // cell 规格固定：标题栏高度不随深度/缩放变化，仅受可用空间约束。
-    private static float GetHeaderHeight(int depth, float availableHeight)
-    {
-        _ = depth;
-        return Math.Min(HeaderBaseHeight, availableHeight * 0.4f);
-    }
+    // cell 规格按屏幕像素恒定：标题栏始终 18 屏幕像素（逻辑值 = 18/zoom），不随深度变化。
+    private static float GetHeaderHeight(float availableHeight, float zoom)
+        => Math.Min(Spec(HeaderBaseHeight, zoom), availableHeight * 0.4f);
 
-    private static float GetBorderPadding(int depth, float width, float height)
+    private static float GetBorderPadding(float width, float height, float zoom)
     {
-        float p = BorderBasePadding - depth * 0.5f;
-        p = Math.Max(p, BorderMinPadding);
+        float p = Spec(1f, zoom);
         // Don't let padding eat too much of small nodes.
         p = Math.Min(p, width * 0.08f);
         p = Math.Min(p, height * 0.08f);

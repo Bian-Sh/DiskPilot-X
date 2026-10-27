@@ -194,6 +194,28 @@ public class TreemapControlTests
         Assert.True(titleHover.GetPixel(200, 140).Red > normal.GetPixel(200, 140).Red);
     });
 
+    [Fact]
+    public void WheelZoom_KeepsAnchorNodeUnderPointer_AndResetsAtFullView() => InSta(() =>
+    {
+        var left = Node(false, 0, 0, 200, 300);
+        var right = Node(false, 200, 0, 200, 300);
+        var control = new TreemapControl { Nodes = [left, right] };
+        control.Measure(new Size(400, 300));
+        control.Arrange(new Rect(0, 0, 400, 300));
+        var wheel = typeof(TreemapControl).GetMethod("RaiseWheelAt", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(wheel);
+
+        Assert.Same(left, control.HitTest(150, 150));
+        wheel.Invoke(control, [150f, 150f, 120]);
+        // 放大后锚点不动：同一屏幕点仍命中 left。
+        Assert.Same(left, control.HitTest(150, 150));
+
+        // 缩回 1x 视图复位，整图铺满无偏移。
+        wheel.Invoke(control, [150f, 150f, -120]);
+        Assert.Same(left, control.HitTest(150, 150));
+        Assert.Same(right, control.HitTest(350, 150));
+    });
+
     private static SKBitmap Render(TreemapControl control)
     {
         var info = new SKImageInfo(400, 300);
