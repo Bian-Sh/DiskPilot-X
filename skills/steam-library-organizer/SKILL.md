@@ -1,6 +1,6 @@
 ---
 name: steam-library-organizer
-description: "盘点本机 Steam 游戏库：自动定位客户端安装目录（注册表）、解析全部库文件夹（含多盘库）、逐个游戏读取 appid、名称、安装目录、安装大小与上次游玩时间；以海报网格卡片呈现，卡片与明细行自带「卸载」按钮，宿主用 Steam 原生卸载替用户处理，完成后把结果交给 AI 总结。只读发现，不删除任何文件。"
+description: "盘点本机 Steam 游戏库：自动定位客户端安装目录（注册表）、解析全部库文件夹（含多盘库）、逐个游戏读取 appid、名称、安装目录、安装大小与启动情况（有无开启过：LastPlayed=0 如实显示「从未启动」，不用目录时间戳编造）；以海报网格卡片呈现，卡片与明细行自带「卸载」按钮，宿主用 Steam 原生卸载替用户处理，完成后把结果交给 AI 总结。只读发现，不删除任何文件。"
 ---
 
 # Steam 游戏库盘点
@@ -36,13 +36,21 @@ description: "盘点本机 Steam 游戏库：自动定位客户端安装目录�
    - `name` ← `"name"` 行
    - `installdir` ← `"installdir"` 行 → 安装目录 = `steamapps/common/<installdir>`
    - 大小 ← **实测目录大小**（`GetDirectorySize`），比 ACF 的 `SizeOnDisk` 更能反映真实占用
-   - 上次游玩 ← `localconfig.vdf` 的 `LastPlayed`（Unix 秒）；缺失则回退安装目录最后修改时间
+   - 启动情况（是否有开启过）← 两级判定，**绝不编造**：
+     1. **权威：清单自己的 `LastPlayed`**——`>0` 即本次安装启动过，显示"上次游玩：X 前"；
+        **`=0` 即本次安装从未启动**，显示"从未启动"（哪怕账号里还留着旧安装的历史时间）。
+     2. **佐证：`<root>/userdata/<账号>/config/localconfig.vdf` 的账号历史**
+        （`LastPlayed` / `Playtime` / `autocloud.lastlaunch`，块可能嵌套，按大括号配平解析）：
+        仅当清单 `LastPlayed=0` 且账号有硬游玩证据（`Playtime>0` 或 `lastlaunch`）时，
+        显示"下载后未启动（X 前玩过）"；只有弱时间戳的不算玩过。
+     3. 清单缺 `LastPlayed` 字段（老客户端）才回退账号记录；两者皆空显示"启动记录未知"。
+     4. **安装目录时间戳不是游玩信号**（迁移、校验、解压都会改写它），不参与判定。
 
 4. **声明视图**
    返回 `AppDataDiscoveryResult(entries, view)`，`view` 为：
    - `stat_row`：游戏数 / 总占用 / 最大游戏
-   - `poster_grid`：按占用降序的海报卡（含"上次游玩"）
-   - `table`：全部明细（游戏 / 大小 / 上次游玩 / 所在库）
+   - `poster_grid`：按占用降序的海报卡（含"启动情况"徽章：未启动 / 久未游玩 / 近期常玩……）
+   - `table`：全部明细（游戏 / 大小 / 启动情况 / 所在库）
    - 每个条目都挂 `SkillUiItemAction { Kind = "uninstall", Target = <appid> }`：
      宿主据此渲染按钮，本身不做任何删除动作。
 
