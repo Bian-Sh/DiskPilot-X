@@ -29,7 +29,8 @@ public partial class ChatViewModel
     /// </summary>
     private static string BuildShortcutPrompt(AiSkillCatalogItem skill) => skill.Kind == "provider"
         ? "@" + skill.Id + " 请直接运行这个应用数据发现规则：它自己会找到客户端安装位置和所有库目录，不需要我选扫描范围，也不用先扫描磁盘。"
-          + "拿到真实数据后直接用视图把结果展示出来（海报/统计/明细），我可以勾选条目让你继续分析。"
+          + "规则会自己把结果做成视图（海报/统计/明细）交给我看，我直接在卡片上操作（比如卸载）就行；"
+          + "你不要再调 render_view 重复渲染一份，也不要加「回传继续分析」类按钮——这一屏就是终点。"
         : "@" + skill.Id + " 请按这条清理规则检查，先让我选择范围并预览，保留用户资料，清理前再确认。";
     [RelayCommand] private async Task ExplorePromptAsync(string? prompt)
     {

@@ -212,6 +212,56 @@ public sealed class SkillUiSpecContractTests
         Assert.False(skillView.DescribesSameContent(otherView));
     }
 
+    /// <summary>
+    /// 真实事故回归：模型补发的那份视图把条目挂在库目录（而非游戏安装路径）上，
+    /// path 重叠为 0，必须靠 appid 兜住，否则气泡里会出现第二张入口卡。
+    /// </summary>
+    [Fact]
+    public void DescribesSameContent_MatchesByAppIdWhenPathsDiffer()
+    {
+        var skillView = Parse("""
+        {"title":"Steam 游戏库盘点","sections":[{"kind":"poster_grid","items":[
+          {"title":"Watch Dogs 2","appid":"2660830","path":"G:\\SteamLibrary\\steamapps\\common\\Watch Dogs 2"},
+          {"title":"Far Cry 6","appid":"2369390","path":"G:\\SteamLibrary\\steamapps\\common\\Far Cry 6"}]}]}
+        """);
+        var modelView = Parse("""
+        {"title":"Steam 游戏库盘点结果（10 款 / 516.8 GB）","entry_title":"Steam 游戏库盘点结果（10 款 / 516.8 GB）",
+         "sections":[{"kind":"stat_row","items":[{"title":"总占用","value":"516.8 GB"}]},
+          {"kind":"table","items":[
+          {"cells":["Watch Dogs 2"],"appid":"2660830","path":"G:\\SteamLibrary"},
+          {"cells":["Far Cry 6"],"appid":"2369390","path":"D:\\Program Files\\Steam"}]}]}
+        """);
+
+        Assert.True(skillView.DescribesSameContent(modelView));
+    }
+
+    /// <summary>条目只写标题（没有 path 也没有 appid）时，按标题重叠判定。</summary>
+    [Fact]
+    public void DescribesSameContent_MatchesByTitleWhenNoPaths()
+    {
+        var skillView = Parse("""
+        {"title":"Steam 游戏库盘点","sections":[{"kind":"poster_grid","items":[
+          {"title":"悟空"},{"title":"2077"}]}]}
+        """);
+        var modelView = Parse("""
+        {"title":"盘点结果","sections":[{"kind":"bar_chart","items":[
+          {"title":"悟空","value":"120 GB"},{"title":"2077","value":"80 GB"}]}]}
+        """);
+
+        Assert.True(skillView.DescribesSameContent(modelView));
+    }
+
+    /// <summary>两边都没有条目时，入口标题互为包含也算同一主题。</summary>
+    [Fact]
+    public void DescribesSameContent_EntryTitleContainmentMatches()
+    {
+        var skillView = Parse("""{"title":"Steam 游戏库盘点","sections":[]}""");
+        var modelView = Parse("""{"title":"Steam 游戏库盘点结果（10 款 / 516.8 GB）","sections":[]}""");
+
+        Assert.True(skillView.DescribesSameContent(modelView));
+        Assert.False(skillView.DescribesSameContent(Parse("""{"title":"Unity 缓存检查","sections":[]}""")));
+    }
+
     [Fact]
     public void EffectiveEntryText_FallsBackToTitleAndSubtitle()
     {
@@ -282,5 +332,39 @@ public sealed class SkillUiSpecContractTests
         Assert.Equal("https://example.test/cover.jpg", poster[1].ImageUrl);
         // 表格行不补封面
         Assert.False(spec.Sections[1].Items[0].HasImage);
+    }
+
+    /// <summary>
+    /// 应用盘点止于卸载：带 uninstall 行内动作的视图，就算模型加了「回传继续分析」，
+    /// 宿主也在 Normalize 里剥掉，只留关闭。
+    /// </summary>
+    [Fact]
+    public void Normalize_StripsContinueActionsFromUninstallViews()
+    {
+        var spec = Parse("""
+        {"title":"Steam 游戏库盘点","sections":[{"kind":"poster_grid","items":[
+          {"title":"Far Cry 6","appid":"2369390","action":{"kind":"uninstall","target":"2369390","confirm":true}}]}],
+         "actions":[{"kind":"continue","label":"勾选项交给我继续分析"},{"kind":"close"}]}
+        """);
+
+        var normalized = SkillUiSpecContract.Normalize(spec);
+
+        Assert.All(normalized.Actions, action => Assert.False(action.IsContinue));
+        Assert.Contains(normalized.Actions, action => action.IsClose);
+    }
+
+    /// <summary>没有卸载动作时 Normalize 不重建实例（保持引用同一份）。</summary>
+    [Fact]
+    public void Normalize_KeepsContinueActionsWithoutUninstall()
+    {
+        var spec = Parse("""
+        {"title":"清理候选","sections":[{"kind":"table","items":[{"cells":["a"],"path":"D:\\a"}]}],
+         "actions":[{"kind":"continue","label":"回传继续"},{"kind":"close"}]}
+        """);
+
+        var normalized = SkillUiSpecContract.Normalize(spec);
+
+        Assert.Same(spec, normalized);
+        Assert.Contains(normalized.Actions, action => action.IsContinue);
     }
 }

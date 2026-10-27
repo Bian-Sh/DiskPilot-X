@@ -264,10 +264,39 @@ public sealed record SkillUiSpec
         var mine = SummarizeItems().Keys;
         var theirs = other.SummarizeItems().Keys;
         if (mine.Count == 0 || theirs.Count == 0)
-            return string.Equals(EffectiveEntryTitle, other.EffectiveEntryTitle, StringComparison.Ordinal);
+            return EntryTitlesMatch(EffectiveEntryTitle, other.EffectiveEntryTitle);
+        if (Overlap(mine, theirs)) return true;
+        // 条目挂的标识维度可能不同：技能源码挂游戏安装路径，模型补发的那份可能只挂库目录
+        // 或只写标题。只要 appid / 标题任一维度重叠过半，就视为在讲同一件事。
+        return Overlap(CollectKeys(item => item.AppId), other.CollectKeys(item => item.AppId))
+            || Overlap(CollectKeys(item => item.Title), other.CollectKeys(item => item.Title));
+    }
+
+    private static bool Overlap(IReadOnlyCollection<string> mine, IReadOnlyCollection<string> theirs)
+    {
+        if (mine.Count == 0 || theirs.Count == 0) return false;
         var shared = mine.Count(theirs.Contains);
         return shared * 2 >= Math.Min(mine.Count, theirs.Count);
     }
+
+    private HashSet<string> CollectKeys(Func<SkillUiItem, string?> picker)
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in Sections
+            .Where(section => section.Kind is SkillUiSectionKind.PosterGrid or SkillUiSectionKind.Table or SkillUiSectionKind.BarChart)
+            .SelectMany(section => section.Items))
+        {
+            var value = picker(item);
+            if (!string.IsNullOrWhiteSpace(value)) set.Add(value.Trim());
+        }
+        return set;
+    }
+
+    /// <summary>入口标题相同或互为包含（「Steam 游戏库盘点」vs「Steam 游戏库盘点结果」）都算同一主题。</summary>
+    private static bool EntryTitlesMatch(string mine, string theirs) =>
+        string.Equals(mine, theirs, StringComparison.Ordinal)
+        || (!string.IsNullOrWhiteSpace(mine) && !string.IsNullOrWhiteSpace(theirs)
+            && (mine.Contains(theirs, StringComparison.Ordinal) || theirs.Contains(mine, StringComparison.Ordinal)));
 
     /// <summary>
     /// 内容指纹：同一份视图被重复投递到同一个气泡时（例如技能源码返回 view 之后
@@ -487,9 +516,11 @@ public static class SkillUiSpecContract
     public static string SteamPosterUrl(string appId) => $"https://steamcdn-a.akamaihd.net/steam/apps/{appId}/library_600x900_2x.jpg";
 
     /// <summary>
-    /// 统一规整：海报网格里凡是有 appid 但没显式封面的条目，一律按 appid 补齐确定性封面地址。
-    /// 模型走 JSON 解析时会在 <see cref="Parse"/> 里补，但技能源码直接构造 <see cref="SkillUiItem"/>
-    /// 这条路径绕过了解析器，宿主必须在这里统一兜住，否则窗口里的海报全是灰底。
+    /// 统一规整：① 海报网格里凡是有 appid 但没显式封面的条目，一律按 appid 补齐确定性封面地址
+    /// （模型走 JSON 解析时会在 <see cref="Parse"/> 里补，但技能源码直接构造 <see cref="SkillUiItem"/>
+    /// 这条路径绕过了解析器，宿主必须在这里统一兜住，否则窗口里的海报全是灰底）；
+    /// ② 带 uninstall 行内动作的视图剥掉 preview/continue 窗口动作——应用盘点止于卸载，
+    /// 不给「回传继续分析」留入口，模型就算加了也不会渲染出来。
     /// </summary>
     public static SkillUiSpec Normalize(SkillUiSpec spec)
     {
@@ -498,6 +529,16 @@ public static class SkillUiSpecContract
             if (section.Kind != SkillUiSectionKind.PosterGrid) continue;
             foreach (var item in section.Items)
                 if (!item.HasImage && !string.IsNullOrWhiteSpace(item.AppId)) item.SetImageUrl(SteamPosterUrl(item.AppId!));
+        }
+
+        var hasUninstall = spec.Sections
+            .SelectMany(section => section.Items)
+            .Any(item => item.Action?.IsUninstall == true);
+        if (hasUninstall && spec.Actions.Any(action => action.IsPreview || action.IsContinue))
+        {
+            var kept = spec.Actions.Where(action => !action.IsPreview && !action.IsContinue).ToList();
+            if (kept.Count == 0) kept.Add(new SkillUiAction()); // 至少留一个「关闭」
+            spec = spec with { Actions = kept };
         }
         return spec;
     }
