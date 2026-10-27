@@ -2,7 +2,10 @@ using DiskPilotX.Core.Models;
 
 namespace DiskPilotX.Core.Services.Scanning;
 
-public record ScanProgress(string CurrentPath, int FileCount, int FolderCount);
+public record ScanProgress(string CurrentPath, int FileCount, int FolderCount)
+{
+    public ScanExecutionInfo? Execution { get; init; }
+}
 
 public interface IFileScanner
 {

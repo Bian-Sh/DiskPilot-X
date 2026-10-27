@@ -7,4 +7,7 @@ public sealed record AgentContext(
     FileEntry? CurrentViewRoot,
     FileEntry? LinkedEntry,
     CleanupRecommendation? LinkedRecommendation,
-    bool HasExistingRecommendations = false);
+    bool HasExistingRecommendations = false,
+    bool? IsElevated = null,
+    DiskPilotX.Core.Services.Scanning.ScanExecutionInfo? LastScanExecution = null,
+    DiskPilotX.Core.Services.Scanning.ScanExecutionInfo? LastCompletedScanExecution = null);

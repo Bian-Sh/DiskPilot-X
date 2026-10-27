@@ -16,11 +16,13 @@ internal static class ModelUsageParser
             ?? Detail(usage, "prompt_tokens_details", "cached_tokens") ?? Detail(usage, "input_tokens_details", "cached_tokens") ?? previous?.CachedInputTokens;
         var created = Number(usage, "cache_creation_input_tokens") ?? previous?.CacheCreationTokens;
         var reasoning = Detail(usage, "completion_tokens_details", "reasoning_tokens") ?? Detail(usage, "output_tokens_details", "reasoning_tokens") ?? previous?.ReasoningTokens;
-        // Anthropic 的 input_tokens 不包含缓存读取与写入；总量将它们各计入一次。
+        // 统一缓存分母：Anthropic 的 input_tokens 不包含缓存读取与写入。
+        long? totalInput = input.HasValue ? input.Value + (anthropic ? cached.GetValueOrDefault() + created.GetValueOrDefault() : 0) : null;
+        // 总量将缓存读写各计入一次。
         var total = Number(usage, "total_tokens") ?? (input.HasValue && output.HasValue
             ? input.Value + output.Value + (anthropic ? cached.GetValueOrDefault() + created.GetValueOrDefault() : 0) : (long?)null);
         return input.HasValue || output.HasValue || cached.HasValue || created.HasValue || reasoning.HasValue || total.HasValue
-            ? new(input, output, total, cached, created, reasoning) : previous;
+            ? new(input, output, total, cached, created, reasoning, totalInput) : previous;
     }
 
     private static long? Number(JsonElement element, string key) => element.ValueKind == JsonValueKind.Object

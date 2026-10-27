@@ -388,7 +388,7 @@ public sealed class OpenAiModelClient : IModelClient
                     tools.Add(new ToolCall(call.GetProperty("id").GetString()!, function.GetProperty("name").GetString()!, arguments));
                 }
             foreach (var tool in tools) yield return new ModelToolCallEvent(tool);
-            yield return new ModelCompletedEvent(tools.Count > 0 ? "tool_use" : "end_turn", ModelUsageParser.Read(root));
+            yield return new ModelCompletedEvent(tools.Count > 0 ? "tool_use" : "end_turn", ModelUsageParser.Read(root), String(root, "model") ?? model);
             yield break;
         }
         if (!root.TryGetProperty("output", out var output) || output.ValueKind != JsonValueKind.Array) throw ProtocolFault(tail, "complete-json", "缺少 output");
@@ -417,7 +417,7 @@ public sealed class OpenAiModelClient : IModelClient
                 }
             }
         }
-        yield return new ModelCompletedEvent(emittedTools.Count > 0 ? "tool_use" : "end_turn", ModelUsageParser.Read(root));
+        yield return new ModelCompletedEvent(emittedTools.Count > 0 ? "tool_use" : "end_turn", ModelUsageParser.Read(root), String(root, "model") ?? model);
     }
 
     private ModelClientException ProviderError(int? status, string? code, string? message, TimeSpan? retryAfter = null)
@@ -456,10 +456,12 @@ public sealed class OpenAiModelClient : IModelClient
         private readonly SortedDictionary<int, FunctionBuilder> calls = [];
         private string? finishReason;
         private ModelTokenUsage? usage;
+        private string? modelId;
 
         public override IEnumerable<ModelStreamEvent> Handle(JsonElement frame)
         {
             usage = ModelUsageParser.Read(frame, previous: usage);
+            modelId = Str(frame, "model") ?? modelId;
             if (frame.ValueKind != JsonValueKind.Object || !frame.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0) yield break;
             var choice = choices[0];
             if (choice.TryGetProperty("delta", out var delta) && delta.ValueKind == JsonValueKind.Object)
@@ -499,7 +501,7 @@ public sealed class OpenAiModelClient : IModelClient
                     throw Fail("invalid-tool-arguments", $"tool={builder.Name}, bytes={builder.Arguments.Length}");
                 yield return new ModelToolCallEvent(new ToolCall(builder.Id.ToString(), builder.Name.ToString(), arguments));
             }
-            yield return new ModelCompletedEvent(calls.Count > 0 ? "tool_use" : "end_turn", usage);
+            yield return new ModelCompletedEvent(calls.Count > 0 ? "tool_use" : "end_turn", usage, modelId);
         }
     }
 
@@ -578,7 +580,8 @@ public sealed class OpenAiModelClient : IModelClient
                             encryptedReasoning[builder.Id.ToString()] = thoughts.DeepClone() as JsonArray ?? thoughts;
                     }
                     yield return new ModelCompletedEvent(calls.Count > 0 ? "tool_use" : "end_turn",
-                        frame.TryGetProperty("response", out var response) ? ModelUsageParser.Read(response) : null);
+                        frame.TryGetProperty("response", out var response) ? ModelUsageParser.Read(response) : null,
+                        frame.TryGetProperty("response", out var modelResponse) ? Str(modelResponse, "model") : null);
                     yield break;
                 }
                 case "error":

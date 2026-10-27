@@ -25,6 +25,9 @@ public sealed partial class DiskAssistantService
     private const string SystemPrompt = """
         你是 DiskPilot-X，帮助用户理解磁盘空间、检查清理候选并执行明确授权的操作。
         主界面是磁盘工作区，你位于右侧协作面板。先用 get_copilot_context 了解当前状态。
+        用户询问管理员启动状态、刚才的扫描路线、MFT 或普通遍历时，必须重新读取 get_copilot_context 的 is_elevated、current_scan、latest_completed_scan 和 last_scan_attempt。
+        current_scan 是主视图结果，latest_completed_scan 是最近完成的扫描（可能是无头扫描），last_scan_attempt 是最近请求：确认前取消的新请求不能否认之前扫描的真实路线。method=unknown 时明确未知，不能根据权限、工具名或取消状态猜测路线；fallback_reasons 仅说明实际发生的回退。
+        非管理员扫描前宿主会特别提醒并等待确认，不自动提权；管理员权限不等于 MFT 一定可用。
         无扫描结果时可用 scan_path 扫描用户指定范围；等待工具真实完成后再查询，禁止编造目录、大小和执行结果。
         【重要】用户问「某个软件/游戏装在哪儿、占多少、多久没玩」这类已安装应用的问题时，不要用 ask_user 让用户选扫描范围——用户通常真的不知道装在哪，问范围等于把问题推回给他。正确做法：先 manage_cleanup_skill/list 找应用数据发现类规则（如 steam-library-organizer），直接 run_skill_source 运行它（provider 契约不需要 scope_path），由源码经 API Bridge 自行定位客户端、库目录与安装位置，再展示结果。没有对应规则时才按 skill-creator 流程创建。扫描范围选择只用于用户明确要做目录扫描的场景。
         查询使用原生工具。正文中的 JSON 和代码只是说明，不是工具调用。工具失败后根据具体原因修正，不能声称成功。
@@ -321,13 +324,16 @@ public sealed partial class DiskAssistantService
                 return result;
             });
         }
-        Add("get_copilot_context", "读取实时扫描、视图、选择及扫描标识；discovery_skills 列出可直接运行的应用数据发现技能（无需扫描范围）。", """{"type":"object","properties":{}}""", async (_, ct) =>
+        Add("get_copilot_context", "读取实时管理员状态、已有扫描路线、最近扫描请求状态、视图、选择及扫描标识；discovery_skills 列出可直接运行的应用数据发现技能（无需扫描范围）。", """{"type":"object","properties":{}}""", async (_, ct) =>
         {
             var c = await GetVisibleContext(ct, options.IsAnalysis).ConfigureAwait(false);
             return JsonSerializer.SerializeToNode(new { ok = true, scan_id = c.Session?.Id, root = c.Session?.RootEntry?.Path,
                 current_path = c.CurrentViewRoot?.Path, selected_path = c.LinkedEntry?.Path, selected_recommendation = c.LinkedRecommendation?.Id,
                 size_bytes = c.Session?.RootEntry?.Size, has_recommendations = c.HasExistingRecommendations,
-                discovery_skills = GetDiscoverySkills() })!;
+                discovery_skills = GetDiscoverySkills(), is_elevated = c.IsElevated ?? Scanning.ProcessPrivileges.IsElevated,
+                current_scan = Scanning.ScanExecutionInfo.FromSession(c.Session)?.ToPublicData(),
+                latest_completed_scan = (c.LastCompletedScanExecution ?? Scanning.ScanExecutionInfo.FromSession(c.Session))?.ToPublicData(),
+                last_scan_attempt = c.LastScanExecution?.ToPublicData() })!;
         });
         Add("scan_path", "扫描用户指定路径并等待真实完成。", """{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}""",
             async (args, ct) =>
@@ -342,7 +348,11 @@ public sealed partial class DiskAssistantService
                 var result = await workspace.Execute("scan_path", scanArgs, ct).ConfigureAwait(false);
                 var c = await GetVisibleContext(ct, options.IsAnalysis).ConfigureAwait(false);
                 if (result["ok"]?.GetValue<bool>() != false) { result["scan_id"] = c.Session?.Id.ToString(); result["root"] = c.Session?.RootEntry?.Path; result["size_bytes"] = c.Session?.RootEntry?.Size; }
-                if (result["ok"]?.GetValue<bool>() != false && c.Session is not null) RememberScan(c.Session);
+                if (result["ok"]?.GetValue<bool>() != false && c.Session is not null)
+                {
+                    result["scan_execution"] ??= JsonSerializer.SerializeToNode(Scanning.ScanExecutionInfo.FromSession(c.Session)?.ToPublicData());
+                    RememberScan(c.Session);
+                }
                 return result;
             }, timeoutSeconds: 1800);
         Add("navigate_path", "定位已扫描目录，并可切换 treemap 或 tree 视图。", """{"type":"object","properties":{"path":{"type":"string"},"view":{"type":"string","enum":["treemap","tree"]}},"required":["path"]}""",
@@ -452,13 +462,16 @@ public sealed partial class DiskAssistantService
         var rules = analysisMode ? savedSettings.CleanupRecommendationWhitelist : savedSettings.AiConversationWhitelist;
         if (rules.Count == 0) return ScopeAnalysisContext(context, analysisMode);
         bool Hidden(string? p) => !string.IsNullOrEmpty(p) && whitelist.IsExcluded(p, rules);
-        if (context.Session?.RootEntry is not { } original || Hidden(original.Path)) return new(null, null, null, null);
+        var last = Hidden(context.LastScanExecution?.TargetPath) ? null : context.LastScanExecution;
+        var completed = Hidden(context.LastCompletedScanExecution?.TargetPath) ? null : context.LastCompletedScanExecution;
+        if (context.Session?.RootEntry is not { } original || Hidden(original.Path))
+            return context with { Session = null, CurrentViewRoot = null, LinkedEntry = null, LinkedRecommendation = null, LastScanExecution = last, LastCompletedScanExecution = completed };
         var filtered = Copy(original);
         var source = context.Session;
         var session = new ScanSession { Id = source.Id, TargetPath = filtered.Path, RootEntry = filtered, TotalSize = filtered.Size,
-            TotalFiles = filtered.SubtreeFileCount, TotalFolders = filtered.SubtreeFolderCount, StartTime = source.StartTime, EndTime = source.EndTime, Provenance = source.Provenance };
+            TotalFiles = filtered.SubtreeFileCount, TotalFolders = filtered.SubtreeFolderCount, StartTime = source.StartTime, EndTime = source.EndTime, Provenance = source.Provenance, Execution = source.Execution };
         return ScopeAnalysisContext(new(session, Hidden(context.CurrentViewRoot?.Path) ? filtered : query.FindByPath(session, context.CurrentViewRoot?.Path ?? filtered.Path),
-            Hidden(context.LinkedEntry?.Path) ? null : context.LinkedEntry, Hidden(context.LinkedRecommendation?.TargetPath) ? null : context.LinkedRecommendation, context.HasExistingRecommendations), analysisMode);
+            Hidden(context.LinkedEntry?.Path) ? null : context.LinkedEntry, Hidden(context.LinkedRecommendation?.TargetPath) ? null : context.LinkedRecommendation, context.HasExistingRecommendations, context.IsElevated, last, completed), analysisMode);
         FileEntry Copy(FileEntry entry)
         {
             var root = Clone(entry);

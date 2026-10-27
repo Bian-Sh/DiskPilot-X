@@ -42,11 +42,15 @@ public sealed class ChatPanelScrollTests
         Assert.NotNull(root.Background);
         var copy = Visuals<Button>(root).Single(button => button.Width == 28 && button.Height == 26);
         Assert.Equal(HorizontalAlignment.Left, ((FrameworkElement)VisualTreeHelper.GetParent(copy)).HorizontalAlignment);
-        message.Usage = new(1234, 56, 1290, 1000, 0, 12);
+        message.ModelId = "实际模型-缓存验收";
+        message.Usage = new(1234, 56, 1290, 1000, 0, 12, 1234);
         Layout(panel);
         var badge = Visuals<Border>(root).Single(element => element.Name == "UsageBadge");
         Assert.Equal(Visibility.Visible, badge.Visibility);
         Assert.Equal("1.3K tokens", Assert.Single(Visuals<TextBlock>(badge)).Text);
+        var modelId = Visuals<TextBlock>(root).Single(text => text.Name == "MessageModelId");
+        Assert.Equal(message.ModelId, modelId.Text);
+        Assert.True(modelId.TransformToAncestor(root).Transform(new Point()).X < badge.TransformToAncestor(root).Transform(new Point()).X);
         Assert.True(badge.ActualWidth < 120, "默认用量胶囊不应占满消息宽度。");
         var metadata = Visuals<StackPanel>(root).Single(element => element.Name == "MessageMetadata");
         Assert.Equal(0, metadata.Opacity);
@@ -58,9 +62,12 @@ public sealed class ChatPanelScrollTests
         var tipText = Visuals<TextBlock>(usageTip).Select(text => text.Text).ToArray();
         Assert.Contains("已报告用量", tipText);
         Assert.Contains("缓存读取", tipText);
+        Assert.Contains("缓存命中率", tipText);
+        Assert.DoesNotContain(tipText, text => text.Contains("命中率 ="));
+        Assert.Contains((1000d / 1234).ToString("P1"), tipText);
         Assert.Contains(1234.ToString("N0"), tipText);
         Assert.Contains(1290.ToString("N0"), tipText);
-        Assert.InRange(usageTip.ActualWidth, 230, 280);
+        Assert.InRange(usageTip.ActualWidth, 230, 260);
         usageTip.IsOpen = false;
         Layout(panel);
         // AI 底部仅有完成时间与复制按钮；创建时间和执行时长不混入底部时间。

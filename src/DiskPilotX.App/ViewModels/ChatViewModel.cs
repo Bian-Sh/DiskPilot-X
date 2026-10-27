@@ -243,7 +243,7 @@ public partial class ChatViewModel : ObservableObject
     {
         if (activity.Kind == AgentEventKind.SessionStarted)
         {
-            displayMessage = new Message { Sender = ChatSender.Assistant, IsStreaming = true, Timestamp = activity.Timestamp.LocalDateTime };
+            displayMessage = new Message { Sender = ChatSender.Assistant, IsStreaming = true, Timestamp = activity.Timestamp.LocalDateTime, ModelId = assistant.ActiveModel };
             Messages.Add(displayMessage); ModelDisplayName = assistant.ActiveModel ?? ModelDisplayName; IsOperationRunning = true; ErrorMessage = null; StatusText = L.Text("CopilotWorking");
         }
         displayMessage?.ApplyActivity(activity);

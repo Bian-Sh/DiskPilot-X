@@ -31,7 +31,7 @@ public partial class MainWindow
             var main = DataContext as MainViewModel;
             return new AgentContext(main?.CurrentSession, _treemapViewModel?.CurrentRoot,
                 _chatViewModel?.LinkedEntry ?? _treemapViewModel?.SelectedNode?.Entry, _chatViewModel?.LinkedRecommendation,
-                _recommendationsViewModel?.HasAnyRecommendations == true);
+                _recommendationsViewModel?.HasAnyRecommendations == true, ProcessPrivileges.IsElevated, main?.LastScanExecution, main?.LastCompletedScanExecution);
         }).Task;
         workspace.Execute = (operation, args, ct) => Dispatcher.InvokeAsync(() => ExecuteAssistantOperationAsync(operation,args,ct)).Task.Unwrap();
         if (_chatViewModel is not null)
@@ -58,14 +58,17 @@ public partial class MainWindow
                 var target=ScanPathResolver.Resolve(args?["path"]?.GetValue<string>()??"");
                 if(string.IsNullOrWhiteSpace(target)||Hidden(target)||matcher.IsExcluded(target,settings.ScanWhitelist)) return AssistantError("扫描路径为空或已排除。");
                 if(main.IsScanning || _cleanupRunning) return AssistantError("当前磁盘操作尚未完成。");
-                if(main.CurrentSession is not null && _chatViewModel is not null && !await _chatViewModel.ConfirmAsync("替换当前扫描结果",$"扫描 {target}","将更新 Treemap、文件树与当前分析上下文。",ct)) return new JsonObject{["ok"]=false,["cancelled"]=true};
+                if (_chatViewModel is null) return AssistantError("扫描确认界面尚未准备好。");
+                if (!await main.ConfirmAssistantScanAsync(target, ProcessPrivileges.IsElevated,
+                    (title, description, impact, token) => _chatViewModel.ConfirmAsync(title, description, impact, token), ct))
+                    return new JsonObject { ["ok"] = false, ["cancelled"] = true, ["started"] = false, ["scan_execution"] = JsonSerializer.SerializeToNode(main.LastScanExecution?.ToPublicData()) };
                 var session=await main.ScanForAssistantAsync(target,ct);
                 session.Provenance = new(args?["source_rule_id"] is null ? "chat" : "rule", args?["conversation_id"]?.GetValue<string>(),
                     args?["message_id"]?.GetValue<string>(), args?["purpose"]?.GetValue<string>() ?? "用户请求扫描指定范围", args?["source_rule_id"]?.GetValue<string>());
                 CacheAiScanSession(session);
                 // 工作区换了一份新扫描结果，清理基准跟着它走，避免沿用上一次的批次会话。
                 _assistantAnalysisSession=session;
-                return new JsonObject{["ok"]=true,["scan_id"]=session.Id.ToString(),["path"]=session.TargetPath,["files"]=session.TotalFiles,["folders"]=session.TotalFolders};
+                return new JsonObject{["ok"]=true,["scan_id"]=session.Id.ToString(),["path"]=session.TargetPath,["files"]=session.TotalFiles,["folders"]=session.TotalFolders,["scan_execution"]=JsonSerializer.SerializeToNode(session.Execution?.ToPublicData())};
             }
             case "navigate_path":
             {
@@ -225,6 +228,14 @@ public partial class MainWindow
         if(paths.Count==0) return AssistantError("请提供至少一个本地绝对路径。");
         var rejected=paths.FirstOrDefault(path=>hidden(path)||matcher.IsExcluded(path,settings.ScanWhitelist));
         if(rejected is not null) return AssistantError($"路径不允许用于 AI 分析：{rejected}");
+        if (!ProcessPrivileges.IsElevated)
+        {
+            if (_chatViewModel is null) return AssistantError("扫描确认界面尚未准备好。");
+            if (!await main.ConfirmAssistantScanAsync(paths[0], false,
+                (title, description, impact, token) => _chatViewModel.ConfirmAsync(title,
+                    description + "\n本次只读范围：" + string.Join("；", paths), impact, token), ct, replacesWorkspace: false))
+                return new JsonObject { ["ok"] = false, ["cancelled"] = true, ["started"] = false, ["scan_execution"] = JsonSerializer.SerializeToNode(main.LastScanExecution?.ToPublicData()) };
+        }
         var batch=new AssistantAnalysisBatch { Note=TrimTo(args?["note"]?.GetValue<string>(),400) };
         foreach(var path in paths)
         {

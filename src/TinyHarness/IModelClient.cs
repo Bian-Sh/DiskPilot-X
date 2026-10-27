@@ -18,7 +18,7 @@ public sealed record ReasoningDeltaEvent(string Text, bool IsSummary = false) : 
 
 public sealed record ModelToolCallEvent(ToolCall ToolCall) : ModelStreamEvent;
 
-public sealed record ModelCompletedEvent(string FinishReason, ModelTokenUsage? Usage = null) : ModelStreamEvent;
+public sealed record ModelCompletedEvent(string FinishReason, ModelTokenUsage? Usage = null, string? ModelId = null) : ModelStreamEvent;
 
 /// <summary>
 /// 模型客户端抽象。Phase 1 仅要求 streaming + tool calling。

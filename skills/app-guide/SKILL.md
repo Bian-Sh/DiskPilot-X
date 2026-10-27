@@ -28,6 +28,16 @@ How to use: scan first, then ask for cleanup analysis or run recommendations. If
 AI Chat explains scan results, answers file tree questions, and can prepare confirmation cards for scan, recommendation analysis, or navigation actions.
 How to use: ask natural questions such as “这个文件夹为什么这么大？” or “推荐清理是什么？”. Explanatory questions should be answered directly; action requests should use confirmation cards.
 
+### AI 对话模型与缓存用量
+仅在用户询问模型、token 或缓存时解释；日常回答不要主动展开统计公式，也不要因此触发扫描、清理或配置操作。
+- 每条 AI 回复底部的模型 ID 属于该次回复，优先使用服务实际返回的 ID，未返回时使用请求模型；切换当前模型不会改写历史，旧记录缺失时不猜测。
+- 悬停 token 胶囊可查看已报告的输入、输出、缓存读取、缓存写入、推理、合计与缓存命中率；界面不展开算法说明。
+- 缓存命中率 = 缓存读取 / 总输入（含缓存），以百分比保留一位小数。OpenAI 兼容接口的 prompt_tokens 或 input_tokens 已包含缓存输入，缓存读取不重复加入分母。
+- Anthropic 的 input_tokens 不含缓存读写，总输入为 input_tokens + cache_read_input_tokens + cache_creation_input_tokens；缓存写入计入分母但不算命中。
+- 同一回复多次模型请求时，累计缓存读取量除以累计总输入量，不是各次百分比的平均值；重复完成事件不重复累计。
+- 明确报告零缓存读取且总输入大于零时显示 0%；缺失、无效统计或零分母显示“未提供”，部分请求缺少统计时显示“未提供（部分请求缺少统计）”，不能解释成零命中。
+- 数字来自模型服务返回的 usage，不是 APP 估算或本地磁盘缓存；命中率不能直接等同于费用节省比例，不承诺下一次请求必然命中。
+
 ### Settings / API Key
 Settings configure model service credentials and app preferences.
 How to use: if model-based chat or cleanup analysis says API Key is missing, configure the model service in Settings. Local app guide answers can still work as a fallback.
