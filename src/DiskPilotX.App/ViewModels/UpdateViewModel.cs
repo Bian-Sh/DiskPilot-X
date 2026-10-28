@@ -1,4 +1,6 @@
 using System.IO;
+using System.Collections.ObjectModel;
+using DiskPilotX.Core.Services.Settings;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,12 +11,22 @@ namespace DiskPilotX.App.ViewModels;
 
 public partial class UpdateViewModel : ObservableObject
 {
-    private readonly UpdateService _updateService;
+    private readonly IUpdateService _updateService;
+    private readonly ISettingsService? _settingsService;
+    private bool _initializing = true;
+    private string? _downloadedPath;
+    private int _historyPage;
 
-    public UpdateViewModel(UpdateService updateService)
+    public UpdateViewModel(IUpdateService updateService, ISettingsService? settingsService = null)
     {
         _updateService = updateService;
+        _settingsService = settingsService;
         CurrentVersion = _updateService.GetCurrentVersion();
+        var settings = settingsService?.LoadSettings();
+        AutoCheckUpdates = settings?.AutoCheckUpdates ?? true;
+        UseProxyForUpdates = settings?.UseProxyForUpdates ?? true;
+        _initializing = false;
+        UpdateStatusText();
     }
 
     [ObservableProperty]
@@ -56,44 +68,86 @@ public partial class UpdateViewModel : ObservableObject
     [ObservableProperty]
     private bool _checkCompleted;
 
+    [ObservableProperty] private bool _isChecking;
+    [ObservableProperty] private bool _hasError;
+    [ObservableProperty] private string _errorText = "";
+    [ObservableProperty] private bool _autoCheckUpdates = true;
+    [ObservableProperty] private bool _useProxyForUpdates = true;
+    [ObservableProperty] private bool _isHistoryLoading;
+    [ObservableProperty] private bool _historyHasError;
+    [ObservableProperty] private bool _canLoadMoreHistory;
+    [ObservableProperty] private bool _historyLoaded;
+    [ObservableProperty] private UpdateRelease? _selectedRelease;
+    public ObservableCollection<UpdateRelease> Releases { get; } = [];
+    public bool IsUpdateEntryVisible => UpdateAvailable || IsDownloading || IsDownloadComplete;
+    public bool IsHistoryEmpty => HistoryLoaded && !IsHistoryLoading && !HistoryHasError && Releases.Count == 0;
+    public string PrimaryActionText => IsDownloadComplete ? L.Text("InstallButton") : IsDownloading ? L.Text("CancelButton") : L.Text("UpdateEntry");
+    public bool CanUsePrimaryAction => !IsChecking && (IsDownloadComplete || IsDownloading || !string.IsNullOrWhiteSpace(MsiDownloadUrl));
+    public string UpdateEntryGlyph => HasError ? "\uE7BA" : IsDownloadComplete ? "\uE930" : IsDownloading ? "\uE895" : "\uE896";
+    public string UpdateEntryHint => IsDownloading ? $"{DownloadProgress:F0}%"
+        : IsChecking ? L.Text("UpdateChecking")
+        : HasError ? L.Text("UpdateRetry")
+        : IsDownloadComplete ? L.Text("InstallButton") : "";
+    public bool CanCheck => !IsChecking && !IsDownloading && !IsDownloadComplete;
     private CancellationTokenSource? _downloadCts;
 
+    partial void OnAutoCheckUpdatesChanged(bool value) => SavePreferences();
+    partial void OnUseProxyForUpdatesChanged(bool value) => SavePreferences();
+    private void SavePreferences()
+    {
+        if (_initializing || _settingsService is null) return;
+        // 总是读取最新设置，避免覆盖其它设置分区刚保存的内容。
+        var settings = _settingsService.LoadSettings();
+        settings.AutoCheckUpdates = AutoCheckUpdates;
+        settings.UseProxyForUpdates = UseProxyForUpdates;
+        _settingsService.SaveSettings(settings);
+    }
     partial void OnUpdateAvailableChanged(bool value) => UpdateStatusText();
     partial void OnLatestVersionChanged(string value) => UpdateStatusText();
     partial void OnIsDownloadingChanged(bool value) => UpdateStatusText();
     partial void OnDownloadProgressChanged(double value) => UpdateStatusText();
     partial void OnIsDownloadCompleteChanged(bool value) => UpdateStatusText();
     partial void OnCurrentVersionChanged(string value) => UpdateStatusText();
+    partial void OnIsCheckingChanged(bool value) => UpdateStatusText();
+    partial void OnHasErrorChanged(bool value) => UpdateStatusText();
+    partial void OnIsHistoryLoadingChanged(bool value) => OnPropertyChanged(nameof(IsHistoryEmpty));
+    partial void OnHistoryLoadedChanged(bool value) => OnPropertyChanged(nameof(IsHistoryEmpty));
+    partial void OnHistoryHasErrorChanged(bool value) => OnPropertyChanged(nameof(IsHistoryEmpty));
+    partial void OnMsiDownloadUrlChanged(string? value) => OnPropertyChanged(nameof(CanUsePrimaryAction));
 
     public void UpdateStatusText()
     {
-        if (IsDownloadComplete)
-        {
-            StatusText = L.Format("DownloadReadyFormat", LatestVersion);
-        }
-        else if (IsDownloading)
-        {
-            StatusText = L.Format("DownloadingFormat", LatestVersion, ((int)DownloadProgress).ToString());
-        }
-        else if (UpdateAvailable)
-        {
-            StatusText = L.Format("UpdateAvailableFormat", LatestVersion);
-        }
-        else
-        {
-            StatusText = $"v{CurrentVersion}";
-        }
+        StatusText = IsDownloading ? L.Format("DownloadingFormat", LatestVersion, ((int)DownloadProgress).ToString())
+            : IsChecking ? L.Text("UpdateChecking")
+            : HasError ? ErrorText
+            : IsDownloadComplete ? L.Format("DownloadReadyFormat", LatestVersion)
+            : UpdateAvailable ? L.Format("UpdateAvailableFormat", LatestVersion)
+            : CheckCompleted ? L.Text("UpdateUpToDate") : $"v{CurrentVersion}";
+        OnPropertyChanged(nameof(IsUpdateEntryVisible));
+        OnPropertyChanged(nameof(PrimaryActionText));
+        OnPropertyChanged(nameof(UpdateEntryGlyph));
+        OnPropertyChanged(nameof(UpdateEntryHint));
+        OnPropertyChanged(nameof(CanUsePrimaryAction));
+        OnPropertyChanged(nameof(CanCheck));
+    }
+
+    public async Task CheckAtStartupAsync()
+    {
+        if (AutoCheckUpdates) await CheckAsync(false);
     }
 
     [RelayCommand]
-    private async Task CheckForUpdateAsync()
+    private Task CheckForUpdateAsync() => CheckAsync(true);
+
+    private async Task CheckAsync(bool forceRefresh)
     {
+        if (!CanCheck) return;
+        IsChecking = true;
+        HasError = false;
         try
         {
-            var result = await _updateService.CheckForUpdateAsync();
-            if (!result.Success)
-                return;
-
+            var result = await _updateService.CheckForUpdateAsync(default, forceRefresh);
+            if (!result.Success) { SetError("UpdateCheckFailed"); return; }
             LatestVersion = result.LatestVersion;
             ReleaseNotes = result.ReleaseNotes;
             PublishedAt = FormatPublishedDate(result.PublishedAt);
@@ -101,98 +155,105 @@ public partial class UpdateViewModel : ObservableObject
             MsiFileName = result.MsiFileName;
             MsiFileSize = result.MsiFileSize;
             UpdateAvailable = result.UpdateAvailable;
-
-            if (UpdateAvailable)
-            {
-                var cachedPath = _updateService.GetCachedInstallerPath(LatestVersion);
-                if (cachedPath is not null)
-                {
-                    IsDownloadComplete = true;
-                }
-            }
+            _downloadedPath = UpdateAvailable ? _updateService.GetCachedInstallerPath(LatestVersion) : null;
+            IsDownloadComplete = !string.IsNullOrWhiteSpace(_downloadedPath);
         }
-        catch
-        {
-            // 检查失败就静默
-        }
-        finally
-        {
-            CheckCompleted = true;
-            UpdateStatusText();
-        }
+        catch { SetError("UpdateCheckFailed"); }
+        finally { CheckCompleted = true; IsChecking = false; UpdateStatusText(); }
     }
+
+    private void SetError(string key) { ErrorText = L.Text(key); HasError = true; }
 
     [RelayCommand]
     private async Task DownloadAsync()
     {
-        if (string.IsNullOrEmpty(MsiDownloadUrl) || IsDownloading)
-            return;
-
+        if (string.IsNullOrEmpty(MsiDownloadUrl) || IsDownloading || IsChecking) return;
+        HasError = false;
         IsDownloading = true;
         IsDownloadComplete = false;
         DownloadProgress = 0;
-        _downloadCts = new CancellationTokenSource();
-
+        using var cts = new CancellationTokenSource();
+        _downloadCts = cts;
         try
         {
             var progress = new Progress<(long downloaded, long total)>(p =>
             {
-                Application.Current?.Dispatcher.BeginInvoke(() =>
-                {
-                    if (p.total > 0)
-                        DownloadProgress = (double)p.downloaded / p.total * 100;
-                });
+                if (IsDownloading && ReferenceEquals(_downloadCts, cts) && p.total > 0)
+                    DownloadProgress = Math.Clamp((double)p.downloaded / p.total * 100, 0, 100);
             });
-
-            await _updateService.DownloadMsiAsync(
-                MsiDownloadUrl, LatestVersion, MsiFileSize,
-                progress, _downloadCts.Token);
-
+            _downloadedPath = await _updateService.DownloadMsiAsync(MsiDownloadUrl, LatestVersion, MsiFileSize, progress, cts.Token);
             IsDownloadComplete = true;
+            DownloadProgress = 100;
         }
-        catch (OperationCanceledException)
-        {
-            // 用户取消
-        }
-        catch
-        {
-            // 下载失败
-        }
-        finally
-        {
-            IsDownloading = false;
-            _downloadCts?.Dispose();
-            _downloadCts = null;
-        }
+        catch (OperationCanceledException) { }
+        catch { SetError("UpdateDownloadFailed"); }
+        finally { IsDownloading = false; _downloadCts = null; }
     }
 
     [RelayCommand]
     private void Install()
     {
-        var path = _updateService.GetCachedInstallerPath(LatestVersion);
-        if (path is not null)
-        {
-            _updateService.LaunchInstaller(path);
-        }
+        var path = _downloadedPath ?? _updateService.GetCachedInstallerPath(LatestVersion);
+        if (path is null || !File.Exists(path)) { IsDownloadComplete = false; SetError("UpdateDownloadFailed"); return; }
+        try { _updateService.LaunchInstaller(path); }
+        catch { SetError("UpdateInstallFailed"); }
+    }
+
+    [RelayCommand] private void CancelDownload() => _downloadCts?.Cancel();
+    [RelayCommand] private Task ReDownloadAsync() { IsDownloadComplete = false; return DownloadAsync(); }
+    [RelayCommand]
+    private async Task ActivateUpdateAsync()
+    {
+        if (IsChecking || IsDownloading) return;
+        if (!IsDownloadComplete) await DownloadCommand.ExecuteAsync(null);
+        if (IsDownloadComplete) Install();
     }
 
     [RelayCommand]
-    private void CancelDownload()
+    private void PrimaryAction()
     {
-        _downloadCts?.Cancel();
+        if (IsChecking) return;
+        if (IsDownloading) CancelDownload();
+        else if (IsDownloadComplete) Install();
+        else DownloadCommand.Execute(null);
     }
 
     [RelayCommand]
-    private async Task ReDownloadAsync()
+    private async Task LoadHistoryAsync()
     {
-        // 删除已缓存的文件，重新下载
-        var path = _updateService.GetCachedInstallerPath(LatestVersion);
-        if (path is not null)
+        if (IsHistoryLoading || (HistoryLoaded && !HistoryHasError)) return;
+        await LoadHistoryPageAsync(1);
+    }
+    [RelayCommand]
+    private async Task LoadMoreHistoryAsync()
+    {
+        if (IsHistoryLoading || !CanLoadMoreHistory) return;
+        await LoadHistoryPageAsync(_historyPage + 1);
+    }
+    [RelayCommand]
+    private Task RetryHistoryAsync() => IsHistoryLoading ? Task.CompletedTask : LoadHistoryPageAsync(_historyPage + 1);
+
+    private async Task LoadHistoryPageAsync(int page)
+    {
+        IsHistoryLoading = true;
+        HistoryHasError = false;
+        try
         {
-            try { File.Delete(path); } catch { }
+            var items = await _updateService.GetReleasesAsync(page);
+            foreach (var item in items)
+            {
+                if (Releases.Any(r => r.Version == item.Version)) continue;
+                item.IsLatest = Releases.Count == 0 && page == 1;
+                item.IsCurrent = item.Version == CurrentVersion;
+                Releases.Add(item);
+            }
+            SelectedRelease ??= Releases.FirstOrDefault();
+            _historyPage = page;
+            CanLoadMoreHistory = items.Count == 20;
+            HistoryLoaded = true;
         }
-        IsDownloadComplete = false;
-        await DownloadAsync();
+        catch { HistoryHasError = true; }
+        finally { IsHistoryLoading = false; OnPropertyChanged(nameof(IsHistoryEmpty)); }
     }
 
     private static string FormatPublishedDate(string isoDate)

@@ -122,6 +122,8 @@ internal sealed class AcceptanceAutomationServer : IDisposable
     {
         return request.Command.Trim().ToLowerInvariant() switch
         {
+            "update_fixture" => _window.AcceptanceUpdateFixture(request.Text),
+            "update_state" => _window.AcceptanceUpdateState(),
             "state" => _window.GetAcceptanceState(),
             "localization" => _window.AcceptanceLocalization(request.Text),
             "localization_fixture" => _window.AcceptanceLocalizationFixture(request.Text),

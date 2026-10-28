@@ -1110,4 +1110,24 @@ This cannot be undone.</value></data>
   <data name="SkillPanelStopped" xml:space="preserve"><value>Task stopped.</value></data>
   <data name="SkillPanelContinue" xml:space="preserve"><value>Hand to assistant</value></data>
   <data name="SkillPanelTruncated" xml:space="preserve"><value>Showing the first 100 only; narrow the scope for details.</value></data>
+  <data name="UpdateSettingsTitle" xml:space="preserve"><value>Updates</value></data>
+  <data name="UpdateEntry" xml:space="preserve"><value>Download update</value></data>
+  <data name="UpdateChecking" xml:space="preserve"><value>Checking for updates…</value></data>
+  <data name="UpdateUpToDate" xml:space="preserve"><value>You are up to date</value></data>
+  <data name="UpdateCheckFailed" xml:space="preserve"><value>Could not check for updates. Please retry; known updates are retained.</value></data>
+  <data name="UpdateDownloadFailed" xml:space="preserve"><value>Download failed. Please retry.</value></data>
+  <data name="UpdateInstallFailed" xml:space="preserve"><value>Could not start the installer. Try installing again.</value></data>
+  <data name="UpdateAutoCheck" xml:space="preserve"><value>Check for updates on startup</value></data>
+  <data name="UpdateUseProxy" xml:space="preserve"><value>Use proxy for updates</value></data>
+  <data name="UpdateProxyHint" xml:space="preserve"><value>Uses the system or custom proxy from API settings. Turn off for a direct connection.</value></data>
+  <data name="UpdateCheckNow" xml:space="preserve"><value>Check for updates</value></data>
+  <data name="UpdateHistoryTitle" xml:space="preserve"><value>Release history</value></data>
+  <data name="UpdateLatestBadge" xml:space="preserve"><value>Latest</value></data>
+  <data name="UpdateCurrentBadge" xml:space="preserve"><value>Current</value></data>
+  <data name="UpdateLoadMore" xml:space="preserve"><value>Load more</value></data>
+  <data name="UpdateHistoryEmpty" xml:space="preserve"><value>No releases yet</value></data>
+  <data name="UpdateHistoryLoading" xml:space="preserve"><value>Loading release history…</value></data>
+  <data name="UpdateHistoryFailed" xml:space="preserve"><value>Could not load release history. Previously loaded entries remain available.</value></data>
+  <data name="UpdateRetry" xml:space="preserve"><value>Retry</value></data>
+  <data name="UpdateAboutHint" xml:space="preserve"><value>Manage updates in Settings → Updates or from the download button in the title bar.</value></data>
 </root>

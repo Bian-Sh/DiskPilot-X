@@ -8,23 +8,53 @@ using System.Windows;
 
 namespace DiskPilotX.App.Services;
 
-public class UpdateService
+public class UpdateService : IUpdateService
 {
     private const string RepoOwner = "Bian-Sh";
     private const string RepoName = "DiskPilot-X";
     private const int CheckTimeoutSeconds = 10;
-    private static readonly string CacheDir = Path.Combine(
+    private static readonly string DefaultCacheDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "DiskPilot-X", "updates");
-    private static readonly string CacheMetaPath = Path.Combine(CacheDir, "update-cache.json");
+    private readonly string CacheDir;
+    private string CacheMetaPath => Path.Combine(CacheDir, "update-cache.json");
 
-    private readonly HttpClient _httpClient;
+    private readonly Func<HttpClient> _client;
 
-    public UpdateService()
+    public UpdateService() : this(new HttpClient(), DefaultCacheDir) { }
+
+    public UpdateService(HttpClient client, string cacheDirectory) : this(() => client, cacheDirectory) { }
+
+    public UpdateService(Func<HttpClient> client, string? cacheDirectory = null)
     {
-        _httpClient = new HttpClient();
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("DiskPilotX-UpdateChecker");
-        _httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        _client = client;
+        CacheDir = cacheDirectory ?? DefaultCacheDir;
+    }
+
+    private HttpRequestMessage Request(string url)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.UserAgent.ParseAdd("DiskPilotX-UpdateChecker");
+        request.Headers.Accept.ParseAdd("application/vnd.github+json");
+        return request;
+    }
+
+    public async Task<IReadOnlyList<UpdateRelease>> GetReleasesAsync(int page, CancellationToken ct = default)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(CheckTimeoutSeconds));
+        using var request = Request($"https://api.github.com/repos/{RepoOwner}/{RepoName}/releases?per_page=20&page={page}");
+        using var response = await _client().SendAsync(request, timeout.Token);
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadAsStringAsync(timeout.Token);
+        var releases = JsonSerializer.Deserialize<GithubRelease[]>(json) ?? [];
+        return releases.Select(r => new UpdateRelease
+        {
+            Version = r.TagName?.TrimStart('v', 'V') ?? "",
+            ReleaseNotes = r.Body ?? "",
+            PublishedAt = DateTime.TryParse(r.PublishedAt, out var date) ? date.ToString("yyyy-MM-dd") : "",
+            HtmlUrl = r.HtmlUrl ?? ""
+        }).ToArray();
     }
 
     public string GetCurrentVersion()
@@ -36,11 +66,11 @@ public class UpdateService
         return plusIdx > 0 ? version[..plusIdx] : version;
     }
 
-    public async Task<UpdateCheckResult> CheckForUpdateAsync(CancellationToken ct = default)
+    public async Task<UpdateCheckResult> CheckForUpdateAsync(CancellationToken ct = default, bool forceRefresh = false)
     {
         try
         {
-            var cached = TryGetCachedResult();
+            var cached = forceRefresh ? null : TryGetCachedResult();
             if (cached is not null)
                 return cached;
 
@@ -48,7 +78,8 @@ public class UpdateService
             cts.CancelAfter(TimeSpan.FromSeconds(CheckTimeoutSeconds));
 
             var url = $"https://api.github.com/repos/{RepoOwner}/{RepoName}/releases/latest";
-            using var response = await _httpClient.GetAsync(url, cts.Token);
+            using var request = Request(url);
+            using var response = await _client().SendAsync(request, cts.Token);
             if (!response.IsSuccessStatusCode)
                 return UpdateCheckResult.Failed;
 
@@ -60,7 +91,7 @@ public class UpdateService
             var tagName = release.TagName?.TrimStart('v', 'V') ?? "";
             var currentVersion = GetCurrentVersion();
 
-            var msiAsset = FindMsiAsset(release.Assets);
+            var msiAsset = FindInstallerAsset(release.Assets);
 
             var result = new UpdateCheckResult
             {
@@ -78,20 +109,18 @@ public class UpdateService
             CacheResult(result);
             return result;
         }
-        catch
-        {
-            return UpdateCheckResult.Failed;
-        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch { return UpdateCheckResult.Failed; }
     }
 
     public string? GetCachedInstallerPath(string version)
     {
-        var path = Path.Combine(CacheDir, $"DiskPilot-X-{version}-win64.msi");
-        if (!File.Exists(path))
-            return null;
-
         var meta = LoadCacheMeta();
-        if (meta?.MsiFileName is null)
+        if (meta?.MsiFileName is null) return null;
+        var path = Path.Combine(CacheDir, InstallerFileName(version, meta.MsiFileName));
+        if (!File.Exists(path)) return null;
+
+        if (meta?.LatestVersion != version || meta.MsiFileSize <= 0 || new FileInfo(path).Length != meta.MsiFileSize)
             return null;
 
         return path;
@@ -103,59 +132,80 @@ public class UpdateService
         CancellationToken ct)
     {
         Directory.CreateDirectory(CacheDir);
-        var filePath = Path.Combine(CacheDir, $"DiskPilot-X-{version}-win64.msi");
-
-        using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
-        response.EnsureSuccessStatusCode();
-
-        var totalBytes = response.Content.Headers.ContentLength ?? expectedSize;
-        var buffer = new byte[81920];
-
-        await using var contentStream = await response.Content.ReadAsStreamAsync(ct);
-        await using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
-
-        var totalRead = 0L;
-        int bytesRead;
-        while ((bytesRead = await contentStream.ReadAsync(buffer, ct)) > 0)
+        if (version.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || version.Contains('/') || version.Contains('\\'))
+            throw new IOException("更新版本号不是有效的文件名。");
+        var filePath = Path.Combine(CacheDir, InstallerFileName(version, new Uri(url).AbsolutePath));
+        var partialPath = filePath + "." + Guid.NewGuid().ToString("N") + ".partial";
+        try
         {
-            await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), ct);
-            totalRead += bytesRead;
-            progress.Report((totalRead, totalBytes));
+            using var request = Request(url);
+            using var response = await _client().SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            response.EnsureSuccessStatusCode();
+            var contentLength = response.Content.Headers.ContentLength ?? 0;
+            var totalBytes = expectedSize > 0 ? expectedSize : contentLength;
+            long totalRead = 0;
+            await using (var input = await response.Content.ReadAsStreamAsync(ct))
+            await using (var output = new FileStream(partialPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, true))
+            {
+                var buffer = new byte[81920];
+                int count;
+                while ((count = await input.ReadAsync(buffer, ct)) > 0)
+                {
+                    await output.WriteAsync(buffer.AsMemory(0, count), ct);
+                    totalRead += count;
+                    progress.Report((totalRead, totalBytes));
+                }
+            }
+            if (totalRead == 0 || (expectedSize > 0 && totalRead != expectedSize) || (contentLength > 0 && totalRead != contentLength))
+                throw new IOException("更新安装包下载不完整，请重试。");
+            ct.ThrowIfCancellationRequested();
+            File.Move(partialPath, filePath, true);
+            return filePath;
         }
-
-        return filePath;
+        finally
+        {
+            if (File.Exists(partialPath)) File.Delete(partialPath);
+        }
     }
 
-    public void LaunchInstaller(string msiPath)
+    public void LaunchInstaller(string installerPath)
     {
-        Process.Start(new ProcessStartInfo
+        var process = Process.Start(CreateInstallerStartInfo(installerPath));
+        if (process is null) throw new IOException("安装程序未能启动。");
+        Application.Current?.Shutdown();
+    }
+
+    public static ProcessStartInfo CreateInstallerStartInfo(string installerPath)
+    {
+        var fullPath = Path.GetFullPath(installerPath);
+        var extension = Path.GetExtension(fullPath);
+        if (!extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) && !extension.Equals(".msi", StringComparison.OrdinalIgnoreCase))
+            throw new IOException("不支持的更新安装包类型。");
+        return new ProcessStartInfo
         {
-            FileName = "msiexec",
-            Arguments = $"/i \"{msiPath}\" /qb",
+            FileName = extension.Equals(".msi", StringComparison.OrdinalIgnoreCase) ? "msiexec.exe" : fullPath,
+            Arguments = extension.Equals(".msi", StringComparison.OrdinalIgnoreCase) ? $"/i \"{fullPath}\"" : "",
+            WorkingDirectory = Path.GetDirectoryName(fullPath),
             UseShellExecute = true,
             Verb = "runas"
-        });
-        Application.Current.Shutdown();
+        };
     }
 
-    private static GithubAsset? FindMsiAsset(GithubAsset[]? assets)
+    private static string InstallerFileName(string version, string source)
+    {
+        var extension = Path.GetExtension(source).ToLowerInvariant();
+        if (extension is not (".exe" or ".msi")) throw new IOException("更新资产必须为安装程序。");
+        return extension == ".msi" ? $"DiskPilot-X-{version}-win64.msi" : $"DiskPilot-X-{version}-setup.exe";
+    }
+
+    private static GithubAsset? FindInstallerAsset(GithubAsset[]? assets)
     {
         if (assets is null) return null;
-
-        var candidates = assets
-            .Where(a => a.Name?.EndsWith(".msi", StringComparison.OrdinalIgnoreCase) == true)
-            .ToArray();
-
-        var win64 = candidates.FirstOrDefault(a =>
-            a.Name?.Contains("win64", StringComparison.OrdinalIgnoreCase) == true ||
-            a.Name?.Contains("windows_amd64", StringComparison.OrdinalIgnoreCase) == true);
-        if (win64 is not null) return win64;
-
-        var windows = candidates.FirstOrDefault(a =>
-            a.Name?.Contains("windows", StringComparison.OrdinalIgnoreCase) == true);
-        if (windows is not null) return windows;
-
-        return candidates.FirstOrDefault();
+        var candidates = assets.Where(a => a.Name is { } name
+            && !name.Contains("arm64", StringComparison.OrdinalIgnoreCase)
+            && !name.Contains("x86", StringComparison.OrdinalIgnoreCase)).ToArray();
+        return candidates.FirstOrDefault(a => a.Name?.EndsWith("-setup.exe", StringComparison.OrdinalIgnoreCase) == true)
+            ?? candidates.FirstOrDefault(a => a.Name?.EndsWith(".msi", StringComparison.OrdinalIgnoreCase) == true);
     }
 
     private static bool IsNewerVersion(string latest, string current)
@@ -167,7 +217,7 @@ public class UpdateService
         return latestVer > currentVer;
     }
 
-    private static UpdateCheckResult? TryGetCachedResult()
+    private UpdateCheckResult? TryGetCachedResult()
     {
         try
         {
@@ -176,7 +226,7 @@ public class UpdateService
 
             var json = File.ReadAllText(CacheMetaPath);
             var meta = JsonSerializer.Deserialize<CacheMeta>(json);
-            if (meta is null || meta.Date != DateTime.Now.ToString("yyyy-MM-dd"))
+            if (meta is null || meta.Date != DateTime.Now.ToString("yyyy-MM-dd") || meta.CurrentVersion != GetCurrentVersion())
                 return null;
 
             return new UpdateCheckResult
@@ -198,7 +248,7 @@ public class UpdateService
         }
     }
 
-    private static void CacheResult(UpdateCheckResult result)
+    private void CacheResult(UpdateCheckResult result)
     {
         try
         {
@@ -224,7 +274,7 @@ public class UpdateService
         }
     }
 
-    private static CacheMeta? LoadCacheMeta()
+    private CacheMeta? LoadCacheMeta()
     {
         try
         {
@@ -252,6 +302,9 @@ public class UpdateService
 
         [JsonPropertyName("published_at")]
         public string? PublishedAt { get; set; }
+
+        [JsonPropertyName("html_url")]
+        public string? HtmlUrl { get; set; }
 
         [JsonPropertyName("assets")]
         public GithubAsset[]? Assets { get; set; }

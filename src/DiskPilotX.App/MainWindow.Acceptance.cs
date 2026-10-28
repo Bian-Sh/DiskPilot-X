@@ -103,7 +103,7 @@ public partial class MainWindow
         var allowedRoot = Path.GetFullPath(Path.GetDirectoryName(settingsPath)!).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         var target = Path.GetFullPath(outputPath);
         if (!target.StartsWith(allowedRoot, StringComparison.OrdinalIgnoreCase) || !target.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("截图只能写入本次验收目录。");
-        UpdateLayout(); var sourceWindow = captureTarget=="task" ? skillPanels.Values.Select(p=>p.Window).FirstOrDefault(w=>w?.IsVisible==true) ?? throw new InvalidOperationException("没有可见任务面板。") : (Window)this; sourceWindow.UpdateLayout(); var visual = (FrameworkElement)sourceWindow.Content;
+        UpdateLayout(); var sourceWindow = captureTarget=="task" ? skillPanels.Values.Select(p=>p.Window).FirstOrDefault(w=>w?.IsVisible==true) ?? throw new InvalidOperationException("没有可见任务面板。") : (Window)this; sourceWindow.UpdateLayout(); var visual = captureTarget == "update" ? (FrameworkElement)TitleBar.FindName("UpdatePopupContent") : (FrameworkElement)sourceWindow.Content;
         var image = new System.Windows.Media.Imaging.RenderTargetBitmap(Math.Max(1, (int)Math.Ceiling(visual.ActualWidth)), Math.Max(1, (int)Math.Ceiling(visual.ActualHeight)), 96, 96, PixelFormats.Pbgra32);
         image.Render(visual); var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder(); encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(image));
         using var file = File.Create(target); encoder.Save(file); return new { Path = target, Width = image.PixelWidth, Height = image.PixelHeight };

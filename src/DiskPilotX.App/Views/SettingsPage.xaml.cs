@@ -28,7 +28,9 @@ public partial class SettingsPage : UserControl
         };
     }
 
-    private IReadOnlyList<Button> NavButtons => _navButtons ??= [GeneralNavButton, ThemeNavButton, ApiNavButton, WhitelistNavButton, DisclaimerNavButton];
+    public void SetUpdateViewModel(DiskPilotX.App.ViewModels.UpdateViewModel vm) => UpdateSectionControl.DataContext = vm;
+
+    private IReadOnlyList<Button> NavButtons => _navButtons ??= [GeneralNavButton, ThemeNavButton, ApiNavButton, WhitelistNavButton, UpdateNavButton, DisclaimerNavButton];
 
     private void SettingsNavButton_Click(object sender, RoutedEventArgs e)
     {
@@ -79,7 +81,7 @@ public partial class SettingsPage : UserControl
         var scrollOffset = SettingsScrollViewer.VerticalOffset + activationOffset;
         FrameworkElement activeSection = GeneralSectionControl;
 
-        foreach (var section in new FrameworkElement[] { GeneralSectionControl, ThemeSectionControl, ApiSectionControl, WhitelistSectionControl, DisclaimerSectionControl })
+        foreach (var section in new FrameworkElement[] { GeneralSectionControl, ThemeSectionControl, ApiSectionControl, WhitelistSectionControl, UpdateSectionControl, DisclaimerSectionControl })
         {
             if (GetSectionOffset(section) <= scrollOffset)
             {

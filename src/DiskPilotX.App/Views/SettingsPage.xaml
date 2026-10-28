@@ -122,6 +122,8 @@
                                 Content="{loc:Loc SettingsWhitelistNav}"
                                 Tag="WhitelistSectionControl"
                                 Click="SettingsNavButton_Click" />
+                        <Button x:Name="UpdateNavButton" Style="{StaticResource SettingsNavButtonStyle}"
+                                Content="{loc:Loc UpdateSettingsTitle}" Tag="UpdateSectionControl" Click="SettingsNavButton_Click" />
                         <Button x:Name="DisclaimerNavButton"
                                 Style="{StaticResource SettingsNavButtonStyle}"
                                 Content="{loc:Loc SettingsDisclaimerNav}"
@@ -142,6 +144,7 @@
                                                      Margin="0,18,0,0" />
                         <settings:WhitelistSettingsSection x:Name="WhitelistSectionControl"
                                                            Margin="0,18,0,0" />
+                        <settings:UpdateSettingsSection x:Name="UpdateSectionControl" Margin="0,18,0,0" />
                         <settings:DisclaimerSettingsSection x:Name="DisclaimerSectionControl"
                                                             Margin="0,18,0,0" />
                         <Border x:Name="BottomScrollSpacer" Height="0" />

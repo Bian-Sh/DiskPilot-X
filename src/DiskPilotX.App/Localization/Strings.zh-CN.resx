@@ -1110,4 +1110,24 @@
   <data name="SkillPanelStopped" xml:space="preserve"><value>任务已停止。</value></data>
   <data name="SkillPanelContinue" xml:space="preserve"><value>交给助手继续</value></data>
   <data name="SkillPanelTruncated" xml:space="preserve"><value>仅显示前 100 项，请缩小范围查看明细。</value></data>
+  <data name="UpdateSettingsTitle" xml:space="preserve"><value>更新</value></data>
+  <data name="UpdateEntry" xml:space="preserve"><value>下载更新</value></data>
+  <data name="UpdateChecking" xml:space="preserve"><value>正在检查更新…</value></data>
+  <data name="UpdateUpToDate" xml:space="preserve"><value>已是最新版本</value></data>
+  <data name="UpdateCheckFailed" xml:space="preserve"><value>检查更新失败，请重试（已保留已知更新）。</value></data>
+  <data name="UpdateDownloadFailed" xml:space="preserve"><value>更新下载失败，请重试。</value></data>
+  <data name="UpdateInstallFailed" xml:space="preserve"><value>无法启动安装程序，可再次点击安装。</value></data>
+  <data name="UpdateAutoCheck" xml:space="preserve"><value>启动时自动检查更新</value></data>
+  <data name="UpdateUseProxy" xml:space="preserve"><value>更新时使用代理</value></data>
+  <data name="UpdateProxyHint" xml:space="preserve"><value>沿用 API 设置中的系统／自定义代理；关闭后直连。</value></data>
+  <data name="UpdateCheckNow" xml:space="preserve"><value>检查更新</value></data>
+  <data name="UpdateHistoryTitle" xml:space="preserve"><value>版本历史</value></data>
+  <data name="UpdateLatestBadge" xml:space="preserve"><value>最新</value></data>
+  <data name="UpdateCurrentBadge" xml:space="preserve"><value>当前</value></data>
+  <data name="UpdateLoadMore" xml:space="preserve"><value>加载更多</value></data>
+  <data name="UpdateHistoryEmpty" xml:space="preserve"><value>暂无发布记录</value></data>
+  <data name="UpdateHistoryLoading" xml:space="preserve"><value>正在加载版本历史…</value></data>
+  <data name="UpdateHistoryFailed" xml:space="preserve"><value>版本历史加载失败，已加载的内容仍可查看。</value></data>
+  <data name="UpdateRetry" xml:space="preserve"><value>重试</value></data>
+  <data name="UpdateAboutHint" xml:space="preserve"><value>更新操作请前往「设置 → 更新」或右上角下载入口。</value></data>
 </root>

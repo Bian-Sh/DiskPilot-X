@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -87,6 +87,8 @@ public partial class MainWindow
     {
         _updateViewModel = updateVm;
         AboutPage.DataContext = updateVm;
+        TitleBar.UpdateVM = updateVm;
+        SettingsPage.SetUpdateViewModel(updateVm);
 
         if (DataContext is MainViewModel mainVm)
             mainVm.UpdateVM = updateVm;

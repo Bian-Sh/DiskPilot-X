@@ -33,7 +33,7 @@ public sealed class SettingsPagePolishTests
     {
         var document = Load("Views/SettingsPage.xaml");
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
-        var expected = new[] { "GeneralSectionControl", "ThemeSectionControl", "ApiSectionControl", "WhitelistSectionControl", "DisclaimerSectionControl" };
+        var expected = new[] { "GeneralSectionControl", "ThemeSectionControl", "ApiSectionControl", "WhitelistSectionControl", "UpdateSectionControl", "DisclaimerSectionControl" };
         Assert.Equal(expected, document.Descendants().Where(e => e.Name.LocalName == "Button" && e.Attribute("Tag") != null).Select(e => (string?)e.Attribute("Tag")));
         Assert.Equal(expected, document.Descendants().Where(e => e.Name.NamespaceName.EndsWith("SettingsSections")).Select(e => (string?)e.Attribute(x + "Name")));
         Assert.Equal("0,18,0,0", (string?)document.Descendants().Single(e => (string?)e.Attribute(x + "Name") == "ApiSectionControl").Attribute("Margin"));

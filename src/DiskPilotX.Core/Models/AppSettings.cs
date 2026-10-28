@@ -16,6 +16,8 @@ public class AppSettings
     public string? ModelsUrl { get; set; }
     /// <summary>按 CLI 身份保存最后成功获取的版本号。</summary>
     public Dictionary<string, string> CliIdentityVersions { get; set; } = [];
+    public bool AutoCheckUpdates { get; set; } = true;
+    public bool UseProxyForUpdates { get; set; } = true;
     public bool EnableThinking { get; set; } = false;
     public string Language { get; set; } = "zh-CN";
 

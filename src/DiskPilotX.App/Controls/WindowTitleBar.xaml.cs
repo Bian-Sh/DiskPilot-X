@@ -1,7 +1,8 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using DiskPilotX.App.Localization;
+using DiskPilotX.App.ViewModels;
 
 namespace DiskPilotX.App.Controls;
 
@@ -17,6 +18,15 @@ public partial class WindowTitleBar : UserControl
         set => SetValue(ApplicationToolsVisibilityProperty, value);
     }
 
+    public static readonly DependencyProperty UpdateVMProperty = DependencyProperty.Register(
+        nameof(UpdateVM), typeof(UpdateViewModel), typeof(WindowTitleBar), new PropertyMetadata(null));
+    public UpdateViewModel? UpdateVM
+    {
+        get => (UpdateViewModel?)GetValue(UpdateVMProperty);
+        set => SetValue(UpdateVMProperty, value);
+    }
+    private Window? _observedWindow;
+
     public event RoutedEventHandler? SettingsRequested;
     public event RoutedEventHandler? CollapseChatRequested;
     public event RoutedEventHandler? CloseRequested;
@@ -24,7 +34,45 @@ public partial class WindowTitleBar : UserControl
     public WindowTitleBar()
     {
         InitializeComponent();
+        Loaded += (_, _) =>
+        {
+            _observedWindow = Window.GetWindow(this);
+            if (_observedWindow is null) return;
+            _observedWindow.PreviewMouseMove += ObserveMouseMove;
+            _observedWindow.PreviewMouseDown += ObserveMouseDown;
+            _observedWindow.Deactivated += CloseUpdatePopup;
+            _observedWindow.Closed += CloseUpdatePopup;
+        };
+        Unloaded += (_, _) =>
+        {
+            UpdateReleasePopup.IsOpen = false;
+            if (_observedWindow is null) return;
+            _observedWindow.PreviewMouseMove -= ObserveMouseMove;
+            _observedWindow.PreviewMouseDown -= ObserveMouseDown;
+            _observedWindow.Deactivated -= CloseUpdatePopup;
+            _observedWindow.Closed -= CloseUpdatePopup;
+            _observedWindow = null;
+        };
     }
+
+    private void UpdateReleaseScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        => ReleaseNotesScroll.ForwardMouseWheel((ScrollViewer)sender, e);
+
+    private void UpdateButton_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if (UpdateVM?.IsUpdateEntryVisible == true) UpdateReleasePopup.IsOpen = true;
+    }
+    private void ObserveMouseMove(object sender, MouseEventArgs e)
+    {
+        if (UpdateReleasePopup.IsOpen && UpdatePopupPolicy.ShouldClose(e.OriginalSource as DependencyObject, UpdatePopupContent, UpdateButton))
+            UpdateReleasePopup.IsOpen = false;
+    }
+    private void ObserveMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (UpdateReleasePopup.IsOpen && UpdatePopupPolicy.ShouldCloseOnPointerDown(e.OriginalSource as DependencyObject, UpdatePopupContent, UpdateButton))
+            UpdateReleasePopup.IsOpen = false;
+    }
+    private void CloseUpdatePopup(object? sender, EventArgs e) => UpdateReleasePopup.IsOpen = false;
 
     private Window ParentWindow => Window.GetWindow(this);
 
