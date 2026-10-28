@@ -28,7 +28,7 @@ public enum ProxyKind
     Custom = 2,
 }
 
-/// <summary>思考等级；Minimal 仅 OpenAI 格式区分，Anthropic 按最低档处理。</summary>
+/// <summary>单次调用使用的思考等级；能力集合单独保存，不把本枚举数值作为位掩码。</summary>
 public enum ThinkingLevel
 {
     Off = 0,
@@ -36,7 +36,13 @@ public enum ThinkingLevel
     Low = 2,
     Medium = 3,
     High = 4,
+    Default = 5,
+    XHigh = 6,
+    Max = 7,
 }
+
+/// <summary>Anthropic 的思考调节方式；预算预设兼容旧设置，原生 effort 由用户明确选择。</summary>
+public enum ThinkingControlMode { Budget, Effort }
 
 /// <summary>设置字符串与枚举的容错解析；空值回落到兼容历史行为的默认档。</summary>
 public static class LlmContracts
@@ -89,16 +95,22 @@ public static class LlmContracts
 
     public static ThinkingLevel ParseThinkingLevel(string? value) => value switch
     {
+        "default" => ThinkingLevel.Default,
         "off" => ThinkingLevel.Off,
         "minimal" => ThinkingLevel.Minimal,
         "low" => ThinkingLevel.Low,
         "medium" => ThinkingLevel.Medium,
         "high" => ThinkingLevel.High,
+        "xhigh" => ThinkingLevel.XHigh,
+        "max" => ThinkingLevel.Max,
         _ => ThinkingLevel.Off,
     };
 
     public static string FormatThinkingLevel(ThinkingLevel value) => value switch
     {
+        ThinkingLevel.Default => "default",
+        ThinkingLevel.XHigh => "xhigh",
+        ThinkingLevel.Max => "max",
         ThinkingLevel.Minimal => "minimal",
         ThinkingLevel.Low => "low",
         ThinkingLevel.Medium => "medium",
@@ -106,9 +118,12 @@ public static class LlmContracts
         _ => "off",
     };
 
-    /// <summary>OpenAI reasoning effort 值；Anthropic 无 minimal，按低档换算。</summary>
+    /// <summary>原生 effort 值；默认表示省略字段，不在这里转换为关闭。</summary>
     public static string ToReasoningEffort(ThinkingLevel level) => level switch
     {
+        ThinkingLevel.Off => "none",
+        ThinkingLevel.XHigh => "xhigh",
+        ThinkingLevel.Max => "max",
         ThinkingLevel.Minimal => "minimal",
         ThinkingLevel.Low => "low",
         ThinkingLevel.Medium => "medium",
@@ -119,7 +134,7 @@ public static class LlmContracts
     /// <summary>Anthropic thinking 预算（token）。max_tokens 必须大于预算。</summary>
     public static (int budgetTokens, int maxTokens) ToAnthropicThinkingBudget(ThinkingLevel level) => level switch
     {
-        ThinkingLevel.Off => (0, 4096),
+        ThinkingLevel.Default or ThinkingLevel.Off => (0, 4096),
         ThinkingLevel.Minimal or ThinkingLevel.Low => (1024, 4096),
         ThinkingLevel.Medium => (8192, 16384),
         ThinkingLevel.High => (16384, 32768),
@@ -129,10 +144,11 @@ public static class LlmContracts
     /// <summary>OpenAI 格式的输出 token 上限；思考开启时需要覆盖推理与正文。</summary>
     public static int ToOpenAiMaxOutputTokens(ThinkingLevel level) => level switch
     {
-        ThinkingLevel.Off => 4096,
+        ThinkingLevel.Default or ThinkingLevel.Off => 4096,
         ThinkingLevel.Minimal or ThinkingLevel.Low => 8192,
         ThinkingLevel.Medium => 16384,
         ThinkingLevel.High => 32768,
+        ThinkingLevel.XHigh or ThinkingLevel.Max => 65536,
         _ => throw new ArgumentOutOfRangeException(nameof(level)),
     };
 }

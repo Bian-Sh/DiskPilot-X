@@ -128,6 +128,7 @@ public partial class SettingsViewModel
             PersistAppSettings(settings => settings.DiscoveredModels = ids);
             ModelCandidates.Clear();
             foreach (var id in ids) ModelCandidates.Add(id);
+            RefreshThinkingModels();
             _lastCatalogSuccess = endpoint;
             _lastCatalogFailure = null;
             ModelRefreshMessage = L.Format("SettingsModelRefreshSuccessFormat", $"{ids.Count}");

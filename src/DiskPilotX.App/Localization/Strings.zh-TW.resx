@@ -896,8 +896,8 @@
   <data name="SettingsApiFormatHint" xml:space="preserve"><value>與模型服務通訊使用的線上協議</value></data>
   <data name="SettingsCliIdentityLabel" xml:space="preserve"><value>客戶端指紋</value></data>
   <data name="SettingsCliIdentityHint" xml:space="preserve"><value>模擬 CLI 客戶端的 User-Agent 與特徵頭，避免按客戶端放行的中轉站攔截請求</value></data>
-  <data name="SettingsThinkingLevelLabel" xml:space="preserve"><value>思考等級</value></data>
-  <data name="SettingsThinkingLevelHint" xml:space="preserve"><value>等級越高推理越充分但響應更慢；Anthropic 格式的最低檔按低檔處理</value></data>
+  <data name="SettingsThinkingLevelLabel" xml:space="preserve"><value>支援的思考等級</value></data>
+  <data name="SettingsThinkingLevelHint" xml:space="preserve"><value>宣告此模型支援的等級；對話中僅可選擇已勾選檔位，至少保留一項。</value></data>
   <data name="SettingsProxyModeLabel" xml:space="preserve"><value>代理</value></data>
   <data name="SettingsProxyModeHint" xml:space="preserve"><value>部分中轉站需要透過代理才能訪問</value></data>
   <data name="SettingsProxyAddressLabel" xml:space="preserve"><value>代理地址</value></data>
@@ -1141,4 +1141,13 @@
   <data name="ShowFileInExplorerMenu" xml:space="preserve"><value>定位檔案</value></data>
   <data name="ShowFolderInExplorerMenu" xml:space="preserve"><value>定位資料夾</value></data>
   <data name="DeleteEntryMenu" xml:space="preserve"><value>刪除</value></data>
+  <data name="SettingsThinkingControlModeLabel" xml:space="preserve"><value>思考調節方式</value></data>
+  <data name="SettingsThinkingCapabilityHint" xml:space="preserve"><value>手動設定 · 未驗證。預設勾選目前協定的全部候選項，請依上游模型文件調整。「預設」不傳控制參數，「關閉」明確要求關閉思考。</value></data>
+  <data name="SettingsThinkingBudgetHint" xml:space="preserve"><value>手動設定 · 未驗證。這些是應用程式的預算預設：低 1,024 / 中 8,192 / 高 16,384 token，並非模型原生 effort 檔位。請依上游文件確認支援範圍，至少保留一項。</value></data>
+  <data name="ThinkingBudgetModeLabel" xml:space="preserve"><value>思考預算預設（相容方式）</value></data>
+  <data name="ThinkingEffortModeLabel" xml:space="preserve"><value>原生 effort（自適應思考）</value></data>
+  <data name="ThinkingLevelDefaultLabel" xml:space="preserve"><value>預設</value></data>
+  <data name="ThinkingLevelXHighLabel" xml:space="preserve"><value>超高</value></data>
+  <data name="ThinkingLevelMaxLabel" xml:space="preserve"><value>最高</value></data>
+  <data name="SettingsModelThinkingEditHint" xml:space="preserve"><value>編輯思考等級</value></data>
 </root>

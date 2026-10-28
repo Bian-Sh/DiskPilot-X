@@ -195,7 +195,7 @@ public sealed class ModelConfigurationEventsTests
         using var clients = Clients((_, _) => { calls++; return Task.FromResult(Models("model-a")); });
         var vm = Create(clients);
         await vm.CompleteModelConfigurationAsync();
-        vm.SelectedThinkingLevel = ThinkingLevel.High; vm.ChatModelName = "model-a";
+        vm.SupportedThinkingLevelOptions.First(option => option.Value == ThinkingLevel.High).IsSelected = false; vm.ChatModelName = "model-a";
         await vm.CompleteModelConfigurationAsync(); Assert.Equal(1, calls);
     }
     private static SettingsViewModel Create(ModelHttpClientFactory clients, AppSettings? saved = null)

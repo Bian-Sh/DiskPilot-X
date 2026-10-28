@@ -53,12 +53,15 @@ public partial class ChatViewModel : ObservableObject
     [ObservableProperty] private string? _cliIdentityDisplayName;
     [ObservableProperty] private string? _cliIdentityToolTip;
     [ObservableProperty] private ThinkingLevel _selectedThinkingLevel = ThinkingLevel.Off;
-    public IReadOnlyList<ThinkingLevelOption> ThinkingLevelOptions => AiOptions.ThinkingLevels();
+    private IReadOnlyList<ThinkingLevel> _supportedThinkingLevels = [];
+    public IReadOnlyList<ThinkingLevelOption> ThinkingLevelOptions => AiOptions.ThinkingLevels(_supportedThinkingLevels);
     /// <summary>合并选择器上的思考等级文案，如「最高」。</summary>
     public string ThinkingPickerLabel => CurrentThinkingLevelLabel;
     private string CurrentThinkingLevelLabel => ThinkingLevelOptions.FirstOrDefault(option => option.Value == SelectedThinkingLevel)?.Label ?? "";
-    /// <summary>思考等级滑条绑定（0=关闭 … 4=高），随 SelectedThinkingLevel 双向同步。</summary>
-    public int SelectedThinkingLevelIndex => (int)SelectedThinkingLevel;
+    /// <summary>滑条索引对应当前声明的档位集合，不能直接转换成枚举数值。</summary>
+    public int SelectedThinkingLevelIndex => Math.Max(0, Array.IndexOf(_supportedThinkingLevels.ToArray(), SelectedThinkingLevel));
+    public int ThinkingLevelMaximumIndex => Math.Max(0, _supportedThinkingLevels.Count - 1);
+    public bool IsThinkingLevelAdjustable => _supportedThinkingLevels.Count > 1;
     public bool IsChatAvailable => true;
     public bool IsSending => IsOperationRunning;
     public bool HasPendingInteractionCard => PendingInteractionCard is not null;
@@ -98,8 +101,7 @@ public partial class ChatViewModel : ObservableObject
             CliIdentityService.RestoreVersions(settings.CliIdentityVersions);
             SelectedChatModel = ModelCandidates.FirstOrDefault(id => string.Equals(id, settings.ChatModelName?.Trim(), StringComparison.OrdinalIgnoreCase));
             RefreshCliIdentityDisplay(settings);
-            SelectedThinkingLevel = ModelEndpointConfig.ResolveThinkingLevel(settings);
-            OnPropertyChanged(nameof(ThinkingLevelOptions));
+            RefreshThinkingOptions(settings);
         }
         finally { _isLoadingSettings = false; }
         OnPropertyChanged(nameof(ThinkingPickerLabel));
@@ -125,18 +127,41 @@ public partial class ChatViewModel : ObservableObject
             settings.ChatModelName = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
             ModelDisplayName = ModelCandidates.Contains(value ?? "") ? value! : L.Text("CopilotChooseModel");
         });
+        RefreshThinkingOptions(_settingsService.LoadSettings());
     }
 
     partial void OnSelectedThinkingLevelChanged(ThinkingLevel value)
     {
         if (_isLoadingSettings) return;
-        PersistSetting(settings => settings.ThinkingLevel = LlmContracts.FormatThinkingLevel(value));
+        if (!_supportedThinkingLevels.Contains(value)) { RefreshThinkingOptions(_settingsService.LoadSettings()); return; }
+        PersistSetting(settings => ThinkingCapabilities.SetSelectedLevel(settings, value));
         OnPropertyChanged(nameof(ThinkingPickerLabel));
         OnPropertyChanged(nameof(SelectedThinkingLevelIndex));
     }
 
-    /// <summary>滑条写入入口：滑条 Value 双向绑定到 SelectedThinkingLevel。</summary>
-    public void SetThinkingLevelFromSlider(int index) => SelectedThinkingLevel = (ThinkingLevel)Math.Clamp(index, 0, 4);
+    /// <summary>滑条写入当前声明集合内的档位；集合刷新产生的布局变化不改写持久化选择。</summary>
+    public void SetThinkingLevelFromSlider(int index)
+    {
+        if (_supportedThinkingLevels.Count > 0)
+            SelectedThinkingLevel = _supportedThinkingLevels[Math.Clamp(index, 0, _supportedThinkingLevels.Count - 1)];
+    }
+
+    private void RefreshThinkingOptions(AppSettings settings)
+    {
+        var loading = _isLoadingSettings;
+        _isLoadingSettings = true;
+        try
+        {
+            _supportedThinkingLevels = ThinkingCapabilities.GetSupportedLevels(settings);
+            SelectedThinkingLevel = ModelEndpointConfig.ResolveThinkingLevel(settings);
+            OnPropertyChanged(nameof(ThinkingLevelOptions));
+            OnPropertyChanged(nameof(ThinkingLevelMaximumIndex));
+            OnPropertyChanged(nameof(IsThinkingLevelAdjustable));
+            OnPropertyChanged(nameof(SelectedThinkingLevelIndex));
+            OnPropertyChanged(nameof(ThinkingPickerLabel));
+        }
+        finally { _isLoadingSettings = loading; }
+    }
 
     private void PersistSetting(Action<AppSettings> update)
     {

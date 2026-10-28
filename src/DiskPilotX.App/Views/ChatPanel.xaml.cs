@@ -152,7 +152,8 @@ public partial class ChatPanel : UserControl
     // 滑条拖动 → 等级回写；等级变化经绑定回流时值相同，WPF 会忽略，不会形成循环。
     private void ThinkingSlider_ValueChanged(object sender,RoutedPropertyChangedEventArgs<double> e)
     {
-        if(viewModel is null || !IsLoaded) return;
+        if(viewModel is null || !IsLoaded || sender is not Slider slider
+            || (!slider.IsMouseCaptureWithin && !slider.IsKeyboardFocusWithin)) return;
         viewModel.SetThinkingLevelFromSlider((int)Math.Round(e.NewValue));
     }
 }

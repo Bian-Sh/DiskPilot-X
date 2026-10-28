@@ -26,7 +26,7 @@ public sealed class OpenAiModelClient : IModelClient
     private readonly ConcurrentDictionary<string, JsonArray> encryptedReasoning = new(StringComparer.Ordinal);
 
     public OpenAiModelClient(HttpClient httpClient, string apiKey, string? baseUrl, string model,
-        LlmApiFormat format, ThinkingLevel thinkingLevel = ThinkingLevel.Off, CliIdentityKind cliIdentity = CliIdentityKind.None)
+        LlmApiFormat format, ThinkingLevel thinkingLevel = ThinkingLevel.Default, CliIdentityKind cliIdentity = CliIdentityKind.None)
     {
         this.httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
@@ -166,8 +166,8 @@ public sealed class OpenAiModelClient : IModelClient
             ["stream_options"] = new JsonObject { ["include_usage"] = true },
             ["messages"] = messages,
         };
-        if (thinkingLevel != ThinkingLevel.Off)
-            body["reasoning_effort"] = LlmContracts.ToReasoningEffort(AdjustMinimal(thinkingLevel));
+        if (thinkingLevel != ThinkingLevel.Default)
+            body["reasoning_effort"] = LlmContracts.ToReasoningEffort(thinkingLevel);
         if (request.Tools.Count > 0)
         {
             var tools = new JsonArray();
@@ -234,10 +234,10 @@ public sealed class OpenAiModelClient : IModelClient
             ["input"] = input,
         };
         if (systems.Count > 0) body["instructions"] = string.Join("\n\n", systems);
-        if (thinkingLevel != ThinkingLevel.Off)
+        if (thinkingLevel != ThinkingLevel.Default)
         {
-            body["reasoning"] = new JsonObject { ["effort"] = LlmContracts.ToReasoningEffort(AdjustMinimal(thinkingLevel)) };
-            body["include"] = new JsonArray("reasoning.encrypted_content");
+            body["reasoning"] = new JsonObject { ["effort"] = LlmContracts.ToReasoningEffort(thinkingLevel) };
+            if (thinkingLevel != ThinkingLevel.Off) body["include"] = new JsonArray("reasoning.encrypted_content");
         }
         if (request.Tools.Count > 0)
         {
@@ -257,7 +257,6 @@ public sealed class OpenAiModelClient : IModelClient
     }
 
     // 极少数上游不支持 minimal，统一降级到 low，保证请求可被接受。
-    private static ThinkingLevel AdjustMinimal(ThinkingLevel level) => level == ThinkingLevel.Minimal ? ThinkingLevel.Low : level;
 
     private static JsonObject MessageItem(string role, string textType, string text) => new()
     {

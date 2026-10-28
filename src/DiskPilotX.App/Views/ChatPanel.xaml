@@ -234,14 +234,15 @@
         </Setter.Value>
       </Setter>
     </Style>
-    <!-- 思考等级滑条：渐变轨道 + 白圆点，快照到 5 档（ZCode 截图样式） -->
+    <!-- 思考等级滑条：渐变轨道与白圆点，档位来自当前模型的能力声明。 -->
     <LinearGradientBrush x:Key="ThinkingSliderGradient" StartPoint="0,0.5" EndPoint="1,0.5">
       <GradientStop Color="#30D158" Offset="0"/>
       <GradientStop Color="#3B82F6" Offset="1"/>
     </LinearGradientBrush>
     <Style x:Key="ThinkingSlider" TargetType="Slider">
       <Setter Property="Minimum" Value="0"/>
-      <Setter Property="Maximum" Value="4"/>
+      <Setter Property="Maximum" Value="{Binding ThinkingLevelMaximumIndex}"/>
+      <Setter Property="IsEnabled" Value="{Binding IsThinkingLevelAdjustable}"/>
       <Setter Property="IsSnapToTickEnabled" Value="True"/>
       <Setter Property="TickFrequency" Value="1"/>
       <Setter Property="IsMoveToPointEnabled" Value="True"/>

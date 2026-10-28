@@ -9,6 +9,14 @@ namespace DiskPilotX.App.Views.SettingsSections;
 
 public partial class ApiSettingsSection : UserControl
 {
+    private void ModelThinkingEdit_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: string model } button || DataContext is not SettingsViewModel vm) return;
+        vm.ThinkingConfigurationModel = model;
+        ModelThinkingPopup.PlacementTarget = button.Tag as UIElement ?? button;
+        ModelThinkingPopup.IsOpen = true;
+    }
+
     public ApiSettingsSection()
     {
         InitializeComponent();

@@ -14,7 +14,8 @@ public sealed record ModelEndpointConfig
     public required string Model { get; init; }
     public LlmApiFormat ApiFormat { get; init; } = LlmApiFormat.AnthropicMessages;
     public CliIdentityKind CliIdentity { get; init; } = CliIdentityKind.None;
-    public ThinkingLevel ThinkingLevel { get; init; } = ThinkingLevel.Off;
+    public ThinkingLevel ThinkingLevel { get; init; } = ThinkingLevel.Default;
+    public ThinkingControlMode ThinkingControlMode { get; init; } = ThinkingControlMode.Budget;
     public ProxyKind ProxyMode { get; init; } = ProxyKind.System;
     public string? ProxyHost { get; init; }
     public int? ProxyPort { get; init; }
@@ -30,7 +31,8 @@ public sealed record ModelEndpointConfig
         Model = model,
         ApiFormat = LlmContracts.ParseApiFormat(settings.ApiFormat),
         CliIdentity = LlmContracts.ParseCliIdentity(settings.CliIdentity),
-        ThinkingLevel = ResolveThinkingLevel(settings),
+        ThinkingLevel = ThinkingCapabilities.ResolveSelectedLevel(settings, model),
+        ThinkingControlMode = ThinkingCapabilities.GetControlMode(settings, model),
         ProxyMode = LlmContracts.ParseProxyKind(settings.ProxyMode),
         ProxyHost = settings.ProxyHost,
         ProxyPort = settings.ProxyPort,
@@ -38,10 +40,7 @@ public sealed record ModelEndpointConfig
         ProxyPassword = string.IsNullOrEmpty(proxyPassword) ? null : proxyPassword,
     };
 
-    public static ThinkingLevel ResolveThinkingLevel(AppSettings settings) =>
-        string.IsNullOrWhiteSpace(settings.ThinkingLevel)
-            ? (settings.EnableThinking ? ThinkingLevel.Low : ThinkingLevel.Off)
-            : LlmContracts.ParseThinkingLevel(settings.ThinkingLevel);
+    public static ThinkingLevel ResolveThinkingLevel(AppSettings settings) => ThinkingCapabilities.ResolveSelectedLevel(settings);
 }
 
 /// <summary>模型名回退规则的唯一实现：显式配置优先，其次按域名推断，最后回落默认 Claude 模型。</summary>

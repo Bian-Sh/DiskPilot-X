@@ -899,8 +899,8 @@
   <data name="SettingsApiFormatHint" xml:space="preserve"><value>Wire protocol used to talk to the model service</value></data>
   <data name="SettingsCliIdentityLabel" xml:space="preserve"><value>Client Fingerprint</value></data>
   <data name="SettingsCliIdentityHint" xml:space="preserve"><value>Simulate a CLI client (User-Agent and headers) so relays that gate by client keep the requests through</value></data>
-  <data name="SettingsThinkingLevelLabel" xml:space="preserve"><value>Thinking Level</value></data>
-  <data name="SettingsThinkingLevelHint" xml:space="preserve"><value>Higher levels allow deeper reasoning but slower responses; Anthropic treats Minimal as Low</value></data>
+  <data name="SettingsThinkingLevelLabel" xml:space="preserve"><value>Supported thinking levels</value></data>
+  <data name="SettingsThinkingLevelHint" xml:space="preserve"><value>Declare the levels this model supports. Chat can select only checked levels; keep at least one.</value></data>
   <data name="SettingsProxyModeLabel" xml:space="preserve"><value>Proxy</value></data>
   <data name="SettingsProxyModeHint" xml:space="preserve"><value>Some relays are only reachable through a proxy</value></data>
   <data name="SettingsProxyAddressLabel" xml:space="preserve"><value>Proxy Address</value></data>
@@ -1141,4 +1141,13 @@ This cannot be undone.</value></data>
   <data name="ShowFileInExplorerMenu" xml:space="preserve"><value>Show in Explorer</value></data>
   <data name="ShowFolderInExplorerMenu" xml:space="preserve"><value>Show in Explorer</value></data>
   <data name="DeleteEntryMenu" xml:space="preserve"><value>Delete</value></data>
+  <data name="SettingsThinkingControlModeLabel" xml:space="preserve"><value>Thinking control</value></data>
+  <data name="SettingsThinkingCapabilityHint" xml:space="preserve"><value>Manual configuration · unverified. All protocol options are initially checked; adjust them using your provider’s model documentation. Default omits the parameter; Off explicitly disables thinking.</value></data>
+  <data name="SettingsThinkingBudgetHint" xml:space="preserve"><value>Manual configuration · unverified. These are app budget presets: Low 1,024 / Medium 8,192 / High 16,384 tokens, rather than native effort levels. Confirm model support with your provider. Keep at least one option.</value></data>
+  <data name="ThinkingBudgetModeLabel" xml:space="preserve"><value>Thinking budget presets (compatible)</value></data>
+  <data name="ThinkingEffortModeLabel" xml:space="preserve"><value>Native effort (adaptive thinking)</value></data>
+  <data name="ThinkingLevelDefaultLabel" xml:space="preserve"><value>Default</value></data>
+  <data name="ThinkingLevelXHighLabel" xml:space="preserve"><value>Very high</value></data>
+  <data name="ThinkingLevelMaxLabel" xml:space="preserve"><value>Maximum</value></data>
+  <data name="SettingsModelThinkingEditHint" xml:space="preserve"><value>Edit thinking levels</value></data>
 </root>

@@ -45,7 +45,7 @@ public sealed class OpenAiModelClientTests
     }
 
     [Fact]
-    public async Task ChatCompletions关闭思考时不发送effort字段()
+    public async Task ChatCompletions默认思考时不发送effort字段()
     {
         var bodies = new List<JsonElement>();
         using var http = new HttpClient(new FakeHandler(async request =>
@@ -132,7 +132,7 @@ public sealed class OpenAiModelClientTests
     }
 
     [Fact]
-    public async Task Responses思考关闭时不带reasoning与include字段()
+    public async Task Responses默认思考时不带reasoning与include字段()
     {
         var bodies = new List<JsonElement>();
         using var http = new HttpClient(new FakeHandler(async request =>
@@ -257,9 +257,9 @@ public sealed class OpenAiModelClientTests
         Assert.Null(Assert.Single((await Collect(ChatClient(http), Request)).OfType<ModelCompletedEvent>()).Usage);
     }
 
-    private static OpenAiModelClient ChatClient(HttpClient http, ThinkingLevel thinking = ThinkingLevel.Off, CliIdentityKind identity = CliIdentityKind.None) =>
+    private static OpenAiModelClient ChatClient(HttpClient http, ThinkingLevel thinking = ThinkingLevel.Default, CliIdentityKind identity = CliIdentityKind.None) =>
         new(http, Key, "https://relay.example/v1", "chat-model", LlmApiFormat.OpenAiChatCompletions, thinking, identity);
-    private static OpenAiModelClient ResponsesClient(HttpClient http, ThinkingLevel thinking = ThinkingLevel.Off, CliIdentityKind identity = CliIdentityKind.None) =>
+    private static OpenAiModelClient ResponsesClient(HttpClient http, ThinkingLevel thinking = ThinkingLevel.Default, CliIdentityKind identity = CliIdentityKind.None) =>
         new(http, Key, "https://relay.example/v1", "responses-model", LlmApiFormat.OpenAiResponses, thinking, identity);
     private static HttpResponseMessage JsonHttp(string json) => new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
     private static HttpResponseMessage Response(string text) => new(HttpStatusCode.OK) { Content = new StringContent(text, Encoding.UTF8, "text/event-stream") };

@@ -86,6 +86,7 @@ public partial class SettingsViewModel : ObservableObject
         InvalidateModelDiscovery();
         PersistAppSettings(settings =>
             settings.AnthropicBaseUrl = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+        if (!_isLoadingSettings) RefreshThinkingConfiguration();
     }
 
     [ObservableProperty]
@@ -107,20 +108,13 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    private ThinkingLevel _selectedThinkingLevel = ThinkingLevel.Off;
-
-    partial void OnSelectedThinkingLevelChanged(ThinkingLevel value)
-    {
-        PersistAppSettings(settings => settings.ThinkingLevel = LlmContracts.FormatThinkingLevel(value));
-    }
-
-    [ObservableProperty]
     private LlmApiFormat _selectedApiFormat = LlmApiFormat.AnthropicMessages;
 
     partial void OnSelectedApiFormatChanged(LlmApiFormat value)
     {
         InvalidateModelDiscovery();
         PersistAppSettings(settings => settings.ApiFormat = LlmContracts.FormatApiFormat(value));
+        if (!_isLoadingSettings) RefreshThinkingConfiguration();
     }
 
     [ObservableProperty]
@@ -219,6 +213,7 @@ public partial class SettingsViewModel : ObservableObject
             settings.DiscoveredModels = ModelCandidates.ToList();
             if (string.Equals(settings.ChatModelName, id, StringComparison.OrdinalIgnoreCase)) settings.ChatModelName = null;
         });
+        RefreshThinkingModels();
     }
 
     [ObservableProperty]
@@ -227,7 +222,6 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string? _modelRefreshMessage;
 
-    public IReadOnlyList<ThinkingLevelOption> ThinkingLevelOptions => AiOptions.ThinkingLevels();
     public IReadOnlyList<ApiFormatOption> ApiFormatOptions => AiOptions.ApiFormats();
     private IReadOnlyList<CliIdentityOption> _cliIdentityOptions = AiOptions.CliIdentities();
     public IReadOnlyList<CliIdentityOption> CliIdentityOptions
@@ -372,7 +366,7 @@ public partial class SettingsViewModel : ObservableObject
 
     private void RefreshOptionLabels()
     {
-        OnPropertyChanged(nameof(ThinkingLevelOptions));
+        RefreshThinkingConfiguration();
         OnPropertyChanged(nameof(ApiFormatOptions));
         _cliIdentityOptions = AiOptions.CliIdentities();
         OnPropertyChanged(nameof(CliIdentityOptions));
@@ -539,7 +533,8 @@ public partial class SettingsViewModel : ObservableObject
             ProxyUsername = string.IsNullOrWhiteSpace(ProxyUsername) ? null : ProxyUsername.Trim(),
             ApiFormat = SelectedApiFormat,
             CliIdentity = SelectedCliIdentity,
-            ThinkingLevel = SelectedThinkingLevel,
+            ThinkingLevel = ThinkingCapabilities.ResolveSelectedLevel(settings, ModelEndpointResolver.ResolveModel(ChatModelName, AnthropicBaseUrl)),
+            ThinkingControlMode = ThinkingCapabilities.GetControlMode(settings, ModelEndpointResolver.ResolveModel(ChatModelName, AnthropicBaseUrl)),
             ProxyMode = SelectedProxyKind,
         };
     }
@@ -602,7 +597,6 @@ public partial class SettingsViewModel : ObservableObject
         settings.ChatModelName = string.IsNullOrWhiteSpace(ChatModelName)
             ? null
             : ChatModelName.Trim();
-        settings.ThinkingLevel = LlmContracts.FormatThinkingLevel(SelectedThinkingLevel);
         settings.ApiFormat = LlmContracts.FormatApiFormat(SelectedApiFormat);
         settings.CliIdentity = LlmContracts.FormatCliIdentity(SelectedCliIdentity);
         settings.ProxyMode = LlmContracts.FormatProxyKind(SelectedProxyKind);
@@ -972,7 +966,6 @@ public partial class SettingsViewModel : ObservableObject
             CliIdentityService.RestoreVersions(settings.CliIdentityVersions);
             foreach (var option in CliIdentityOptions) option.RefreshDisplay();
             ChatModelName = settings.ChatModelName;
-            SelectedThinkingLevel = ModelEndpointConfig.ResolveThinkingLevel(settings);
             SelectedApiFormat = LlmContracts.ParseApiFormat(settings.ApiFormat);
             SelectedCliIdentity = LlmContracts.ParseCliIdentity(settings.CliIdentity);
             SelectedProxyKind = LlmContracts.ParseProxyKind(settings.ProxyMode);
@@ -984,6 +977,8 @@ public partial class SettingsViewModel : ObservableObject
             ModelCandidates.Clear();
             foreach (var id in settings.DiscoveredModels.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase))
                 ModelCandidates.Add(id);
+            ThinkingConfigurationModel = ModelCandidates.FirstOrDefault(id => string.Equals(id, settings.ChatModelName, StringComparison.OrdinalIgnoreCase)) ?? ModelCandidates.FirstOrDefault();
+            RefreshThinkingConfiguration();
             ModelRefreshMessage = null;
             OnPropertyChanged(nameof(IsCustomProxyConfigurable));
             Language = string.IsNullOrWhiteSpace(settings.Language) ? "zh-CN" : settings.Language;

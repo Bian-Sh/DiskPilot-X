@@ -16,7 +16,7 @@ public sealed class ModelClientFactory(ModelHttpClientFactory httpClients)
         {
             LlmApiFormat.OpenAiResponses => new OpenAiModelClient(httpClient, config.ApiKey, config.BaseUrl, config.Model, LlmApiFormat.OpenAiResponses, config.ThinkingLevel, config.CliIdentity),
             LlmApiFormat.OpenAiChatCompletions => new OpenAiModelClient(httpClient, config.ApiKey, config.BaseUrl, config.Model, LlmApiFormat.OpenAiChatCompletions, config.ThinkingLevel, config.CliIdentity),
-            _ => new AnthropicModelClient(httpClient, config.ApiKey, config.BaseUrl, config.Model, config.ThinkingLevel, config.CliIdentity),
+            _ => new AnthropicModelClient(httpClient, config.ApiKey, config.BaseUrl, config.Model, config.ThinkingLevel, config.CliIdentity, config.ThinkingControlMode),
         };
     }
 

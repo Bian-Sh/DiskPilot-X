@@ -48,6 +48,22 @@
                     </ControlTemplate.Triggers>
                 </ControlTemplate></Setter.Value></Setter>
             </Style>
+            <Style x:Key="ModelActionButton" TargetType="Button">
+                <Setter Property="Width" Value="26"/><Setter Property="Height" Value="28"/>
+                <Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Cursor" Value="Hand"/><Setter Property="Opacity" Value="0"/>
+                <Setter Property="IsHitTestVisible" Value="False"/>
+                <Setter Property="Foreground" Value="{DynamicResource VP.TextTertiaryBrush}"/>
+                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+                    <Border x:Name="ActionSurface" Background="{TemplateBinding Background}" CornerRadius="5">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ActionSurface" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}"/><Setter Property="Foreground" Value="{DynamicResource VP.AccentTextBrush}"/></Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="ActionSurface" Property="BorderBrush" Value="{DynamicResource VP.AccentBrush}"/><Setter TargetName="ActionSurface" Property="BorderThickness" Value="1"/></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate></Setter.Value></Setter>
+            </Style>
 
         </ResourceDictionary>
     </UserControl.Resources>
@@ -269,43 +285,31 @@
                                         <Border x:Name="ModelRow" Padding="2,3" Margin="0,1" CornerRadius="6" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource VP.BorderSubtleBrush}">
                                             <Border.Style><Style TargetType="Border"><Setter Property="Background" Value="Transparent"/><Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}"/></Trigger><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}"/></Trigger></Style.Triggers></Style></Border.Style>
                                             <Grid>
-                                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                                 <Thumb Style="{StaticResource ModelDragHandle}" ToolTip="{loc:Loc SettingsModelDragHint}" AutomationProperties.Name="{loc:Loc SettingsModelDragHint}"
                                                        DragStarted="ModelHandle_DragStarted" DragDelta="ModelHandle_DragDelta" DragCompleted="ModelHandle_DragCompleted" PreviewKeyDown="ModelHandle_PreviewKeyDown"/>
                                                 <TextBlock Grid.Column="1" Text="{Binding}" ToolTip="{Binding}" Margin="6,0,6,0" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource VP.TextPrimaryBrush}"/>
-                                                <Button x:Name="RemoveModelButton" Grid.Column="2" Width="26" Height="28"
+                                                <Button x:Name="EditModelThinkingButton" Grid.Column="2" Style="{StaticResource ModelActionButton}"
+                                                        Tag="{Binding ElementName=ModelRow}" Click="ModelThinkingEdit_Click"
+                                                        ToolTip="{loc:Loc SettingsModelThinkingEditHint}" AutomationProperties.Name="{loc:Loc SettingsModelThinkingEditHint}">
+                                                    <Path Width="14" Height="14" Stretch="Uniform" Stroke="{Binding Foreground,RelativeSource={RelativeSource AncestorType=Button}}"
+                                                          StrokeThickness="1.5" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                          Data="M 15,4 L 20,9 M 3,16 L 3,21 L 8,21 L 21,8 A 2,2 0 0 0 16,3 Z M 3,16 L 8,21"/>
+                                                </Button>
+                                                <Button x:Name="RemoveModelButton" Grid.Column="3" Width="26" Height="28"
                                                         Command="{Binding DataContext.RemoveModelCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
                                                         ToolTip="{loc:Loc SettingsModelRemoveHint}" AutomationProperties.Name="{loc:Loc SettingsModelRemoveHint}">
-                                                    <Button.Style>
-                                                        <Style TargetType="Button">
-                                                            <Setter Property="Background" Value="Transparent"/>
-                                                            <Setter Property="BorderThickness" Value="0"/>
-                                                            <Setter Property="Cursor" Value="Hand"/>
-                                                            <Setter Property="Opacity" Value="0"/>
-                                                            <Setter Property="IsHitTestVisible" Value="False"/>
-                                                            <Setter Property="Foreground" Value="{DynamicResource VP.TextTertiaryBrush}"/>
-                                                            <Setter Property="Template"><Setter.Value>
-                                                                <ControlTemplate TargetType="Button">
-                                                                    <Border x:Name="RemoveSurface" Background="{TemplateBinding Background}" CornerRadius="5">
-                                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                                    </Border>
-                                                                    <ControlTemplate.Triggers>
-                                                                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="RemoveSurface" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}"/></Trigger>
-                                                                        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="RemoveSurface" Property="BorderBrush" Value="{DynamicResource VP.AccentBrush}"/><Setter TargetName="RemoveSurface" Property="BorderThickness" Value="1"/></Trigger>
-                                                                    </ControlTemplate.Triggers>
-                                                                </ControlTemplate>
-                                                            </Setter.Value></Setter>
-                                                            <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource VP.DangerTextBrush}"/></Trigger></Style.Triggers>
-                                                        </Style>
-                                                    </Button.Style>
+                                                    <Button.Style><Style TargetType="Button" BasedOn="{StaticResource ModelActionButton}">
+                                                        <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource VP.DangerTextBrush}"/></Trigger></Style.Triggers>
+                                                    </Style></Button.Style>
                                                     <Path Width="13" Height="15" Stretch="Uniform" Stroke="{Binding Foreground,RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                                                           Data="M 10,11 V 17 M 14,11 V 17 M 19,6 V 20 A 2,2 0 0 1 17,22 H 7 A 2,2 0 0 1 5,20 V 6 M 3,6 H 21 M 8,6 V 4 A 2,2 0 0 1 10,2 H 14 A 2,2 0 0 1 16,4 V 6"/>
                                                 </Button>
                                             </Grid>
                                         </Border>
                                         <DataTemplate.Triggers>
-                                            <Trigger SourceName="ModelRow" Property="IsMouseOver" Value="True"><Setter TargetName="RemoveModelButton" Property="Opacity" Value="1"/><Setter TargetName="RemoveModelButton" Property="IsHitTestVisible" Value="True"/></Trigger>
-                                            <Trigger SourceName="ModelRow" Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="RemoveModelButton" Property="Opacity" Value="1"/><Setter TargetName="RemoveModelButton" Property="IsHitTestVisible" Value="True"/></Trigger>
+                                            <Trigger SourceName="ModelRow" Property="IsMouseOver" Value="True"><Setter TargetName="EditModelThinkingButton" Property="Opacity" Value="1"/><Setter TargetName="EditModelThinkingButton" Property="IsHitTestVisible" Value="True"/><Setter TargetName="RemoveModelButton" Property="Opacity" Value="1"/><Setter TargetName="RemoveModelButton" Property="IsHitTestVisible" Value="True"/></Trigger>
+                                            <Trigger SourceName="ModelRow" Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="EditModelThinkingButton" Property="Opacity" Value="1"/><Setter TargetName="EditModelThinkingButton" Property="IsHitTestVisible" Value="True"/><Setter TargetName="RemoveModelButton" Property="Opacity" Value="1"/><Setter TargetName="RemoveModelButton" Property="IsHitTestVisible" Value="True"/></Trigger>
                                         </DataTemplate.Triggers>
                                     </DataTemplate></ItemsControl.ItemTemplate>
                                 </ItemsControl>
@@ -315,24 +319,33 @@
                                    Foreground="{DynamicResource VP.TextTertiaryBrush}" Visibility="{Binding ModelRefreshMessage,Converter={StaticResource NullVis}}"/>
                     </StackPanel>
                 </Grid>
-                <Separator Margin="14,0" />
-                <Grid Margin="14,12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="170" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="{loc:Loc SettingsThinkingLevelLabel}"
-                               Style="{StaticResource SettingsLabelStyle}"
-                               ToolTip="{loc:Loc SettingsThinkingLevelHint}" />
-                    <ComboBox Grid.Column="1"
-                              Style="{DynamicResource VP.ComboBox}"
-                              Width="240"
-                              HorizontalAlignment="Left"
-                              ItemsSource="{Binding ThinkingLevelOptions}"
-                              SelectedValue="{Binding SelectedThinkingLevel}"
-                              SelectedValuePath="Value"
-                              DisplayMemberPath="Label" />
-                </Grid>
+                <Popup x:Name="ModelThinkingPopup" Placement="Bottom" StaysOpen="False" AllowsTransparency="True" VerticalOffset="4">
+                    <Border Width="{Binding PlacementTarget.ActualWidth,ElementName=ModelThinkingPopup}" MinWidth="280" MaxWidth="420"
+                            Background="{DynamicResource VP.BackgroundAltBrush}" BorderBrush="{DynamicResource VP.BorderLightBrush}"
+                            BorderThickness="1" CornerRadius="10" Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="{Binding ThinkingConfigurationModel}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource VP.TextPrimaryBrush}"/>
+                            <TextBlock Text="{loc:Loc SettingsThinkingLevelLabel}" FontSize="11" Margin="0,4,0,0"
+                                       Foreground="{DynamicResource VP.TextTertiaryBrush}" ToolTip="{loc:Loc SettingsThinkingLevelHint}"/>
+                            <ComboBox x:Name="ThinkingControlModePicker" Style="{DynamicResource VP.ComboBox}" Margin="0,10,0,2"
+                                      Visibility="{Binding IsAnthropicThinking,Converter={StaticResource BoolVis}}"
+                                      ItemsSource="{Binding ThinkingControlModeOptions}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                      SelectedValue="{Binding SelectedThinkingControlMode}"
+                                      AutomationProperties.Name="{loc:Loc SettingsThinkingControlModeLabel}"/>
+                            <ItemsControl x:Name="SupportedThinkingLevels" Margin="0,8,0,0" ItemsSource="{Binding SupportedThinkingLevelOptions}">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate><DataTemplate>
+                                    <CheckBox Style="{DynamicResource VP.CheckBox}" Content="{Binding Label}"
+                                              IsChecked="{Binding IsSelected,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
+                                              Margin="0,4,14,4" AutomationProperties.Name="{Binding Label}"/>
+                                </DataTemplate></ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding ThinkingCapabilityHint}" TextWrapping="Wrap" Margin="0,8,0,0" FontSize="11"
+                                       Foreground="{DynamicResource VP.TextTertiaryBrush}"/>
+                        </StackPanel>
+                    </Border>
+                </Popup>
 
             </StackPanel>
         </Border>

@@ -18,12 +18,13 @@ public sealed class AnthropicModelClient : IModelClient
     private readonly string model;
     private readonly ThinkingLevel thinkingLevel;
     private readonly CliIdentityKind cliIdentity;
+    private readonly ThinkingControlMode thinkingControlMode;
     private bool EnableThinking => thinkingLevel != ThinkingLevel.Off;
     // Harness 历史没有签名字段，只保存本客户端收到且已完整结束的签名思考。
     private readonly ConcurrentDictionary<string, JsonArray> signedThinking = new(StringComparer.Ordinal);
 
     public AnthropicModelClient(HttpClient httpClient, string apiKey, string? baseUrl, string model,
-        ThinkingLevel thinkingLevel = ThinkingLevel.Off, CliIdentityKind cliIdentity = CliIdentityKind.None)
+        ThinkingLevel thinkingLevel = ThinkingLevel.Off, CliIdentityKind cliIdentity = CliIdentityKind.None, ThinkingControlMode thinkingControlMode = ThinkingControlMode.Budget)
     {
         this.httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
@@ -32,6 +33,7 @@ public sealed class AnthropicModelClient : IModelClient
         this.model = model;
         this.thinkingLevel = thinkingLevel;
         this.cliIdentity = cliIdentity;
+        this.thinkingControlMode = thinkingControlMode;
         try { messagesUri = AnthropicOptions.GetMessagesUri(baseUrl); }
         catch (InvalidOperationException) { throw new ModelClientException("模型服务地址无效。", ModelErrorKind.InvalidRequest); }
     }
@@ -122,7 +124,10 @@ public sealed class AnthropicModelClient : IModelClient
                 }
                 else messages.Add(new JsonObject { ["role"] = role, ["content"] = content });
             }
-            var (budgetTokens, maxTokens) = LlmContracts.ToAnthropicThinkingBudget(thinkingLevel);
+            var (budgetTokens, budgetMaxTokens) = thinkingControlMode == ThinkingControlMode.Budget
+                ? LlmContracts.ToAnthropicThinkingBudget(thinkingLevel) : (0, 4096);
+            var maxTokens = thinkingControlMode == ThinkingControlMode.Effort
+                ? LlmContracts.ToOpenAiMaxOutputTokens(thinkingLevel) : budgetMaxTokens;
             var body = new JsonObject { ["model"] = model, ["max_tokens"] = maxTokens, ["stream"] = true, ["messages"] = messages };
             if (systems.Count > 0) body["system"] = string.Join("\n\n", systems);
             if (request.Tools.Count > 0)
@@ -132,10 +137,19 @@ public sealed class AnthropicModelClient : IModelClient
                     tools.Add(new JsonObject { ["name"] = tool.Name, ["description"] = tool.Description, ["input_schema"] = tool.ParametersSchema.DeepClone() });
                 body["tools"] = tools;
             }
-            // Anthropic 没有 minimal 档，按低档换算。
-            body["thinking"] = EnableThinking
-                ? new JsonObject { ["type"] = "enabled", ["budget_tokens"] = budgetTokens }
-                : new JsonObject { ["type"] = "disabled" };
+            if (thinkingLevel == ThinkingLevel.Off)
+                body["thinking"] = new JsonObject { ["type"] = "disabled" };
+            else if (thinkingLevel != ThinkingLevel.Default)
+            {
+                if (thinkingControlMode == ThinkingControlMode.Effort)
+                {
+                    if (thinkingLevel == ThinkingLevel.Minimal)
+                        throw new InvalidOperationException("Anthropic effort 不支持 minimal，请选择已声明的有效档位。");
+                    body["thinking"] = new JsonObject { ["type"] = "adaptive" };
+                    body["output_config"] = new JsonObject { ["effort"] = LlmContracts.ToReasoningEffort(thinkingLevel) };
+                }
+                else body["thinking"] = new JsonObject { ["type"] = "enabled", ["budget_tokens"] = budgetTokens };
+            }
             var outgoing = new HttpRequestMessage(HttpMethod.Post, messagesUri);
             outgoing.Headers.Add("x-api-key", apiKey);
             outgoing.Headers.Add("anthropic-version", "2023-06-01");

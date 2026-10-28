@@ -32,12 +32,18 @@ public static class AiOptions
 {
     public static IReadOnlyList<ThinkingLevelOption> ThinkingLevels() =>
     [
+        new(ThinkingLevel.Default, L.Text("ThinkingLevelDefaultLabel")),
         new(ThinkingLevel.Off, L.Text("ThinkingLevelOffLabel")),
         new(ThinkingLevel.Minimal, L.Text("ThinkingLevelMinimalLabel")),
         new(ThinkingLevel.Low, L.Text("ThinkingLevelLowLabel")),
         new(ThinkingLevel.Medium, L.Text("ThinkingLevelMediumLabel")),
         new(ThinkingLevel.High, L.Text("ThinkingLevelHighLabel")),
+        new(ThinkingLevel.XHigh, L.Text("ThinkingLevelXHighLabel")),
+        new(ThinkingLevel.Max, L.Text("ThinkingLevelMaxLabel")),
     ];
+
+    public static IReadOnlyList<ThinkingLevelOption> ThinkingLevels(IEnumerable<ThinkingLevel> levels) =>
+        levels.Select(level => ThinkingLevels().First(option => option.Value == level)).ToArray();
 
     public static IReadOnlyList<ApiFormatOption> ApiFormats() =>
     [

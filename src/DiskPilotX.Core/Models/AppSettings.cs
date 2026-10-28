@@ -47,6 +47,8 @@ public class AppSettings
     public string? CliIdentity { get; set; }
     /// <summary>思考等级："off" | "minimal" | "low" | "medium" | "high"。</summary>
     public string? ThinkingLevel { get; set; }
+    /// <summary>按端点、接口格式和模型隔离的思考能力声明及实际选择；旧字段只用于首次迁移。</summary>
+    public Dictionary<string, ModelThinkingSettings> ModelThinkingConfigurations { get; set; } = [];
     /// <summary>代理模式："system" | "direct" | "custom"。</summary>
     public string? ProxyMode { get; set; }
     public string? ProxyHost { get; set; }
