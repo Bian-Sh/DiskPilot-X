@@ -5,7 +5,12 @@ namespace TinyHarness;
 /// </summary>
 public sealed record ModelRequest(
     IReadOnlyList<ChatMessage> Messages,
-    IReadOnlyCollection<ToolDefinition> Tools);
+    IReadOnlyCollection<ToolDefinition> Tools)
+{
+    /// <summary>宿主收到新流数据时刷新空闲计时；不生成展示事件，也不发送给上游。</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Action? OnStreamActivity { get; init; }
+}
 
 /// <summary>
 /// 模型流式输出事件。ToolCall 在参数完整累积后一次性发出。

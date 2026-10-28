@@ -153,7 +153,7 @@ public sealed partial class DiskAssistantService
     public IReadOnlyList<DiskPilotX.Core.Models.ChatMessage> RestoreConversation(ConversationSnapshot snapshot)
     {
         if (IsRunning) throw new InvalidOperationException("请先停止当前任务再切换会话。");
-        var restored = new AgentSession(new AgentSessionOptions { MaxSteps = 32, ModelTimeout = TimeSpan.FromSeconds(180) });
+        var restored = new AgentSession(new AgentSessionOptions { MaxSteps = 32, ModelTimeout = TimeSpan.FromMinutes(5) });
         restored.RestoreId(snapshot.Id);
         foreach (var message in snapshot.ModelMessages) restored.RestoreMessage(message);
         restored.ApplySystemPrompt(SystemPrompt, 32);
@@ -213,7 +213,7 @@ public sealed partial class DiskAssistantService
             runHadToolFailure = false;
             runGoal = SummarizeRunGoal(message);
             ActiveModel = options.Endpoint.Model;
-            AgentSession NewSession() => new(new AgentSessionOptions { MaxSteps = 32, SystemPrompt = SystemPrompt, ModelTimeout = TimeSpan.FromSeconds(180) });
+            AgentSession NewSession() => new(new AgentSessionOptions { MaxSteps = 32, SystemPrompt = SystemPrompt, ModelTimeout = TimeSpan.FromMinutes(5) });
             var savedSettings = settings.LoadSettings();
             // 分析证据会留在对话历史里，任一白名单变更都必须丢弃旧历史，避免跨白名单重放隐私路径。
             var privacySignature = JsonSerializer.Serialize(new
@@ -262,7 +262,7 @@ public sealed partial class DiskAssistantService
             registry.Register(new ToolDefinition
             {
                 Name = name, Description = description, ParametersSchema = parsed, RiskLevel = risk,
-                Timeout = TimeSpan.FromSeconds(timeoutSeconds), SafeArgumentsProjector = args => Project(args, parsed),
+                Timeout = timeoutSeconds == Timeout.Infinite ? Timeout.InfiniteTimeSpan : TimeSpan.FromSeconds(timeoutSeconds), SafeArgumentsProjector = args => Project(args, parsed),
                 Handler = async (args, ct) =>
                 {
                     if (declinedOperations.Contains(name)) return ToolResult.SafeFail("{\"ok\":false,\"cancelled\":true,\"reason\":\"用户已取消本轮该操作，不再请求批准。\"}");
@@ -362,7 +362,7 @@ public sealed partial class DiskAssistantService
                     RememberScan(c.Session);
                 }
                 return result;
-            }, timeoutSeconds: 1800);
+            }, timeoutSeconds: Timeout.Infinite);
         Add("navigate_path", "定位已扫描目录，并可切换 treemap 或 tree 视图。", """{"type":"object","properties":{"path":{"type":"string"},"view":{"type":"string","enum":["treemap","tree"]}},"required":["path"]}""",
             async (a, ct) => await ExecuteVisible("navigate_path", a, ct).ConfigureAwait(false));
         Add("focus_path", "把 treemap 视图定位（focus）到指定文件夹或文件并高亮，方便在地图上精确指向某个点位。目录会钻取定位，文件会定位到其所在层级并高亮该文件。", """{"type":"object","properties":{"path":{"type":"string"},"highlight":{"type":"boolean","default":true}},"required":["path"]}""",
@@ -418,11 +418,11 @@ public sealed partial class DiskAssistantService
             try { return await workspace.Execute("ask_user", request, ct).ConfigureAwait(false); }
             finally { SetAnalysisWaiting(false); }
         }, timeoutSeconds: 1800);
-        Add("run_skill_source", "执行已保存规则中的可信 C# 逻辑：清理检测（需 scope_path）或应用数据发现（无需范围）。宿主会展示源码和包摘要并请求确认，不是安全沙箱。仅返回真实数据，不删除文件。", """{"type":"object","properties":{"id":{"type":"string"},"scope_path":{"type":"string"},"parameters":{"type":"object","description":"用户在任务面板选择的参数，只作输入，不授予权限。"}},"required":["id"]}""", (a,ct)=>workspace.Execute("run_skill_source",a,ct), timeoutSeconds:1800);
+        Add("run_skill_source", "执行已保存规则中的可信 C# 逻辑：清理检测（需 scope_path）或应用数据发现（无需范围）。宿主会展示源码和包摘要并请求确认，不是安全沙箱。仅返回真实数据，不删除文件。", """{"type":"object","properties":{"id":{"type":"string"},"scope_path":{"type":"string"},"parameters":{"type":"object","description":"用户在任务面板选择的参数，只作输入，不授予权限。"}},"required":["id"]}""", (a,ct)=>workspace.Execute("run_skill_source",a,ct), timeoutSeconds:Timeout.Infinite);
         Add("get_localization_state", "读取宿主当前语言偏好、有效文化、实际资源语言及支持列表。构建 skill UI 前先读取；动态 UI 使用 localizations 与 {loc key} 自动响应语言变更，不能修改宿主语言。", """{"type":"object","properties":{}}""", (a,ct)=>workspace.Execute("get_localization_state",a,ct));
         Add("show_skill_panel", "为已保存的用户清理规则发布可重开的任务面板卡片，用户点击后打开。", """{"type":"object","properties":{"id":{"type":"string"},"summary":{"type":"string"}},"required":["id"]}""", (a,ct)=>workspace.Execute("show_skill_panel",a,ct));
         Add("render_view", RenderViewDescription, RenderViewSchema, (a,ct)=>workspace.Execute("render_view",a,ct));
-        Add("analyze_paths", AnalyzePathsDescription, AnalyzePathsSchema, (a,ct)=>workspace.Execute("analyze_paths",a,ct), timeoutSeconds:1800);
+        Add("analyze_paths", AnalyzePathsDescription, AnalyzePathsSchema, (a,ct)=>workspace.Execute("analyze_paths",a,ct), timeoutSeconds:Timeout.Infinite);
         Add("list_recommendations", "读取本地已发布建议及其当前 ID、清单版本和选中状态。", """{"type":"object","properties":{}}""", (a, ct) => workspace.Execute("list_recommendations", a, ct));
         Add("select_recommendations", "按当前建议 ID 选择或取消建议，不删除文件。", """{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string"}},"selected":{"type":"boolean"}},"required":["ids","selected"]}""", (a, ct) => workspace.Execute("select_recommendations", a, ct), ToolRiskLevel.Write);
         Add("cleanup_recommendations", "请求用户确认当前版本的具体清理清单；只有确认后才执行并返回实际结果。", """{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string"},"minItems":1},"version":{"type":"string"}},"required":["ids","version"]}""", (a, ct) => workspace.Execute("cleanup_recommendations", a, ct), ToolRiskLevel.Destructive, 1800);

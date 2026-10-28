@@ -43,7 +43,7 @@ public sealed class AnthropicModelClient : IModelClient
         using var response = await SendAsync(outgoing, cancellationToken).ConfigureAwait(false);
         // 协议故障现场：最近收到的原始 data 帧，仅在协议失败时落盘（见 LlmStreamDiagnostics）。
         var tail = new StringBuilder();
-        await using var events = ReadEventsAsync(response, tail, cancellationToken).GetAsyncEnumerator(cancellationToken);
+        await using var events = ReadEventsAsync(response, tail, request.OnStreamActivity, cancellationToken).GetAsyncEnumerator(cancellationToken);
         while (true)
         {
             ModelStreamEvent current;
@@ -183,7 +183,7 @@ public sealed class AnthropicModelClient : IModelClient
         catch (IOException) { throw new ModelClientException("模型服务连接中断。", ModelErrorKind.ConnectionFailed); }
     }
 
-    private async IAsyncEnumerable<ModelStreamEvent> ReadEventsAsync(HttpResponseMessage response, StringBuilder tail, [EnumeratorCancellation] CancellationToken cancellationToken)
+    private async IAsyncEnumerable<ModelStreamEvent> ReadEventsAsync(HttpResponseMessage response, StringBuilder tail, Action? onStreamActivity, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         using var reader = new StreamReader(await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false), new UTF8Encoding(false, true));
         var data = new StringBuilder();
@@ -209,6 +209,7 @@ public sealed class AnthropicModelClient : IModelClient
             if (data.Length == 0) continue;
             var payload = data.ToString();
             data.Clear();
+            onStreamActivity?.Invoke();
             // 解析前先留档：无论后续在哪一步失败，现场都包含这条原始帧。
             LlmStreamDiagnostics.Capture(tail, payload);
             using var document = JsonDocument.Parse(payload);

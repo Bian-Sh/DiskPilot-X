@@ -601,6 +601,9 @@
   <data name="SortByModifiedToolTip" xml:space="preserve">
     <value>按修改日期排序</value>
   </data>
+  <data name="ThinkingCompletedLabel" xml:space="preserve">
+    <value>完成思考</value>
+  </data>
   <data name="ThinkingLabel" xml:space="preserve">
     <value>思考中</value>
   </data>

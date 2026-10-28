@@ -38,6 +38,18 @@ public sealed class ChatPanelScrollTests
         message.Segments.Add(process);
         vm.Messages.Add(message);
         Layout(panel);
+        var preview = Assert.Single(Visuals<ThinkingPreviewText>(panel));
+        var header = Assert.IsAssignableFrom<FrameworkElement>(VisualTreeHelper.GetParent(preview));
+        var label = Visuals<TextBlock>(header).Single(text => text.Text == DiskPilotX.App.Localization.L.Text("ThinkingLabel"));
+        var labelRight = label.TransformToAncestor(header).Transform(new Point(label.ActualWidth, 0)).X;
+        var previewLeft = preview.TransformToAncestor(header).Transform(new Point()).X;
+        Assert.InRange(previewLeft - labelRight, 11, 13);
+        process.Status = ChatSegmentStatus.Completed;
+        Layout(panel);
+        Assert.Equal(DiskPilotX.App.Localization.L.Text("ThinkingCompletedLabel"), label.Text);
+        process.Status = ChatSegmentStatus.Running;
+        Layout(panel);
+        Assert.Equal(DiskPilotX.App.Localization.L.Text("ThinkingLabel"), label.Text);
         var root = Visuals<StackPanel>(panel).Single(element => element.Name == "MessageRoot");
         Assert.NotNull(root.Background);
         var copy = Visuals<Button>(root).Single(button => button.Width == 28 && button.Height == 26);
@@ -227,13 +239,16 @@ public sealed class ChatPanelScrollTests
 
     private static void Layout(ChatPanel panel)
     {
-        for (var i = 0; i < 4; i++)
+        // 思考正文按短窗口合并刷新，驱动真实 Dispatcher 而不是只验证同步绑定。
+        var until = DateTime.UtcNow.AddMilliseconds(110);
+        do
         {
             panel.Measure(new Size(360, 400));
             panel.Arrange(new Rect(0, 0, 360, 400));
             panel.UpdateLayout();
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-        }
+            Thread.Sleep(2);
+        } while (DateTime.UtcNow < until);
     }
 
     private static IEnumerable<T> Visuals<T>(DependencyObject parent) where T : DependencyObject

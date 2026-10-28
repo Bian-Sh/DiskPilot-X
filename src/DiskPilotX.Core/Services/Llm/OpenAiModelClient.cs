@@ -52,7 +52,7 @@ public sealed class OpenAiModelClient : IModelClient
         using var response = await SendAsync(outgoing, cancellationToken).ConfigureAwait(false);
         // 协议故障现场：最近收到的原始帧/非流式响应体，仅在协议失败时落盘（见 LlmStreamDiagnostics）。
         var tail = new StringBuilder();
-        await using var events = ReadEventsAsync(response, tail, cancellationToken).GetAsyncEnumerator(cancellationToken);
+        await using var events = ReadEventsAsync(response, tail, request.OnStreamActivity, cancellationToken).GetAsyncEnumerator(cancellationToken);
         while (true)
         {
             ModelStreamEvent current;
@@ -301,7 +301,7 @@ public sealed class OpenAiModelClient : IModelClient
         catch (IOException) { throw new ModelClientException("模型服务连接中断。", ModelErrorKind.ConnectionFailed); }
     }
 
-    private async IAsyncEnumerable<ModelStreamEvent> ReadEventsAsync(HttpResponseMessage response, StringBuilder tail, [EnumeratorCancellation] CancellationToken cancellationToken)
+    private async IAsyncEnumerable<ModelStreamEvent> ReadEventsAsync(HttpResponseMessage response, StringBuilder tail, Action? onStreamActivity, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // 累积器内部协议故障：统一落盘现场并带站点标记。
         ModelClientException Fail(string site, string? detail)
@@ -341,6 +341,7 @@ public sealed class OpenAiModelClient : IModelClient
             if (data.Length == 0) continue;
             var payload = data.ToString();
             data.Clear();
+            onStreamActivity?.Invoke();
             // 解析前先留档：无论后续在哪一步失败，现场都包含这条原始帧。
             LlmStreamDiagnostics.Capture(tail, payload);
             if (payload.StartsWith("[DONE]", StringComparison.Ordinal))

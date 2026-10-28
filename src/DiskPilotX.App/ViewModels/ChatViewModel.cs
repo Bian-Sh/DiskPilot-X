@@ -73,8 +73,9 @@ public partial class ChatViewModel : ObservableObject
         RefreshSkills();
         FilteredSkillMentionSuggestions = new(SkillMentionSuggestions);
         Messages.CollectionChanged += (_, _) => { HasMessages = Messages.Count > 0; OnPropertyChanged(nameof(HeaderText)); };
-        assistant.Activity += activity => OnUi(() => ApplyActivity(activity));
-        assistant.RunFinished += () => OnUi(RefreshConversationCommands);
+        activityBuffer = new ChatActivityBuffer(ApplyActivity, Application.Current?.Dispatcher);
+        assistant.Activity += activityBuffer.Enqueue;
+        assistant.RunFinished += () => OnUi(() => { activityBuffer.Flush(); RefreshConversationCommands(); });
         L.LanguageChanged += RefreshSlashCommandSuggestions;
         L.LanguageChanged += RefreshSkills;
         L.LanguageChanged += () => OnPropertyChanged(nameof(HeaderText));
@@ -237,9 +238,11 @@ public partial class ChatViewModel : ObservableObject
             _logger.LogWarning("Copilot 运行未完成 {ExceptionType}", ex.GetType().Name);
             ErrorMessage = "当前任务未完成，请检查模型配置或稍后重试。";
         }
-        finally { OnUi(() => { IsOperationRunning = false; PendingInteractionCard = null; RefreshSkills(); SaveCurrentConversation(); RefreshConversationHistory(); }); }
+        finally { OnUi(() => { activityBuffer.Flush(); IsOperationRunning = false; PendingInteractionCard = null; RefreshSkills(); SaveCurrentConversation(); RefreshConversationHistory(); }); }
         return null;
     }
+    private readonly ChatActivityBuffer activityBuffer;
+
     private void ApplyActivity(AgentEvent activity)
     {
         if (activity.Kind == AgentEventKind.SessionStarted)

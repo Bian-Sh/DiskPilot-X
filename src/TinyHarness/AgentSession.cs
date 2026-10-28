@@ -17,9 +17,9 @@ public sealed record AgentSessionOptions
     public int MaxSteps { get; init; } = 8;
 
     /// <summary>
-    /// 单步模型请求超时。
+    /// 等待下一条模型消息的空闲期限；持续推送不受请求总时长限制。
     /// </summary>
-    public TimeSpan ModelTimeout { get; init; } = TimeSpan.FromSeconds(120);
+    public TimeSpan ModelTimeout { get; init; } = TimeSpan.FromMinutes(5);
 
     public string? SystemPrompt { get; init; }
 }

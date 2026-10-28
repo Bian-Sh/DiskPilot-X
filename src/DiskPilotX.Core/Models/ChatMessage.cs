@@ -274,7 +274,7 @@ public class ChatMessage : INotifyPropertyChanged
         if (_activeSegment is null || _activeSegment.Kind != kind || _activeSegment.IsSummary != isSummary)
         {
             CompleteActiveSegment();
-            _activeSegment = new ChatSegment(kind) { IsSummary = isSummary, IsExpanded = kind == ChatSegmentKind.Thinking };
+            _activeSegment = new ChatSegment(kind) { IsSummary = isSummary, IsExpanded = false };
             Segments.Add(_activeSegment);
         }
         _activeSegment.Text += text;

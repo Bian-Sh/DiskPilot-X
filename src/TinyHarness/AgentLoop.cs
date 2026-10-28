@@ -314,13 +314,16 @@ public sealed class AgentLoop
             logger.LogInformation("Agent 模型尝试开始 {SessionId} {Step} {Attempt}", sessionId, step, attempt);
             Exception? failure = null;
             var receivedEvent = false;
+            var idleExpired = false;
             using (var attemptTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
                 attemptTimeout.CancelAfter(timeout);
                 IAsyncEnumerator<ModelStreamEvent>? enumerator = null;
                 try
                 {
-                    enumerator = modelClient.StreamAsync(request, attemptTimeout.Token).GetAsyncEnumerator(attemptTimeout.Token);
+                    // 参数分片等尚未形成展示事件的数据也表明模型仍在推送。
+                    var timedRequest = request with { OnStreamActivity = () => attemptTimeout.CancelAfter(timeout) };
+                    enumerator = modelClient.StreamAsync(timedRequest, attemptTimeout.Token).GetAsyncEnumerator(attemptTimeout.Token);
                 }
                 catch (Exception exception)
                 {
@@ -334,14 +337,24 @@ public sealed class AgentLoop
                         while (failure is null)
                         {
                             var moved = false;
-                            try { moved = await enumerator.MoveNextAsync(); }
+                            try
+                            {
+                                attemptTimeout.CancelAfter(timeout);
+                                moved = await enumerator.MoveNextAsync();
+                            }
                             catch (Exception exception) { failure = exception; }
+                            finally
+                            {
+                                // 本地消费、展示和工具处理不属于等待模型新消息的时间。
+                                attemptTimeout.CancelAfter(Timeout.InfiniteTimeSpan);
+                            }
                             if (!moved) break;
                             receivedEvent = true;
                             yield return enumerator.Current;
                         }
                     }
                 }
+                idleExpired = attemptTimeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested;
             }
 
             if (failure is null)
@@ -360,8 +373,9 @@ public sealed class AgentLoop
             var kind = error?.Kind ?? ModelErrorKind.Unknown;
             if (kind == ModelErrorKind.Unknown && error is not null)
                 kind = ModelErrorClassifier.Classify(error.StatusCode, error.ErrorCode);
-            var retryable = kind is ModelErrorKind.ConnectionFailed or ModelErrorKind.Timeout or
-                ModelErrorKind.RateLimited or ModelErrorKind.ServerOverloaded or ModelErrorKind.ServerError;
+            // 空闲期限已耗尽就返回超时，不能用重试悄悄将五分钟静默延长为多轮等待。
+            var retryable = !idleExpired && (kind is ModelErrorKind.ConnectionFailed or ModelErrorKind.Timeout or
+                ModelErrorKind.RateLimited or ModelErrorKind.ServerOverloaded or ModelErrorKind.ServerError);
             if (!retryable || receivedEvent || attempt == 5)
             {
                 logger.LogWarning("Agent 模型尝试终止 {SessionId} {Step} {Attempt} {Retryable} {ReceivedEvent}",

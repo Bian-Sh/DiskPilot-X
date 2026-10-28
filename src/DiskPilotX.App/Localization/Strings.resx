@@ -604,6 +604,9 @@
   <data name="SortByModifiedToolTip" xml:space="preserve">
     <value>Sort by date modified</value>
   </data>
+  <data name="ThinkingCompletedLabel" xml:space="preserve">
+    <value>Thinking complete</value>
+  </data>
   <data name="ThinkingLabel" xml:space="preserve">
     <value>Thinking</value>
   </data>
