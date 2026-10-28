@@ -1137,4 +1137,8 @@
   <data name="SettingsProxyUsernameLabel" xml:space="preserve"><value>代理用户名（可选）</value></data>
   <data name="ShowApiKey" xml:space="preserve"><value>显示 API Key</value></data>
   <data name="HideApiKey" xml:space="preserve"><value>隐藏 API Key</value></data>
+  <data name="OpenFileMenu" xml:space="preserve"><value>打开</value></data>
+  <data name="ShowFileInExplorerMenu" xml:space="preserve"><value>定位文件</value></data>
+  <data name="ShowFolderInExplorerMenu" xml:space="preserve"><value>定位文件夹</value></data>
+  <data name="DeleteEntryMenu" xml:space="preserve"><value>删除</value></data>
 </root>

@@ -639,6 +639,9 @@
                             <Border Grid.Column="8" Style="{StaticResource TreeColumnBorder}">
                                 <TextBlock Text="{Binding AttributeText}" Style="{StaticResource TreeCellText}" Margin="8,0" />
                             </Border>
+                            <Border Grid.ColumnSpan="9" Height="2" VerticalAlignment="Center"
+                                    Background="#E5484D" IsHitTestVisible="False"
+                                    Visibility="{Binding Entry.IsDeleted, Converter={StaticResource BoolToVisibilityConverter}}" />
                         </Grid>
                     </HierarchicalDataTemplate>
                 </TreeView.ItemTemplate>

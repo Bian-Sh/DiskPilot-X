@@ -9,6 +9,7 @@ public static class FileEntryShellService
 {
     public static void Open(FileEntry entry)
     {
+        EnsureAvailable(entry);
         if (entry.IsDirectory)
         {
             Process.Start(new ProcessStartInfo
@@ -57,14 +58,32 @@ public static class FileEntryShellService
 
     public static void ShowInExplorer(FileEntry entry)
     {
-        var arguments = entry.IsDirectory
-            ? $"\"{entry.Path}\""
-            : $"/select,\"{entry.Path}\"";
-        Process.Start("explorer.exe", arguments);
+        EnsureAvailable(entry);
+        var path = Path.GetFullPath(entry.Path);
+        Marshal.ThrowExceptionForHR(SHParseDisplayName(path, IntPtr.Zero, out var pidl, 0, out _));
+        try
+        {
+            Marshal.ThrowExceptionForHR(SHOpenFolderAndSelectItems(pidl, 0, IntPtr.Zero, 0));
+        }
+        finally { Marshal.FreeCoTaskMem(pidl); }
     }
+
+    private static void EnsureAvailable(FileEntry entry)
+    {
+        if (entry.IsDeleted) throw new InvalidOperationException("该项目已删除，请重新扫描。");
+        if (!File.Exists(entry.Path) && !Directory.Exists(entry.Path))
+            throw new FileNotFoundException("目标不存在，请重新扫描。", entry.Path);
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern int SHParseDisplayName(string name, IntPtr bindContext, out IntPtr pidl, uint attributes, out uint foundAttributes);
+
+    [DllImport("shell32.dll")]
+    private static extern int SHOpenFolderAndSelectItems(IntPtr pidl, uint count, IntPtr items, uint flags);
 
     public static void ShowProperties(FileEntry entry)
     {
+        EnsureAvailable(entry);
         var info = new ShellExecuteInfo
         {
             cbSize = Marshal.SizeOf<ShellExecuteInfo>(),

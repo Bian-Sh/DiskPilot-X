@@ -39,6 +39,13 @@ public partial class MainWindow
 
         if (e.PropertyName is nameof(MainViewModel.IsScanning) or nameof(MainViewModel.ScanTitleText) or nameof(MainViewModel.ScanProgressText))
         {
+            if (e.PropertyName == nameof(MainViewModel.IsScanning) && mainVm.IsScanning)
+            {
+                foreach (var cached in _aiScanSessionsByRoot.Values)
+                    Services.DeletedEntryState.Clear(cached.RootEntry);
+                Services.DeletedEntryState.Clear(mainVm.CurrentSession?.RootEntry);
+                _treemapViewModel?.ClearDeletionMarks();
+            }
             TreemapView.SetScanningState(mainVm.IsScanning, mainVm.ScanTitleText, mainVm.ScanProgressText);
         }
         else if (e.PropertyName is nameof(MainViewModel.SelectedPath))
@@ -78,6 +85,8 @@ public partial class MainWindow
         RecommendationsPanel.AnalyzeRequested += OnAnalyzeRequested;
         RecommendationsPanel.CleanupRequested += OnCleanupRequested;
         RecommendationsPanel.RecommendationActivated += OnRecommendationActivated;
+        TreemapView.DeleteEntryAsync = DeleteEntryAsync;
+        TreeViewControl.DeleteEntryAsync = DeleteEntryAsync;
         TreemapView.ShowMessageAsync = ShowAppMessageAsync;
         TreemapView.ShowContentAsync = ShowAppContentAsync;
         TreemapView.CloseContentModal = ModalHost.CloseCurrent;

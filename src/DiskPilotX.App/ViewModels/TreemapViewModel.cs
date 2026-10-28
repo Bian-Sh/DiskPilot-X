@@ -86,6 +86,7 @@ public partial class TreemapViewModel : ObservableObject
 
     public void DrillDown(FileEntry folder)
     {
+        if (folder.IsDeleted) return;
         if (folder == CurrentRoot)
             return;
 
@@ -102,6 +103,7 @@ public partial class TreemapViewModel : ObservableObject
 
     public bool NavigateToEntry(FileEntry entry)
     {
+        if (entry.IsDeleted) return false;
         var viewRoot = entry.IsDirectory ? entry : entry.Parent;
         if (viewRoot is null || viewRoot == CurrentRoot)
             return viewRoot is not null;
@@ -364,76 +366,17 @@ public partial class TreemapViewModel : ObservableObject
 
     public void ApplyCleanupResults(List<CleanupAction> results, ScanSession session)
     {
-        var query = new FileTreeQueryService();
-        var removed = new HashSet<FileEntry>();
+        if (Services.DeletedEntryState.Apply(session, results))
+            OnPropertyChanged(nameof(DeletionRevision));
+    }
 
-        foreach (var action in results)
-        {
-            if (action.Result is not (CleanupResult.Success or CleanupResult.AlreadyRemoved))
-                continue;
+    // 标记只触发重绘，不替换节点集合，避免选中态、缩放和平移被重置。
+    public int DeletionRevision => 0;
 
-            // 推荐可能引用过滤副本；只从当前扫描树解析，已移除路径自然不会重复扣减。
-            var entry = query.FindByPath(session, action.Recommendation.TargetPath);
-            if (entry is null)
-                continue;
-
-            var files = 0;
-            var folders = 0;
-            var pending = new Stack<FileEntry>();
-            pending.Push(entry);
-            while (pending.TryPop(out var current))
-            {
-                removed.Add(current);
-                if (current.IsDirectory)
-                    folders++;
-                else
-                    files++;
-
-                foreach (var child in current.Children)
-                    pending.Push(child);
-            }
-
-            var size = entry.Size;
-            var parent = entry.Parent;
-            parent?.RemoveChild(entry);
-            entry.Parent = null;
-            session.TotalFiles -= files;
-            session.TotalFolders -= folders;
-            session.TotalSize -= size;
-
-            if (entry == session.RootEntry)
-            {
-                session.RootEntry = null;
-                _scanRoot = null;
-            }
-
-            // 当前目录或其祖先被删除时，返回仍然存在的上级。
-            if (CurrentRoot is not null && removed.Contains(CurrentRoot))
-                CurrentRoot = parent ?? CreateExternalParent(entry.Path);
-        }
-
-        if (removed.Count == 0)
-            return;
-
-        _colorContext = _scanRoot is null ? null : _colorContext?.Refresh(_scanRoot);
-
-        if (SelectedNode is not null && removed.Contains(SelectedNode.Entry))
-            SelectedNode = null;
-        if (HoveredNode is not null && removed.Contains(HoveredNode.Entry))
-            HoveredNode = null;
-
-        PruneHistory(_navigationStack);
-        PruneHistory(_forwardStack);
-        UpdateBreadcrumb();
-        RecomputeLayout();
-
-        void PruneHistory(Stack<FileEntry> history)
-        {
-            var surviving = history.Where(entry => !removed.Contains(entry) && entry != CurrentRoot).Reverse().ToList();
-            history.Clear();
-            foreach (var entry in surviving)
-                history.Push(entry);
-        }
+    public void ClearDeletionMarks()
+    {
+        Services.DeletedEntryState.Clear(_scanRoot);
+        OnPropertyChanged(nameof(DeletionRevision));
     }
 
     partial void OnNodesChanged(List<TreemapNode>? value)

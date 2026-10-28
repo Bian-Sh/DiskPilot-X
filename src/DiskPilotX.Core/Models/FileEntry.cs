@@ -1,9 +1,25 @@
 using System.IO;
+using System.ComponentModel;
+using System.Text.Json.Serialization;
 
 namespace DiskPilotX.Core.Models;
 
-public class FileEntry
+public class FileEntry : INotifyPropertyChanged
 {
+    private bool _isDeleted;
+    [JsonIgnore]
+    public bool IsDeleted
+    {
+        get => _isDeleted;
+        set
+        {
+            if (_isDeleted == value) return;
+            _isDeleted = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsDeleted)));
+        }
+    }
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public string Path { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public long Size { get; set; }

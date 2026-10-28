@@ -114,6 +114,8 @@ public partial class MainWindow
 
     private void ShowSettingsPage()
     {
+        // 删除执行会再次遍历磁盘；期间不允许打开设置改变方式或保护规则。
+        if (_cleanupRunning) return;
         if (_settingsViewModel is null)
             return;
 
@@ -134,6 +136,7 @@ public partial class MainWindow
 
     private void OnSettingsChanged()
     {
+        Interlocked.Increment(ref _cleanupSettingsRevision);
         L.SetLanguage(_settingsViewModel?.Language);
         _chatViewModel?.RefreshApiKeyStatus();
     }

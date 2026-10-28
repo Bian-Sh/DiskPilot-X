@@ -245,6 +245,9 @@ public class TreemapControl : SKElement
         // 最后叠加选中态纯白粗框 + 悬停细白框，目录选择框不会被子块覆盖。
         if (_lastHoveredNode != SelectedNode) DrawOutline(canvas, _lastHoveredNode, Spec(1f), SKColors.White);
         DrawOutline(canvas, SelectedNode, Spec(2.5f), SKColors.White);
+        // 删除标记最后绘制，选中和悬停不能覆盖红框。
+        foreach (var node in sortedNodes)
+            if (node.Entry.IsDeleted) DrawOutline(canvas, node, Spec(2.5f), new SKColor(229, 72, 77));
 
     }
 

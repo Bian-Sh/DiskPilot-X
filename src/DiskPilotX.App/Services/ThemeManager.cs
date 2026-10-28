@@ -151,6 +151,10 @@ public partial class ThemeManager
         SetColor("VP.SuccessText", ReadableSemanticText(success, bgAlt));
         SetColor("VP.WarningText", ReadableSemanticText(warning, bgAlt));
         SetColor("VP.DangerText", ReadableSemanticText(danger, bgAlt));
+        // 用户选定的固定高危色；不随主题调色，不改变清理按钮原色。
+        SetColor("VP.ModalDangerHeader", ParseColor("#BB2124"));
+        SetColor("VP.ModalWarningHeader", ParseColor("#86714F"));
+        SetColor("VP.ModalNormalHeader", ParseColor("#62686E"));
 
         SetColor("VP.Surface", Color.FromArgb((byte)profile.SurfaceAlpha, overlayR, overlayG, overlayB));
         SetColor("VP.SurfaceHover", Color.FromArgb((byte)profile.SurfaceHoverAlpha, overlayR, overlayG, overlayB));

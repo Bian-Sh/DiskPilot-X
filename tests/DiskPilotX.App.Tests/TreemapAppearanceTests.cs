@@ -40,7 +40,7 @@ public class TreemapAppearanceTests
     }
 
     [Fact]
-    public void CleanupProjection_UpdatesTypeStatisticsWithoutReassigningRemainingColors()
+    public void 删除后保留扫描类型快照且不改变原配色()
     {
         var root = Root();
         var session = new ScanSession { RootEntry = root, TotalFiles = 2, TotalFolders = 2, TotalSize = 300 };
@@ -57,10 +57,10 @@ public class TreemapAppearanceTests
             Recommendation = new CleanupRecommendation { TargetPath = root.Children[1].Path },
             Result = DiskPilotX.Core.Enums.CleanupResult.Success,
         }], session);
-        var remaining = Assert.Single(Items());
-        Assert.Equal(100L, remaining.GetType().GetProperty("SizeBytes")!.GetValue(remaining));
-        Assert.Equal(1L, remaining.GetType().GetProperty("FileCount")!.GetValue(remaining));
-        Assert.Equal(before, Color(remaining));
+        Assert.Equal(2, Items().Length);
+        Assert.Equal(before, Color(Items().Single(item => Key(item) == ".dll")));
+        Assert.True(root.Children[1].IsDeleted);
+        Assert.Equal(100, session.TotalSize);
     }
 
     private static FileEntry Root()

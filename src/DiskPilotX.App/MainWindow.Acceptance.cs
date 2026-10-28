@@ -66,7 +66,7 @@ public partial class MainWindow
             RenderStats = new { control.RenderedNodeCount, control.TitleClipNodeCount, control.RenderedLabelCount },
             Nodes = action == "nodes" ? control.Nodes?.Select(n => new
             {
-                n.Entry.Name, n.Entry.Path, n.Entry.IsDirectory,
+                n.Entry.Name, n.Entry.Path, n.Entry.IsDirectory, n.Entry.IsDeleted,
                 n.X, n.Y, n.Width, n.Height, n.Depth, n.Label, n.SizeLabel, n.ColorHex, n.ContentColorHex, n.AggregatedCount, n.AggregatedSize,
                 ScreenX = n.X * control.Viewport.Zoom + control.Viewport.X,
                 ScreenY = n.Y * control.Viewport.Zoom + control.Viewport.Y,
@@ -90,12 +90,69 @@ public partial class MainWindow
         if(!AcceptanceAutomationServer.IsEnabled()) throw new InvalidOperationException("验收入口未启用。");
         return ShowSkillPanel(new System.Text.Json.Nodes.JsonObject { ["id"]=id });
     }
+    /// <summary>只在验收模式打开真实菜单，确认与删除仍必须经可见 UI 操作。</summary>
+    internal object AcceptanceFileContext(string? path, string? view)
+    {
+        if (!AcceptanceAutomationServer.IsEnabled() || DataContext is not MainViewModel main || main.CurrentSession is not { } session)
+            throw new InvalidOperationException("验收入口未启用或尚无扫描。");
+        var entry = new DiskPilotX.Core.Services.FileTree.FileTreeQueryService().FindByPath(session, path ?? "")
+            ?? throw new InvalidOperationException("路径不在当前扫描内。");
+        var parts = (view ?? "treemap").Split(':', 2);
+        var tree = parts[0] == "tree";
+        if (tree) TreeViewTabBtn.IsChecked = true;
+        else TreemapTabBtn.IsChecked = true;
+        var menu = tree ? TreeViewControl.BuildContextMenu(entry) : TreemapView.BuildContextMenu(entry);
+        menu.PlacementTarget = tree ? (UIElement)TreeViewControl : TreemapView;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Relative;
+        menu.HorizontalOffset = 140;
+        menu.VerticalOffset = 60;
+        var items = menu.Items.OfType<MenuItem>().ToArray();
+        if (parts.Length == 2)
+        {
+            var item = items.Single(candidate => Equals(candidate.Header, parts[1]));
+            if (!item.IsEnabled) throw new InvalidOperationException("该菜单项当前不可用。");
+            // 后台画布坐标被遮挡时复用真实菜单事件；此入口不确认删除。
+            item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        }
+        else menu.IsOpen = true;
+        return new { entry.Path, entry.IsDirectory, entry.IsDeleted,
+            Items = items.Select(item => new { Header = item.Header?.ToString(), item.IsEnabled }).ToArray() };
+    }
+
+    private object? GetModalLayoutSnapshot()
+    {
+        if (ModalHost.Visibility != Visibility.Visible || ModalHost.FindName("ModalCard") is not Border card
+            || ModalHost.FindName("ModalContentPresenter") is not ContentPresenter { Content: Grid root }) return null;
+        var header = root.Children.OfType<Border>().FirstOrDefault();
+        var title = header?.Child as TextBlock;
+        var scroll = root.Children.OfType<ScrollViewer>().FirstOrDefault();
+        var body = (scroll?.Content as Grid)?.Children.OfType<TextBlock>().FirstOrDefault();
+        var footer = root.Children.OfType<StackPanel>().FirstOrDefault();
+        var viewport = scroll?.Template?.FindName("PART_ScrollContentPresenter", scroll) as FrameworkElement;
+        if (header is null || title is null || scroll is null || body is null || footer is null
+            || viewport is null || !body.IsArrangeValid || viewport.ActualHeight <= 0) return null;
+        var textOrigin = body.TranslatePoint(new Point(), viewport);
+        var footerOrigin = footer.TranslatePoint(new Point(), card);
+        return new
+        {
+            Width = card.ActualWidth, Height = card.ActualHeight, HeaderHeight = header.ActualHeight,
+            WindowWidth = ActualWidth, WindowHeight = ActualHeight,
+            TitleFontSize = title.FontSize, TitleColor = (title.Foreground as SolidColorBrush)?.Color.ToString(),
+            HeaderColor = (header.Background as SolidColorBrush)?.Color.ToString(),
+            BodyHeight = body.ActualHeight, ViewportHeight = viewport.ActualHeight,
+            GapAbove = textOrigin.Y, GapBelow = viewport.ActualHeight - textOrigin.Y - body.ActualHeight,
+            Overflow = scroll.ExtentHeight > scroll.ViewportHeight,
+            ButtonBottomGap = card.ActualHeight - footerOrigin.Y - footer.ActualHeight
+        };
+    }
+
     internal object GetAcceptanceState()
     {
         var mainVm = DataContext as MainViewModel;
         var currentRoot = _treemapViewModel?.CurrentRoot;
         return new
         {
+            ModalLayout = GetModalLayoutSnapshot(),
             SelectedPath = mainVm?.SelectedPath,
             CurrentRootPath = currentRoot?.Path,
             IsScanning = mainVm?.IsScanning ?? false,

@@ -12,6 +12,8 @@ public partial class TreeViewControl : UserControl
 {
     private const double TreeRowHeight = 24.0;
 
+    public Func<FileEntry, Task>? DeleteEntryAsync { get; set; }
+
     public event Action<FileEntry>? AskAiRequested;
     public event Action<FileEntry>? EntrySelected;
     private ScrollViewer? _headerScrollViewer;
@@ -297,7 +299,7 @@ public partial class TreeViewControl : UserControl
 
         return null;
     }
-    private ContextMenu BuildContextMenu(FileEntry entry)
+    internal ContextMenu BuildContextMenu(FileEntry entry)
     {
         var contextMenu = new ContextMenu();
 
@@ -306,13 +308,23 @@ public partial class TreeViewControl : UserControl
         contextMenu.Items.Add(askAiItem);
         contextMenu.Items.Add(new Separator());
 
-        var openItem = new MenuItem { Header = entry.IsDirectory ? "打开文件夹" : "打开" };
-        openItem.Click += async (_, _) => await RunShellActionAsync(() => FileEntryShellService.Open(entry));
-        contextMenu.Items.Add(openItem);
+        if (!entry.IsDirectory)
+        {
+            var openItem = new MenuItem { Header = L.Text("OpenFileMenu"), IsEnabled = !entry.IsDeleted };
+            openItem.Click += async (_, _) => await RunShellActionAsync(() => FileEntryShellService.Open(entry));
+            contextMenu.Items.Add(openItem);
+        }
 
-        var openInExplorerItem = new MenuItem { Header = L.Text("OpenInExplorerMenu") };
+        var openInExplorerItem = new MenuItem { Header = L.Text(entry.IsDirectory ? "ShowFolderInExplorerMenu" : "ShowFileInExplorerMenu"), IsEnabled = !entry.IsDeleted };
         openInExplorerItem.Click += async (_, _) => await RunShellActionAsync(() => FileEntryShellService.ShowInExplorer(entry));
         contextMenu.Items.Add(openInExplorerItem);
+
+        var deleteItem = new MenuItem { Header = L.Text("DeleteEntryMenu"), IsEnabled = !entry.IsDeleted && DeleteEntryAsync is not null };
+        deleteItem.Click += async (_, _) =>
+        {
+            if (!entry.IsDeleted && DeleteEntryAsync is not null) await DeleteEntryAsync(entry);
+        };
+        contextMenu.Items.Add(deleteItem);
 
         var copyPathItem = new MenuItem { Header = L.Text("CopyPathMenu") };
         copyPathItem.Click += async (_, _) =>
@@ -329,7 +341,7 @@ public partial class TreeViewControl : UserControl
         contextMenu.Items.Add(copyPathItem);
         contextMenu.Items.Add(new Separator());
 
-        var propertiesItem = new MenuItem { Header = L.Text("PropertiesMenu") };
+        var propertiesItem = new MenuItem { Header = L.Text("PropertiesMenu"), IsEnabled = !entry.IsDeleted };
         propertiesItem.Click += async (_, _) => await RunShellActionAsync(() => FileEntryShellService.ShowProperties(entry));
         contextMenu.Items.Add(propertiesItem);
 

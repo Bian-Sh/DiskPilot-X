@@ -1,9 +1,14 @@
-﻿using System.Windows;
+using Path = System.IO.Path;
+using System.Windows;
+using System.Windows.Documents;
+using System.Windows.Data;
+using DiskPilotX.App.Converters;
+using DiskPilotX.Core.Enums;
+using DiskPilotX.Core.Models;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Shapes;
 using DiskPilotX.App.Localization;
 
 namespace DiskPilotX.App.Controls;
@@ -14,16 +19,18 @@ public partial class AppModalHost : UserControl
     private ModalRequest? _currentRequest;
     private bool _isShaking;
     private bool _isAnimating;
+    private long _presentationVersion;
 
     public AppModalHost()
     {
         InitializeComponent();
+        SizeChanged += (_, _) => UpdateCardBounds();
     }
 
     public Task<int> ShowAsync(string title, string content, ModalMessageType messageType, ModalButtonFlags buttonFlags)
     {
         var view = CreateMessageView(title, content, messageType, buttonFlags);
-        return ShowAsync<int>(view, ModalResult.Negative, 460, 180);
+        return ShowAsync<int>(view, ModalResult.Negative, 460, 700, isMessage: true);
     }
 
     /// <summary>复用关闭确认的模态外观；破坏性操作默认取消，必须显式点击确认。</summary>
@@ -31,7 +38,34 @@ public partial class AppModalHost : UserControl
     {
         var view = CreateMessageView(title, content, ModalMessageType.Warning,
             ModalButtonFlags.Positive | ModalButtonFlags.Negative, positiveText, defaultToNegative: true);
-        return ShowAsync<int>(view, ModalResult.Negative, 460, 240);
+        return ShowAsync<int>(view, ModalResult.Negative, 460, 700, isMessage: true);
+    }
+
+    /// <summary>使用字面量 Inline 展示清理摘要，不把用户文件名作为 Markdown 或 XAML 解析。</summary>
+    public Task<int> ShowCleanupConfirmationAsync(string title, IReadOnlyList<CleanupRecommendation> items,
+        DeletionMode mode, string positiveText)
+    {
+        if (items.Count == 0) throw new ArgumentException("清理确认至少需要一个项目。", nameof(items));
+        var inlines = new List<Inline> { new Run(items.Count == 1 ? "将把 " : "将把所选的 ") };
+        if (items.Count == 1)
+        {
+            var path = Path.TrimEndingDirectorySeparator(items[0].TargetPath);
+            inlines.Add(Emphasis(Path.GetFileName(path)));
+            inlines.Add(new Run("（"));
+        }
+        inlines.Add(Emphasis($"{items.Count} 个项目"));
+        inlines.Add(new Run(items.Count == 1 ? "，共 " : "（共 "));
+        inlines.Add(Emphasis(FileSizeConverter.FormatSize(items.Sum(item => item.Size))));
+        inlines.Add(new Run("）"));
+        inlines.Add(Emphasis(mode == DeletionMode.PermanentDelete ? "永久删除" : "移入回收站"));
+        inlines.Add(new Run(mode == DeletionMode.PermanentDelete
+            ? "。此操作无法恢复，请确认这些项目不再需要。"
+            : "，之后可从回收站恢复。"));
+        var view = CreateMessageView(title, "", mode == DeletionMode.PermanentDelete ? ModalMessageType.Error : ModalMessageType.Warning,
+            ModalButtonFlags.Positive | ModalButtonFlags.Negative, positiveText, defaultToNegative: true, inlines);
+        return ShowAsync<int>(view, ModalResult.Negative, 460, 700, isMessage: true);
+
+        static Run Emphasis(string text) => new(text) { FontWeight = FontWeights.SemiBold };
     }
 
     public async Task<MessageBoxResult> ShowMessageAsync(string message, string title, MessageBoxButton buttons, MessageBoxImage image)
@@ -52,13 +86,14 @@ public partial class AppModalHost : UserControl
 
         var request = _currentRequest;
         _currentRequest = null;
-        request.Complete(result);
+        // 先完成视觉状态转换，再唤醒调用方，避免同步后续弹窗被旧动画关闭。
         ShowNextOrHide();
+        request.Complete(result);
     }
 
-    private Task<TResult> ShowAsync<TResult>(FrameworkElement content, TResult defaultResult, double maxWidth = 620, double maxHeight = 700)
+    private Task<TResult> ShowAsync<TResult>(FrameworkElement content, TResult defaultResult, double maxWidth = 620, double maxHeight = 700, bool isMessage = false)
     {
-        var request = new ModalRequest(content, typeof(TResult), defaultResult, maxWidth, maxHeight);
+        var request = new ModalRequest(content, typeof(TResult), defaultResult, maxWidth, maxHeight, isMessage);
         _requests.Push(request);
         if (_currentRequest is null)
         {
@@ -70,10 +105,12 @@ public partial class AppModalHost : UserControl
 
     private void ShowNextOrHide()
     {
+        var version = ++_presentationVersion;
         if (_requests.Count == 0)
         {
             AnimateOut(() =>
             {
+                if (version != _presentationVersion || _currentRequest is not null) return;
                 ModalContentPresenter.Content = null;
                 Visibility = Visibility.Collapsed;
                 Keyboard.ClearFocus();
@@ -83,11 +120,32 @@ public partial class AppModalHost : UserControl
 
         _currentRequest = _requests.Pop();
         ModalCard.MaxWidth = _currentRequest.MaxWidth;
-        ModalCard.Height = _currentRequest.MaxHeight;
+        ModalCard.Height = double.NaN;
+        UpdateCardBounds();
         ModalContentPresenter.Content = _currentRequest.Content;
         Visibility = Visibility.Visible;
         AnimateIn();
         Focus();
+        var content = _currentRequest.Content;
+        var defaultButton = (content as Grid)?.Children.OfType<StackPanel>()
+            .SelectMany(panel => panel.Children.OfType<Button>()).FirstOrDefault(button => button.IsDefault);
+        if (defaultButton is not null)
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, new Action(() =>
+            {
+                if (ReferenceEquals(ModalContentPresenter.Content, content)) defaultButton.Focus();
+            }));
+    }
+
+    private void UpdateCardBounds()
+    {
+        if (_currentRequest is null) return;
+        ModalCard.MinHeight = 0;
+        ModalCard.MaxHeight = ActualHeight > 0 ? Math.Max(0, Math.Min(_currentRequest.MaxHeight, ActualHeight - 48)) : _currentRequest.MaxHeight;
+        ModalCard.MaxWidth = ActualWidth > 0 ? Math.Max(0, Math.Min(_currentRequest.MaxWidth, ActualWidth - 48)) : _currentRequest.MaxWidth;
+        ModalCard.Width = _currentRequest.IsMessage ? ModalCard.MaxWidth : double.NaN;
+        if (_currentRequest.IsMessage)
+            // 原始关闭弹窗约386×180；扩大外框，不缩放标题和底部锚点。
+            ModalCard.MinHeight = Math.Min(ModalCard.MaxHeight, ModalCard.Width * 180 / 386);
     }
 
     private void AnimateIn()
@@ -176,103 +234,71 @@ public partial class AppModalHost : UserControl
     }
 
     private FrameworkElement CreateMessageView(string title, string content, ModalMessageType messageType, ModalButtonFlags buttonFlags,
-        string? positiveText = null, bool defaultToNegative = false)
+        string? positiveText = null, bool defaultToNegative = false, IEnumerable<Inline>? contentInlines = null)
     {
-        var root = new Grid { MinWidth = 360, MaxWidth = 480 };
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(14) });             // top edge
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });                // title
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // spacer
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });                // content + icon
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // spacer
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });                // buttons
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(16) });             // bottom edge
+        var root = new Grid { MaxWidth = 480 };
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        // Title background bar ──────────────────────────
-        var titleBg = new Border
-        {
-            Background = (Brush)FindResource("VP.SurfaceBrush"),
-            CornerRadius = new CornerRadius(22, 22, 0, 0),
-            Margin = new Thickness(0, 0, 0, 0)
-        };
-        Grid.SetRow(titleBg, 0);
-        Grid.SetRowSpan(titleBg, 2); // top edge + title
-        root.Children.Add(titleBg);
-
-        // Title ──────────────────────────────────────────
         var titleBlock = new TextBlock
         {
-            Text = title,
-            FontSize = 18,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)FindResource("VP.TextPrimaryBrush"),
-            Margin = new Thickness(28, 0, 28, 10),
-            TextWrapping = TextWrapping.Wrap,
-            TextAlignment = TextAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center
+            Text = title, FontSize = 20, FontWeight = FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center,
+            LineHeight = 24, LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
+            Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center
         };
-        Grid.SetRow(titleBlock, 1);
-        root.Children.Add(titleBlock);
-
-        // Content row (icon + text) ─────────────────────
-        var contentPanel = new StackPanel
+        var titleBg = new Border
         {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(40, 0, 40, 0)
+            CornerRadius = new CornerRadius(22, 22, 0, 0),
+            Padding = new Thickness(28, 12, 28, 12),
+            Child = titleBlock
         };
-        Grid.SetRow(contentPanel, 3);
-        root.Children.Add(contentPanel);
-
-        var iconText = GetIconText(messageType);
-        if (!string.IsNullOrEmpty(iconText))
+        // 固定素雅底色配纯白标题；颜色与几何尺寸分开控制。
+        titleBg.SetResourceReference(Border.BackgroundProperty, messageType switch
         {
-            var iconBrush = GetIconBrush(messageType);
-            var iconRing = new Grid
-            {
-                Width = 34,
-                Height = 34,
-                Margin = new Thickness(0, 0, 12, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            iconRing.Children.Add(new Ellipse
-            {
-                Stroke = iconBrush,
-                StrokeThickness = 1.6,
-                Fill = Brushes.Transparent
-            });
-            iconRing.Children.Add(new TextBlock
-            {
-                Text = iconText,
-                FontSize = 15.5,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = iconBrush,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                TextAlignment = TextAlignment.Center
-            });
-            contentPanel.Children.Add(iconRing);
-        }
-
-        contentPanel.Children.Add(new TextBlock
-        {
-            Text = content,
-            MaxWidth = 330,
-            FontSize = 13,
-            Foreground = (Brush)FindResource("VP.TextSecondaryBrush"),
-            TextWrapping = TextWrapping.Wrap,
-            LineHeight = 21,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextAlignment = TextAlignment.Center
+            ModalMessageType.Error => "VP.ModalDangerHeaderBrush",
+            ModalMessageType.Warning => "VP.ModalWarningHeaderBrush",
+            _ => "VP.ModalNormalHeaderBrush"
         });
+        root.Children.Add(titleBg);
+
+        var bodyText = new TextBlock
+        {
+            Text = content, FontSize = 14,
+            Foreground = (Brush)FindResource("VP.TextSecondaryBrush"),
+            TextWrapping = TextWrapping.Wrap, LineHeight = 24,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Left,
+            Margin = new Thickness(28, 16, 28, 16)
+        };
+        if (contentInlines is not null)
+        {
+            bodyText.Inlines.Clear();
+            bodyText.Inlines.AddRange(contentInlines);
+        }
+        var bodyPanel = new Grid();
+        bodyPanel.Children.Add(bodyText);
+        var scroll = new ScrollViewer
+        {
+            CanContentScroll = false,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = bodyPanel
+        };
+        // 短文案在视口内居中并保持上下等距；长文案按自身高度从顶部滚动。
+        bodyPanel.SetBinding(MinHeightProperty, new Binding(nameof(ScrollViewer.ViewportHeight)) { Source = scroll });
+        Grid.SetRow(scroll, 1);
+        root.Children.Add(scroll);
 
         // Button row ────────────────────────────────────
         var buttonPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(20, 0, 20, 16)
         };
-        Grid.SetRow(buttonPanel, 5);
+        Grid.SetRow(buttonPanel, 2);
         root.Children.Add(buttonPanel);
 
         var isFirstButton = true;
@@ -308,28 +334,6 @@ public partial class AppModalHost : UserControl
         }
 
         return new[] { (L.Text("OkButton"), ModalResult.Positive, true) };
-    }
-
-    private static string GetIconText(ModalMessageType messageType)
-    {
-        return messageType switch
-        {
-            ModalMessageType.Error => "✕",
-            ModalMessageType.Warning => "!",
-            ModalMessageType.Info => "i",
-            _ => string.Empty
-        };
-    }
-
-    private Brush GetIconBrush(ModalMessageType messageType)
-    {
-        return messageType switch
-        {
-            ModalMessageType.Error => (Brush)FindResource("VP.DangerTextBrush"),
-            ModalMessageType.Warning => (Brush)FindResource("VP.WarningTextBrush"),
-            ModalMessageType.Info => (Brush)FindResource("VP.AccentTextBrush"),
-            _ => (Brush)FindResource("VP.TextSecondaryBrush")
-        };
     }
 
     private static ModalMessageType ToModalMessageType(MessageBoxImage image)
@@ -370,15 +374,16 @@ public partial class AppModalHost : UserControl
     {
         private readonly Type _resultType;
         private readonly object? _defaultResult;
-        private readonly TaskCompletionSource<object?> _source = new();
+        private readonly TaskCompletionSource<object?> _source = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public ModalRequest(FrameworkElement content, Type resultType, object? defaultResult, double maxWidth, double maxHeight)
+        public ModalRequest(FrameworkElement content, Type resultType, object? defaultResult, double maxWidth, double maxHeight, bool isMessage)
         {
             Content = content;
             _resultType = resultType;
             _defaultResult = defaultResult;
             MaxWidth = maxWidth;
             MaxHeight = maxHeight;
+            IsMessage = isMessage;
         }
 
         public FrameworkElement Content { get; }
@@ -386,6 +391,8 @@ public partial class AppModalHost : UserControl
         public double MaxWidth { get; }
 
         public double MaxHeight { get; }
+
+        public bool IsMessage { get; }
 
         public Task<object?> Task => _source.Task;
 

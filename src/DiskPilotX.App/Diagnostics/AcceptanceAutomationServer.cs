@@ -131,6 +131,7 @@ internal sealed class AcceptanceAutomationServer : IDisposable
             "source_probe_state" => _window.AcceptanceSourceProbeState(),
             "csharp_skill_probe" => _window.AcceptanceCSharpSkill(request.Text),
             "csharp_skill_probe_state" => _window.AcceptanceCSharpSkillState(),
+            "file_context" => _window.AcceptanceFileContext(request.Path, request.Text),
             "treemap_pointer" => _window.AcceptanceTreemapPointer(request.X, request.Y, request.Text),
             "treemap_wheel" => _window.AcceptanceTreemapWheel(request.X, request.Y, request.Delta),
             "ask_user" => _window.AcceptanceAskUser(request.Text),

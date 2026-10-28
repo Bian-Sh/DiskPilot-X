@@ -26,6 +26,8 @@ public partial class TreemapView : UserControl
 
     public Action<object?>? CloseContentModal { get; set; }
 
+    public Func<FileEntry, Task>? DeleteEntryAsync { get; set; }
+
     public event Action<FileEntry>? AskAiRequested;
 
     /// <summary>用户请求把多选集合引用到 AI 对话框。参数为去重后的顶层条目。</summary>
@@ -88,6 +90,9 @@ public partial class TreemapView : UserControl
     {
         switch (e.PropertyName)
         {
+            case nameof(TreemapViewModel.DeletionRevision):
+                Treemap.InvalidateVisual();
+                break;
             case nameof(TreemapViewModel.CurrentRoot):
                 Treemap.SetViewRoot(_viewModel?.CurrentRoot, _viewModel?.ScanRoot);
                 break;
@@ -188,12 +193,25 @@ public partial class TreemapView : UserControl
     private void Treemap_NodeRightClicked(object? sender, TreemapNode node)
     {
         var entry = node.Entry;
-        var contextMenu = BuildContextMenu(entry);
+        var contextMenu = BuildNodeContextMenu(node);
         contextMenu.PlacementTarget = Treemap;
         contextMenu.IsOpen = true;
     }
 
-    private ContextMenu BuildContextMenu(FileEntry entry)
+    private ContextMenu BuildNodeContextMenu(TreemapNode node)
+    {
+        var menu = BuildContextMenu(node.Entry);
+        if (node.AggregatedCount > 0)
+        {
+            var deletion = menu.Items.OfType<MenuItem>().Single(item => Equals(item.Header, L.Text("DeleteEntryMenu")));
+            deletion.IsEnabled = false;
+            deletion.ToolTip = "聚合块不是独立文件或文件夹，请进入目录后选择具体项目。";
+            ToolTipService.SetShowOnDisabled(deletion, true);
+        }
+        return menu;
+    }
+
+    internal ContextMenu BuildContextMenu(FileEntry entry)
     {
         var contextMenu = new ContextMenu();
 
@@ -211,13 +229,23 @@ public partial class TreemapView : UserControl
         contextMenu.Items.Add(askAiItem);
         contextMenu.Items.Add(new Separator());
 
-        var openItem = new MenuItem { Header = entry.IsDirectory ? "打开文件夹" : "打开" };
-        openItem.Click += async (_, _) => await RunShellActionAsync(() => FileEntryShellService.Open(entry));
-        contextMenu.Items.Add(openItem);
+        if (!entry.IsDirectory)
+        {
+            var openItem = new MenuItem { Header = L.Text("OpenFileMenu"), IsEnabled = !entry.IsDeleted };
+            openItem.Click += async (_, _) => await RunShellActionAsync(() => FileEntryShellService.Open(entry));
+            contextMenu.Items.Add(openItem);
+        }
 
-        var openInExplorerItem = new MenuItem { Header = L.Text("OpenInExplorerMenu") };
+        var openInExplorerItem = new MenuItem { Header = L.Text(entry.IsDirectory ? "ShowFolderInExplorerMenu" : "ShowFileInExplorerMenu"), IsEnabled = !entry.IsDeleted };
         openInExplorerItem.Click += async (_, _) => await RunShellActionAsync(() => FileEntryShellService.ShowInExplorer(entry));
         contextMenu.Items.Add(openInExplorerItem);
+
+        var deleteItem = new MenuItem { Header = L.Text("DeleteEntryMenu"), IsEnabled = !entry.IsDeleted && DeleteEntryAsync is not null };
+        deleteItem.Click += async (_, _) =>
+        {
+            if (!entry.IsDeleted && DeleteEntryAsync is not null) await DeleteEntryAsync(entry);
+        };
+        contextMenu.Items.Add(deleteItem);
 
         var copyPathItem = new MenuItem { Header = L.Text("CopyPathMenu") };
         copyPathItem.Click += async (_, _) =>
@@ -234,7 +262,7 @@ public partial class TreemapView : UserControl
         contextMenu.Items.Add(copyPathItem);
         contextMenu.Items.Add(new Separator());
 
-        var propertiesItem = new MenuItem { Header = L.Text("PropertiesMenu") };
+        var propertiesItem = new MenuItem { Header = L.Text("PropertiesMenu"), IsEnabled = !entry.IsDeleted };
         propertiesItem.Click += async (_, _) => await RunShellActionAsync(() => FileEntryShellService.ShowProperties(entry));
         contextMenu.Items.Add(propertiesItem);
 

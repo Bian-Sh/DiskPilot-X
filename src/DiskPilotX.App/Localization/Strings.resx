@@ -1137,4 +1137,8 @@ This cannot be undone.</value></data>
   <data name="SettingsProxyUsernameLabel" xml:space="preserve"><value>Proxy username (optional)</value></data>
   <data name="ShowApiKey" xml:space="preserve"><value>Show API key</value></data>
   <data name="HideApiKey" xml:space="preserve"><value>Hide API key</value></data>
+  <data name="OpenFileMenu" xml:space="preserve"><value>Open</value></data>
+  <data name="ShowFileInExplorerMenu" xml:space="preserve"><value>Show in Explorer</value></data>
+  <data name="ShowFolderInExplorerMenu" xml:space="preserve"><value>Show in Explorer</value></data>
+  <data name="DeleteEntryMenu" xml:space="preserve"><value>Delete</value></data>
 </root>

@@ -60,7 +60,7 @@ public partial class MainWindow
                 if(_isChatCollapsed)ToggleChatPanel();
                 confirmed=await _chatViewModel.ConfirmAsync("确认清理具体清单",description,impact,ct);
             }
-            else confirmed=await ShowAppModalAsync("确认清理具体清单",description+Environment.NewLine+impact,ModalMessageType.Warning,ModalButtonFlags.Positive|ModalButtonFlags.Negative)==ModalResult.Positive;
+            else confirmed=await ModalHost.ShowCleanupConfirmationAsync("确认清理", plan.Items, plan.Mode, "确认清理")==ModalResult.Positive;
             ct.ThrowIfCancellationRequested();
             if(!confirmed)return new JsonObject{["ok"]=false,["cancelled"]=true,["message"]="已取消，未删除任何项目。"};
             var approvedItems=_recommendationsViewModel.Recommendations.ToList();
@@ -111,7 +111,7 @@ public partial class MainWindow
         {
             ct.ThrowIfCancellationRequested();
             var entry=query.FindByPath(session,item.TargetPath);
-            if(entry is null||entry.IsReparsePoint||entry.IsAccessDenied||RecommendationEngine.IsDeletionProtected(item.TargetPath)
+            if(entry is null||entry.IsDeleted||entry.IsReparsePoint||entry.IsAccessDenied||RecommendationEngine.IsDeletionProtected(item.TargetPath)
                 ||policy.IsRecommendationExcluded(item.TargetPath)||WouldAffectExcludedPath(item.TargetPath,settings.CleanupRecommendationWhitelist)||WouldAffectExcludedPath(item.TargetPath,settings.ScanWhitelist)
                 ||fromAssistant&&WouldAffectExcludedPath(item.TargetPath,settings.AiConversationWhitelist))throw new InvalidOperationException("目标不允许清理。");
             item.Entry=entry;
@@ -134,11 +134,11 @@ public partial class MainWindow
         if(isWorkspaceSession)
         {
             _treemapViewModel?.ApplyCleanupResults(results,session);
-            if(TreeViewControl.DataContext is TreeViewModel tree) { if(session.RootEntry is {} root)tree.SetRoot(root,session); else tree.RootItems.Clear(); }
+            // 两种视图共享条目通知，不重建树，保留展开状态和删除标记。
             main.UpdateStatusBar(session);
         }
         var completed=results.Where(r=>r.Result is CleanupResult.Success or CleanupResult.AlreadyRemoved).Select(r=>r.Recommendation.Id).ToHashSet();
-        _recommendationsViewModel!.SetExternalRecommendations(_recommendationsViewModel.Recommendations.Where(r=>!completed.Contains(r.Id)));
+        _recommendationsViewModel!.SetExternalRecommendations(_recommendationsViewModel.Recommendations.Where(r=>!completed.Contains(r.Id) && new FileTreeQueryService().FindByPath(session,r.TargetPath)?.IsDeleted != true));
         main.ScanProgressText=$"本次已释放 {FileSizeConverter.FormatSize(results.Sum(r=>r.ActualSizeFreed))}";
     }
 }

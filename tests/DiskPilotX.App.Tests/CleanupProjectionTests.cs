@@ -16,7 +16,7 @@ public class CleanupProjectionTests
         var session=new ScanSession{RootEntry=root,TotalFiles=1,TotalFolders=3,TotalSize=42};
         var vm=new TreemapViewModel(new Layout());vm.SetRoot(root,session);
         vm.ApplyCleanupResults([new CleanupAction{Result=CleanupResult.Success,Recommendation=new(){TargetPath=cache.Path,Entry=new(){Path=cache.Path,IsDirectory=true},Size=42}}],session);
-        root.Children.Should().BeEmpty();session.TotalFiles.Should().Be(0);session.TotalFolders.Should().Be(1);session.TotalSize.Should().Be(0);
+        root.Children.Should().Contain(cache);cache.IsDeleted.Should().BeTrue();file.IsDeleted.Should().BeTrue();session.TotalFiles.Should().Be(0);session.TotalFolders.Should().Be(1);session.TotalSize.Should().Be(0);
     }
     [Fact]
     public void FileCleanupDoesNotRequireDirectoryOnlyNavigationLookup()
@@ -24,7 +24,7 @@ public class CleanupProjectionTests
         var root=new FileEntry{Path=@"D:\scan",IsDirectory=true};var file=new FileEntry{Path=@"D:\scan\a.tmp",Size=7,Parent=root};root.Children.Add(file);file.RecalculateSize();
         var session=new ScanSession{RootEntry=root,TotalFiles=1,TotalFolders=1,TotalSize=7};var vm=new TreemapViewModel(new Layout());vm.SetRoot(root,session);
         vm.ApplyCleanupResults([new(){Result=CleanupResult.AlreadyRemoved,Recommendation=new(){TargetPath=file.Path}}],session);
-        root.Children.Should().BeEmpty();session.TotalSize.Should().Be(0);
+        root.Children.Should().Contain(file);file.IsDeleted.Should().BeTrue();session.TotalSize.Should().Be(0);
     }
 
     [Theory]
@@ -42,11 +42,14 @@ public class CleanupProjectionTests
         vm.ApplyCleanupResults([action, action], session);
         vm.ApplyCleanupResults([action], session);
 
-        session.RootEntry!.Children.Should().ContainSingle().Which.Name.Should().Be("keep.dat");
+        session.RootEntry!.Children.Should().HaveCount(2);
+        cache.IsDeleted.Should().BeTrue();
+        nested.IsDeleted.Should().BeTrue();
+        file.IsDeleted.Should().BeTrue();
         session.TotalFiles.Should().Be(1);
         session.TotalFolders.Should().Be(1);
         session.TotalSize.Should().Be(5);
-        session.RootEntry.Size.Should().Be(5);
+        session.RootEntry.Size.Should().Be(47);
     }
 
     [Theory]
@@ -79,54 +82,34 @@ public class CleanupProjectionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void DeletingCurrentDirectoryOrAncestorReturnsToSurvivingParent(bool deleteAncestor)
+    public void 删除当前目录或祖先保留当前快照与导航(bool deleteAncestor)
     {
         var (vm, session, cache, nested, file) = CreateTree();
         vm.DrillDown(cache);
         vm.DrillDown(nested);
-        vm.SelectedNode = new() { Entry = file };
-        vm.HoveredNode = new() { Entry = nested };
         var target = deleteAncestor ? cache : nested;
-        var parent = target.Parent;
-
-        vm.ApplyCleanupResults([new()
-        {
-            Result = CleanupResult.Success,
-            Recommendation = new() { TargetPath = target.Path }
-        }], session);
-
-        vm.CurrentRoot.Should().BeSameAs(parent);
-        vm.SelectedNode.Should().BeNull();
-        vm.HoveredNode.Should().BeNull();
-        vm.BreadcrumbPath.Should().Equal(deleteAncestor ? new[] { "scan" } : new[] { "scan", "cache" });
-        vm.CanGoForward.Should().BeFalse();
-        vm.CanGoBack.Should().Be(!deleteAncestor);
+        vm.ApplyCleanupResults([new() { Result = CleanupResult.Success, Recommendation = new() { TargetPath = target.Path } }], session);
+        vm.CurrentRoot.Should().BeSameAs(nested);
+        target.IsDeleted.Should().BeTrue();
+        file.IsDeleted.Should().BeTrue();
+        vm.BreadcrumbPath.Should().Equal("scan", "cache", "nested");
         vm.NavigateBack();
-        vm.CurrentRoot.Should().BeSameAs(session.RootEntry);
-        vm.NavigateForward();
-        vm.CurrentRoot.Should().BeSameAs(parent);
+        vm.CurrentRoot.Should().BeSameAs(cache);
     }
 
     [Fact]
-    public void DeletedSubtreeIsRemovedFromForwardHistory()
+    public void 删除标记不改变前进历史()
     {
         var (vm, session, cache, nested, file) = CreateTree();
         vm.DrillDown(cache);
         vm.DrillDown(nested);
         vm.NavigateBack();
-
-        vm.ApplyCleanupResults([new()
-        {
-            Result = CleanupResult.Success,
-            Recommendation = new() { TargetPath = cache.Path }
-        }], session);
-
-        vm.CurrentRoot.Should().BeSameAs(session.RootEntry);
-        vm.CanGoForward.Should().BeFalse();
-        vm.CanGoBack.Should().BeFalse();
+        vm.ApplyCleanupResults([new() { Result = CleanupResult.Success, Recommendation = new() { TargetPath = cache.Path } }], session);
+        vm.CurrentRoot.Should().BeSameAs(cache);
+        vm.CanGoForward.Should().BeTrue();
         vm.NavigateForward();
-        vm.NavigateBack();
-        vm.CurrentRoot.Should().BeSameAs(session.RootEntry);
+        vm.CurrentRoot.Should().BeSameAs(nested);
+        nested.IsDeleted.Should().BeTrue();
     }
 
     [Theory]
@@ -146,7 +129,7 @@ public class CleanupProjectionTests
         session.TotalFiles.Should().Be(1);
         session.TotalFolders.Should().Be(1);
         session.TotalSize.Should().Be(5);
-        session.RootEntry!.Size.Should().Be(5);
+        session.RootEntry!.Size.Should().Be(47);
     }
 
     private static (TreemapViewModel Vm, ScanSession Session, FileEntry Cache, FileEntry Nested, FileEntry File) CreateTree()

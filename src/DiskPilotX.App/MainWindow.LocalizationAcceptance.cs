@@ -27,6 +27,25 @@ public partial class MainWindow
     internal object AcceptanceLocalizationFixture(string? kind)
     {
         if (!AcceptanceAutomationServer.IsEnabled() || _chatViewModel is null) throw new InvalidOperationException("验收入口未启用。");
+        if (kind == "modal-info")
+        {
+            _ = ModalHost.ShowAsync("常规提示", "这是一条常规提示，正文保持左对齐。", Controls.ModalMessageType.Info, Controls.ModalButtonFlags.Positive);
+            return new { ok = true, kind };
+        }
+        if (kind is "cleanup-single" or "cleanup-multiple" or "cleanup-permanent" or "cleanup-long")
+        {
+            // 只预览本次验收固定文案，不创建清理计划或执行文件操作。
+            var count = kind == "cleanup-multiple" ? 10 : 1;
+            var items = Enumerable.Range(0, count).Select(index => new DiskPilotX.Core.Models.CleanupRecommendation
+            {
+                TargetPath = @"D:\验收夹具\" + (kind == "cleanup-long" ? new string('长', 900) : "Cache"),
+                Size = 282800000
+            }).ToList();
+            _ = ModalHost.ShowCleanupConfirmationAsync("确认清理", items,
+                kind == "cleanup-permanent" ? DiskPilotX.Core.Enums.DeletionMode.PermanentDelete : DiskPilotX.Core.Enums.DeletionMode.MoveToRecycleBin,
+                "确认清理");
+            return new { ok = true, kind };
+        }
         if (kind == "chat")
         {
             AcceptanceSetCopilotWidth(620);

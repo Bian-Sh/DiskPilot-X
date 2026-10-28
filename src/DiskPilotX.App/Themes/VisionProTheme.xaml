@@ -42,6 +42,9 @@
     <Color x:Key="VP.SuccessText">#30D158</Color>
     <Color x:Key="VP.WarningText">#FFD60A</Color>
     <Color x:Key="VP.DangerText">#FF453A</Color>
+    <Color x:Key="VP.ModalWarningHeader">#86714F</Color>
+    <Color x:Key="VP.ModalDangerHeader">#BB2124</Color>
+    <Color x:Key="VP.ModalNormalHeader">#62686E</Color>
 
     <!-- ── Brushes ─────────────────────────────────────────────────── -->
     <SolidColorBrush x:Key="VP.BackgroundBrush" Color="{DynamicResource VP.BackgroundTint}" />
@@ -70,6 +73,9 @@
     <SolidColorBrush x:Key="VP.SuccessTextBrush" Color="{DynamicResource VP.SuccessText}" />
     <SolidColorBrush x:Key="VP.WarningTextBrush" Color="{DynamicResource VP.WarningText}" />
     <SolidColorBrush x:Key="VP.DangerTextBrush" Color="{DynamicResource VP.DangerText}" />
+    <SolidColorBrush x:Key="VP.ModalWarningHeaderBrush" Color="{DynamicResource VP.ModalWarningHeader}" />
+    <SolidColorBrush x:Key="VP.ModalDangerHeaderBrush" Color="{DynamicResource VP.ModalDangerHeader}" />
+    <SolidColorBrush x:Key="VP.ModalNormalHeaderBrush" Color="{DynamicResource VP.ModalNormalHeader}" />
 
     <!-- ── Typography ──────────────────────────────────────────────── -->
     <FontFamily x:Key="VP.FontFamily">Segoe UI Variable, Segoe UI, Microsoft YaHei UI</FontFamily>
