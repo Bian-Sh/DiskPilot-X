@@ -1041,4 +1041,5 @@
     <value>Draft rule request</value>
   </data>
   <data name="CopilotTool_report_task_topics" xml:space="preserve"><value>Report public task topics</value></data>
+  <data name="TreemapNoExtension" xml:space="preserve"><value>No extension</value></data>
 </root>

@@ -35,7 +35,9 @@
     <Description>Disk space management Copilot</Description>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- 清单仅在应用项目内选择，避免全局 ApplicationManifest 参数污染 Core 等类库。 -->
+    <ApplicationManifest Condition="'$(DiskPilotRequestElevation)' != 'true'">app.manifest</ApplicationManifest>
+    <ApplicationManifest Condition="'$(DiskPilotRequestElevation)' == 'true'">app.admin.manifest</ApplicationManifest>
     <Version>1.0.0</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>

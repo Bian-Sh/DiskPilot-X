@@ -15,6 +15,8 @@ public partial class TreemapViewModel : ObservableObject
     private readonly Stack<FileEntry> _navigationStack = new();
     private readonly Stack<FileEntry> _forwardStack = new();
     private FileEntry? _scanRoot;
+    private TreemapColorContext? _colorContext;
+    internal IReadOnlyList<TreemapTypeColor> TypeColors => _colorContext?.FileTypes ?? Array.Empty<TreemapTypeColor>();
 
     public FileEntry? ScanRoot => _scanRoot;
     private ScanSession? _session;
@@ -73,6 +75,7 @@ public partial class TreemapViewModel : ObservableObject
     public void SetRoot(FileEntry root, ScanSession? session = null)
     {
         _scanRoot = root;
+        _colorContext = TreemapColorContext.Create(root);
         _session = session;
         _navigationStack.Clear();
         _forwardStack.Clear();
@@ -412,6 +415,8 @@ public partial class TreemapViewModel : ObservableObject
         if (removed.Count == 0)
             return;
 
+        _colorContext = _scanRoot is null ? null : _colorContext?.Refresh(_scanRoot);
+
         if (SelectedNode is not null && removed.Contains(SelectedNode.Entry))
             SelectedNode = null;
         if (HoveredNode is not null && removed.Contains(HoveredNode.Entry))
@@ -456,7 +461,9 @@ public partial class TreemapViewModel : ObservableObject
             return;
         }
 
-        Nodes = _layoutEngine.ComputeLayout(CurrentRoot, ViewWidth, ViewHeight, maxDepth: 64, zoom: Zoom);
+        var nodes = _layoutEngine.ComputeLayout(CurrentRoot, ViewWidth, ViewHeight, maxDepth: 64, zoom: Zoom);
+        _colorContext?.Apply(nodes);
+        Nodes = nodes;
         // 导航/钻取后清空多选集合。
         MultiSelection = Array.Empty<TreemapNode>();
     }

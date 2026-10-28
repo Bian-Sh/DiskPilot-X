@@ -47,6 +47,7 @@ public partial class MainWindow
                 break;
             case "leave": control.HandleHover(new Point(-1, -1)); break;
             case "click": control.HandleClick(position, 1, false); break;
+            case "ctrl_click": control.HandleClick(position, 1, true); break;
             case "double_click": control.HandleClick(position, 2, false); break;
             case "nodes": break;
             default: throw new InvalidOperationException("不支持的树状图验收动作。");
@@ -56,14 +57,17 @@ public partial class MainWindow
             ProcessId = Environment.ProcessId,
             CurrentRootPath = _treemapViewModel?.CurrentRoot?.Path,
             SelectedPath = _treemapViewModel?.SelectedNode?.Entry.Path,
+            MultiSelectedPaths = control.MultiSelection.Select(node => node.Entry.Path).ToArray(),
             HoveredPath = _treemapViewModel?.HoveredNode?.Entry.Path,
             Width = control.ActualWidth,
             Height = control.ActualHeight,
             Viewport = new { control.Viewport.Zoom, PanX = control.Viewport.X, PanY = control.Viewport.Y },
+            TypeColors = _treemapViewModel?.TypeColors,
+            RenderStats = new { control.RenderedNodeCount, control.TitleClipNodeCount, control.RenderedLabelCount },
             Nodes = action == "nodes" ? control.Nodes?.Select(n => new
             {
                 n.Entry.Name, n.Entry.Path, n.Entry.IsDirectory,
-                n.X, n.Y, n.Width, n.Height, n.Depth, n.Label, n.ColorHex, n.ContentColorHex, n.AggregatedCount, n.AggregatedSize,
+                n.X, n.Y, n.Width, n.Height, n.Depth, n.Label, n.SizeLabel, n.ColorHex, n.ContentColorHex, n.AggregatedCount, n.AggregatedSize,
                 ScreenX = n.X * control.Viewport.Zoom + control.Viewport.X,
                 ScreenY = n.Y * control.Viewport.Zoom + control.Viewport.Y,
                 ScreenWidth = n.Width * control.Viewport.Zoom, ScreenHeight = n.Height * control.Viewport.Zoom

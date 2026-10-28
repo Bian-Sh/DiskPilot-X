@@ -548,6 +548,73 @@ public class TreemapControlTests
         Assert.True(vm.Zoom > 1f || !ReferenceEquals(vm.CurrentRoot, root));
     });
 
+    [Fact]
+    public void ViewportCulling_FiltersBeforeDrawing_AndRestoresTilesAfterPan() => InSta(() =>
+    {
+        var left = Node(false, 10, 20, 100, 100);
+        var crossing = Node(false, 390, 20, 40, 100);
+        var right = Node(false, 500, 20, 100, 100);
+        var hidden = Node(false, 10, 20, 100, 100);
+        hidden.IsVisible = false;
+        var control = Sized([left, crossing, right, hidden]);
+        var method = typeof(TreemapControl).GetMethod("GetVisibleNodes", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        TreemapNode[] Visible() => ((IEnumerable<TreemapNode>)method.Invoke(control, null)!).ToArray();
+
+        Assert.Equal(new[] { left, crossing }, Visible());
+        // 视口从[0,400]移动到逻辑区间[400,600]；部分相交节点仍必须保留。
+        typeof(TreemapControl).GetField("_zoom", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(control, 2f);
+        typeof(TreemapControl).GetField("_panX", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(control, -800f);
+        Assert.Equal(new[] { crossing, right }, Visible());
+        using var image = Render(control);
+        Assert.NotEqual(SKColor.Parse("#1B2430"), image.GetPixel(250, 100));
+        Assert.Equal(4, control.Nodes!.Count);
+        control.ResetView();
+        Assert.Equal(new[] { left, crossing }, Visible());
+    });
+
+    [Fact]
+    public void ViewportCulling_AlsoLimitsHoveredTitleClipToVisibleDirectories() => InSta(() =>
+    {
+        var directory = Node(true, 0, 0, 400, 300);
+        directory.Label = "可见目录";
+        var offscreen = Node(true, 500, 0, 400, 300);
+        offscreen.Label = "视口外目录";
+        var file = Node(false, 1, 18, 398, 281);
+        file.Depth = 1;
+        var control = Sized([directory, offscreen, file]);
+        Call(control, "HandleHover", new Point(200, 100));
+        using var image = Render(control);
+        var count = typeof(TreemapControl).GetProperty("TitleClipNodeCount", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(count);
+        Assert.Equal(1, count.GetValue(control));
+    });
+
+    [Fact]
+    public void TextLod_RendererDoesNotFloodSmallCellsWithLabels() => InSta(() =>
+    {
+        var small = Node(false, 10, 20, 90, 80);
+        var large = Node(false, 110, 20, 280, 260);
+        var control = Sized([small, large]);
+        using var image = Render(control);
+        var count = typeof(TreemapControl).GetProperty("RenderedLabelCount", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(count);
+        Assert.Equal(1, count.GetValue(control));
+    });
+
+    [Fact]
+    public void DirectoryTitle_HasNoPurposeColorOrAccentLine() => InSta(() =>
+    {
+        var directory = Node(true, 0, 0, 400, 300);
+        directory.ColorHex = "#303030"; directory.ContentColorHex = "#808080";
+        var control = Sized([directory]);
+        using var image = Render(control);
+        Assert.Equal(SKColor.Parse("#303030"), image.GetPixel(300, 1));
+        Assert.Equal(SKColor.Parse("#303030"), image.GetPixel(300, 3));
+        Assert.Equal(SKColor.Parse("#808080"), image.GetPixel(300, 100));
+        Assert.Null(typeof(TreemapNode).GetProperty("AccentColorHex"));
+    });
+
     private static TreemapControl Sized(List<TreemapNode> nodes)
     {
         var control = new TreemapControl { Nodes = nodes };

@@ -1041,4 +1041,5 @@
     <value>填寫規則建立請求</value>
   </data>
   <data name="CopilotTool_report_task_topics" xml:space="preserve"><value>記錄公開任務主題</value></data>
+  <data name="TreemapNoExtension" xml:space="preserve"><value>無副檔名</value></data>
 </root>

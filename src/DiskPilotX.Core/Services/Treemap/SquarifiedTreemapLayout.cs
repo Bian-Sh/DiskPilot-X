@@ -4,7 +4,6 @@ namespace DiskPilotX.Core.Services.Treemap;
 
 public class SquarifiedTreemapLayout : ITreemapLayoutEngine
 {
-    private const float HeaderBaseHeight = 18f;
     private const float MinNodeDimension = 1.25f;
 
     // 逻辑坐标 = 屏幕像素 / zoom：cell 规格（标题栏、边框、最小尺寸）按屏幕像素恒定，
@@ -18,11 +17,10 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
     private const float MinContentArea = 800f;  // ~28×28 px equivalent
 
     // Maximum children to render per directory.
-    private const int MaxChildrenPerDir = 128;
+    internal const int MaxChildrenPerDir = 128;
 
-    // Keep whole-drive scans responsive even when several large directories
-    // each have many visible descendants.
-    private const int MaxVisibleNodes = 5000;
+    // 不按全图节点总数截断：深度优先遍历耗尽预算会丢失后续同级区域。
+    // 布局规模由屏幕像素 LOD、目录长尾聚合与深度上限约束；视口外节点由绘制层剔除。
 
     // LOD 生长：zoom 越大，展开子节点所需的面积阈值越小（按 zoom² 缩放），
     // 于是更多目录跨过阈值、向下展开更多层级 —— 等价于地图加载更细瓦片。
@@ -34,44 +32,8 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
     // 目录（含标题栏区域）使用中性深灰，不做彩色编码；仅文件 cell 按类型上色。
     private const string DirectoryColor = "#303030";
 
-    // 参考 Disktree：统一低饱和与接近的明度，按内容类别区分柔和色相。
-    private static readonly string[] FilePalette =
-    [
-        "#B8C3D0", // 源码：蓝灰
-        "#B5CCBF", // 工具与运行库：灰绿
-        "#C7BCD6", // 媒体：淡紫
-        "#D2C9AA", // 缓存：沙色
-        "#B6CDCB", // 归档：灰青
-        "#C4C7CC", // 文档：中性灰蓝
-        "#BDC3C2", // 其它：低彩度灰
-        "#D0BFAF", // 构建产物：暖灰
-    ];
-
-    private static string GetFileColor(FileEntry entry)
-    {
-        string extension = (entry.Extension ?? System.IO.Path.GetExtension(entry.Name)).ToLowerInvariant();
-        return extension switch
-        {
-            ".js" or ".ts" or ".cs" or ".py" or ".css" or ".html" or ".rs" or ".cpp" or ".h" or ".xaml" or ".json" => FilePalette[0],
-            ".dll" or ".node" or ".lib" or ".exe" or ".sys" or ".pdb" or ".ilk" => FilePalette[1],
-            ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif" or ".mp4" or ".mp3" or ".wav" or ".mkv" or ".svg" => FilePalette[2],
-            ".nvph" or ".cache" or ".tmp" or ".log" or ".bak" => FilePalette[3],
-            ".zip" or ".7z" or ".rar" or ".tar" or ".gz" => FilePalette[4],
-            ".pdf" or ".txt" or ".md" or ".docx" or ".xlsx" or ".csv" => FilePalette[5],
-            "" or ".vhdx" or ".bin" or ".dat" => FilePalette[6],
-            ".asar" or ".vpk" or ".msi" or ".pak" or ".pack" or ".obj" => FilePalette[7],
-            _ => FilePalette[GetExtensionColorIndex(extension)],
-        };
-    }
-
-    private static int GetExtensionColorIndex(string extension)
-    {
-        // 使用固定散列，未知扩展名在不同进程、目录和扫描中保持同色。
-        uint hash = 2166136261;
-        foreach (char character in extension)
-            hash = unchecked((hash ^ character) * 16777619);
-        return (int)(hash % (uint)FilePalette.Length);
-    }
+    // 布局引擎的独立调用使用稳定回退色；App随后用整次扫描的缓存映射赋予完整语义。
+    private static string GetFileColor(FileEntry entry) => TreemapColorContext.GetFallbackFileColor(entry);
 
     private sealed record LayoutItem(FileEntry Entry, long Size, int AggregatedCount = 0);
 
@@ -88,7 +50,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
             if (largest is null) break;
             current = largest;
         }
-        return FilePalette[GetExtensionColorIndex(directory.Path)];
+        return "#858C96";
     }
 
     private struct Rect
@@ -126,10 +88,10 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         FileEntry dir, Rect rect, int depth, int maxDepth, float zoom,
         List<TreemapNode> result)
     {
-        float headerHeight = GetHeaderHeight(rect.Height, zoom);
+        float headerHeight = TreemapLabelPolicy.DirectoryHeaderHeight(rect.Width, rect.Height, depth, zoom);
 
-        string? label = rect.Width >= Spec(20f, zoom) && headerHeight >= Spec(14f, zoom)
-            ? $"{dir.Name} ({FormatSize(dir.Size)})"
+        string? label = headerHeight > 0
+            ? dir.Name
             : null;
 
         string color = DirectoryColor;
@@ -145,18 +107,19 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
             ContentColorHex = GetDirectoryContentColor(dir),
             Depth = depth,
             IsVisible = rect.Width >= Spec(MinNodeDimension, zoom) && rect.Height >= Spec(MinNodeDimension, zoom),
-            Label = label
+            Label = label,
+            SizeLabel = FormatSize(dir.Size)
         };
         result.Add(node);
 
-        if (depth >= maxDepth || result.Count >= MaxVisibleNodes)
+        if (depth >= maxDepth)
             return;
 
         float borderPad = GetBorderPadding(rect.Width, rect.Height, zoom);
         float contentX = rect.X + borderPad;
-        float contentY = rect.Y + headerHeight;
+        float contentY = rect.Y + Math.Max(headerHeight, borderPad);
         float contentW = rect.Width - borderPad * 2;
-        float contentH = rect.Height - headerHeight - borderPad;
+        float contentH = rect.Height - Math.Max(headerHeight, borderPad) - borderPad;
 
         // LOD 面积阈值随 zoom 缩放：放大后更多目录跨过阈值、展开子节点。
         float lodArea = LodContentArea(zoom);
@@ -188,7 +151,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         List<LayoutItem> items, Rect rect, int depth, int maxDepth, float zoom,
         List<TreemapNode> result)
     {
-        if (depth > maxDepth || items.Count == 0 || rect.Area <= 0 || result.Count >= MaxVisibleNodes)
+        if (depth > maxDepth || items.Count == 0 || rect.Area <= 0)
             return;
 
         if (rect.Width < Spec(MinNodeDimension, zoom) || rect.Height < Spec(MinNodeDimension, zoom))
@@ -216,7 +179,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         var remaining = new Rect(rect.X, rect.Y, rect.Width, rect.Height);
         int start = 0;
 
-        while (start < items.Count && result.Count < MaxVisibleNodes)
+        while (start < items.Count)
         {
             float shorterSide = remaining.ShorterSide;
             if (shorterSide <= 0)
@@ -286,9 +249,6 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
                 h = stripThickness;
             }
 
-            if (result.Count >= MaxVisibleNodes)
-                break;
-
             EmitNode(items[i], new Rect(x, y, w, h), depth, maxDepth, zoom, result);
             offset += itemLength;
         }
@@ -303,7 +263,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         LayoutItem item, Rect rect, int depth, int maxDepth, float zoom,
         List<TreemapNode> result)
     {
-        if (result.Count >= MaxVisibleNodes || rect.Width < Spec(MinNodeDimension, zoom) || rect.Height < Spec(MinNodeDimension, zoom))
+        if (rect.Width < Spec(MinNodeDimension, zoom) || rect.Height < Spec(MinNodeDimension, zoom))
             return;
 
         var entry = item.Entry;
@@ -327,8 +287,8 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
 
             // Always provide a label if the rectangle has any visible area.
             // The renderer handles truncation and fitting.
-            string? label = rect.Width >= Spec(20f, zoom) && rect.Height >= Spec(10f, zoom)
-                ? $"{entry.Name} ({FormatSize(entry.Size)})"
+            string? label = TreemapLabelPolicy.ShowFileLabel(rect.Width, rect.Height, zoom)
+                ? entry.Name
                 : null;
 
             result.Add(new TreemapNode
@@ -345,10 +305,6 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
             });
         }
     }
-
-    // cell 规格按屏幕像素恒定：标题栏始终 18 屏幕像素（逻辑值 = 18/zoom），不随深度变化。
-    private static float GetHeaderHeight(float availableHeight, float zoom)
-        => Math.Min(Spec(HeaderBaseHeight, zoom), availableHeight * 0.4f);
 
     private static float GetBorderPadding(float width, float height, float zoom)
     {

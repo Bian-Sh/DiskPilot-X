@@ -92,23 +92,86 @@ public class TreemapLayoutTests
     }
 
     [Fact]
-    public void FilePalette_UsesMutedDisktreeStyle_InsteadOfSaturatedRedAndPink()
+    public void FilePalette_UsesDistinctMeaningfulTypesAndKeepsDirectoryTitlesNeutral()
     {
         var root = Directory("根");
         foreach (string ext in new[] { ".png", ".mp4", ".dll", ".pdb", ".exe", ".js", ".pdf", ".zip", ".tmp", ".bin" })
             File("文件" + ext, root, 100);
         root.Size = 1000;
         var nodes = new SquarifiedTreemapLayout().ComputeLayout(root, 1000, 600, 64);
-        foreach (var node in nodes.Where(n => !n.Entry.IsDirectory))
+        TreemapColorContext.Create(root).Apply(nodes);
+        Assert.Equal(10, nodes.Where(n => !n.Entry.IsDirectory).Select(n => n.ColorHex).Distinct().Count());
+        Assert.All(nodes.Where(n => n.Entry.IsDirectory), n => Assert.Equal("#303030", n.ColorHex));
+    }
+
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(1.25f)]
+    [InlineData(2f)]
+    [InlineData(4f)]
+    [InlineData(8f)]
+    public void LargeLayout_KeepsEverySiblingAndItsContentsPastFiveThousandNodes(float zoom)
+    {
+        var root = Directory("根");
+        for (int i = 0; i < 128; i++)
         {
-            int red = Convert.ToInt32(node.ColorHex.Substring(1, 2), 16);
-            int green = Convert.ToInt32(node.ColorHex.Substring(3, 2), 16);
-            int blue = Convert.ToInt32(node.ColorHex.Substring(5, 2), 16);
-            Assert.True(Math.Max(red, Math.Max(green, blue)) - Math.Min(red, Math.Min(green, blue)) <= 65,
-                $"{node.Entry.Name} 应使用低饱和配色，实际为 {node.ColorHex}");
-            Assert.InRange((red + green + blue) / 3, 150, 230);
+            var directory = Directory($"目录{i}", root);
+            for (int j = 0; j < 64; j++) File($"文件{j}.dll", directory, 100);
+            directory.Size = 6400;
         }
-        Assert.Equal(nodes.Single(n => n.Entry.Name == "文件.png").ColorHex, nodes.Single(n => n.Entry.Name == "文件.mp4").ColorHex);
+        root.Size = 128 * 6400;
+
+        var nodes = new SquarifiedTreemapLayout().ComputeLayout(root, 1600, 900, 64, zoom);
+
+        Assert.True(nodes.Count > 5000, $"节点数不应截断为{nodes.Count}");
+        foreach (var directory in root.Children)
+        {
+            Assert.Single(nodes.Where(n => ReferenceEquals(n.Entry, directory)));
+            Assert.Equal(64, nodes.Count(n => ReferenceEquals(n.Entry.Parent, directory)));
+        }
+        // 一级目录必须铺满根内容区，不能以父目录底色掩盖丢失的同级区域。
+        double area = nodes.Where(n => n.Depth == 1).Sum(n => (double)n.Width * n.Height);
+        double expected = (1600 - 6 / zoom) * (900 - 23 / zoom);
+        Assert.InRange(area / expected, 0.99999, 1.00001);
+    }
+
+    [Fact]
+    public void TextLod_SmallDirectoriesDoNotReserveEmptyHeaders_AndZoomRevealsNames()
+    {
+        var root = Directory("根");
+        for (int i = 0; i < 128; i++)
+        {
+            var child = Directory($"目录{i}", root);
+            File("文件.dll", child, 100);
+            child.Size = 100;
+        }
+        root.Size = 12800;
+        var engine = new SquarifiedTreemapLayout();
+        var overview = engine.ComputeLayout(root, 1200, 800, 64, 1);
+        var zoomed = engine.ComputeLayout(root, 1200, 800, 64, 2);
+        var small = overview.First(n => n.Depth == 1 && n.Width < 104 && n.Height > 30);
+        Assert.Null(small.Label);
+        var file = overview.Single(n => ReferenceEquals(n.Entry.Parent, small.Entry));
+        Assert.InRange(file.Y - small.Y, 0.5f, 1.01f);
+        Assert.True(zoomed.Count(n => n.Entry.IsDirectory && n.Label is not null)
+            > overview.Count(n => n.Entry.IsDirectory && n.Label is not null));
+        Assert.Equal(128, overview.Count(n => !n.Entry.IsDirectory));
+    }
+
+    [Fact]
+    public void TextLod_OverviewHidesSmallFileLabels_ButKeepsLargeFileName()
+    {
+        var root = Directory("根");
+        for (int i = 0; i < 64; i++) File($"文件{i}.dll", root, 100);
+        root.Size = 6400;
+        var engine = new SquarifiedTreemapLayout();
+        var nodes = engine.ComputeLayout(root, 800, 600, 64);
+        Assert.All(nodes.Where(n => !n.Entry.IsDirectory), n => Assert.Null(n.Label));
+        // 单文件目录用于验证大块仍有直接标注。
+        var single = Directory("单文件目录");
+        File("大文件.dll", single, 100);
+        single.Size = 100;
+        Assert.Equal("大文件.dll", engine.ComputeLayout(single, 800, 600, 64).Single(n => !n.Entry.IsDirectory).Label);
     }
 
     private static FileEntry Directory(string name, FileEntry? parent = null)

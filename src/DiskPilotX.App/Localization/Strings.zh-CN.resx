@@ -1041,4 +1041,5 @@
     <value>填写规则创建请求</value>
   </data>
   <data name="CopilotTool_report_task_topics" xml:space="preserve"><value>记录公开任务主题</value></data>
+  <data name="TreemapNoExtension" xml:space="preserve"><value>无扩展名</value></data>
 </root>

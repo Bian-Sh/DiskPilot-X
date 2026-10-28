@@ -9,6 +9,7 @@ using SkiaSharp.Views.Desktop;
 using SkiaSharp.Views.WPF;
 using DiskPilotX.App.Converters;
 using DiskPilotX.Core.Models;
+using DiskPilotX.Core.Services.Treemap;
 
 namespace DiskPilotX.App.Controls;
 
@@ -103,6 +104,9 @@ public class TreemapControl : SKElement
 
     public IReadOnlyCollection<TreemapNode> MultiSelection => _multiSelection;
     internal (float Zoom, float X, float Y) Viewport => (_zoom, _panX, _panY);
+    internal int RenderedNodeCount { get; private set; }
+    internal int RenderedLabelCount { get; private set; }
+    internal int TitleClipNodeCount { get; private set; }
 
     public event EventHandler<TreemapNode>? NodeClicked;
     public event EventHandler<TreemapNode>? NodeActivated;
@@ -157,6 +161,7 @@ public class TreemapControl : SKElement
 
     private void OnPaintSurface(object? sender, SKPaintSurfaceEventArgs e)
     {
+        RenderedNodeCount = TitleClipNodeCount = RenderedLabelCount = 0;
         SKCanvas canvas = e.Surface.Canvas;
         canvas.Clear(SKColor.Parse("#1B2430"));
         if (ActualWidth <= 0 || ActualHeight <= 0) return;
@@ -211,12 +216,12 @@ public class TreemapControl : SKElement
 
         // Render in depth order: shallow first, deep on top.
         // Directories first at each depth, then files on top.
-        var sortedNodes = _nodes
-            .Where(n => n.IsVisible)
+        var sortedNodes = GetVisibleNodes()
             .OrderBy(n => n.Depth)
             .ThenBy(n => n.Entry.IsDirectory ? 0 : 1)
             .ToList();
 
+        RenderedNodeCount = sortedNodes.Count;
         foreach (var node in sortedNodes)
         {
             if (node.Entry.IsDirectory && node.AggregatedCount == 0)
@@ -229,7 +234,7 @@ public class TreemapControl : SKElement
             }
         }
 
-        DrawPointerLight(canvas);
+        DrawPointerLight(canvas, sortedNodes);
 
         // 多选集合先画纯白描边（除当前选中焦点外）。
         foreach (var node in _multiSelection)
@@ -241,6 +246,16 @@ public class TreemapControl : SKElement
         if (_lastHoveredNode != SelectedNode) DrawOutline(canvas, _lastHoveredNode, Spec(1f), SKColors.White);
         DrawOutline(canvas, SelectedNode, Spec(2.5f), SKColors.White);
 
+    }
+
+    // 在排序、颜色解析、渐变和文字测量之前剔除视口外节点。
+    // 保留完整布局，平移时可直接恢复细节，不把不可见等同于不存在。
+    private IEnumerable<TreemapNode> GetVisibleNodes()
+    {
+        var viewport = new SKRect(-_panX / _zoom, -_panY / _zoom,
+            ((float)ActualWidth - _panX) / _zoom, ((float)ActualHeight - _panY) / _zoom);
+        return _nodes?.Where(node => node.IsVisible && NodeRect(node).IntersectsWith(viewport))
+            ?? Enumerable.Empty<TreemapNode>();
     }
 
     private void DrawDirectoryNode(
@@ -258,13 +273,26 @@ public class TreemapControl : SKElement
         frame.Inflate(-Spec(0.5f), -Spec(0.5f));
         canvas.DrawRect(frame, borderPaint);
 
-        float headerHeight = GetHeaderHeight(node.Height);
+        float headerHeight = GetDirectoryTitleHeight(node);
         if (node.Label is not null && headerHeight >= Spec(14f))
         {
             fillPaint.Color = titleColor;
             canvas.DrawRect(new SKRect(rect.Left, rect.Top, rect.Right, rect.Top + headerHeight), fillPaint);
-            DrawLabel(canvas, node.Label, node.X + Spec(3f), node.Y + headerHeight / 2f + Spec(3.5f),
-                node.Width - Spec(6f), textPaint, font, titleColor);
+            float nameWidth = node.Width - Spec(8f);
+            if (node.SizeLabel is { } size && node.Width * _zoom >= 240f)
+            {
+                float sizeWidth = font.MeasureText(size);
+                // 容量与名称分开，只有留有充分名称空间时才显示弱化的容量。
+                if (nameWidth - sizeWidth >= Spec(120f))
+                {
+                    textPaint.Color = new SKColor(170, 175, 182);
+                    canvas.DrawText(size, rect.Right - Spec(5f), node.Y + headerHeight / 2f + Spec(3.5f),
+                        SKTextAlign.Right, font, textPaint);
+                    nameWidth -= sizeWidth + Spec(12f);
+                }
+            }
+            DrawLabel(canvas, node.Label, node.X + Spec(4f), node.Y + headerHeight / 2f + Spec(3.5f),
+                nameWidth, textPaint, font, titleColor);
         }
 
         if (node.Entry.IsAccessDenied)
@@ -295,7 +323,7 @@ public class TreemapControl : SKElement
         frame.Inflate(-Spec(0.25f), -Spec(0.25f));
         if (detailed) canvas.DrawRect(frame, borderPaint);
 
-        if (node.Label is not null && rect.Height >= Spec(14f))
+        if (node.Label is not null && TreemapLabelPolicy.ShowFileLabel(node.Width, node.Height, _zoom))
             DrawLabel(canvas, node.Label, rect.Left + Spec(3f), rect.Top + Spec(11f),
                 rect.Width - Spec(6f), textPaint, font, color);
 
@@ -309,7 +337,7 @@ public class TreemapControl : SKElement
     private static SKRect NodeRect(TreemapNode node) =>
         new(node.X, node.Y, node.X + node.Width, node.Y + node.Height);
 
-    private void DrawPointerLight(SKCanvas canvas)
+    private void DrawPointerLight(SKCanvas canvas, IEnumerable<TreemapNode> visibleNodes)
     {
         if (_lastHoveredNode is null) return;
         // 指针先逆变换为布局坐标，缩放、平移后光晕仍跟随鼠标。
@@ -322,11 +350,14 @@ public class TreemapControl : SKElement
             [0f, 1f], SKShaderTileMode.Clamp);
         using var paint = new SKPaint { Shader = light, IsAntialias = true };
         using var titleAreas = new SKPath();
-        foreach (var n in _nodes!)
+        foreach (var n in visibleNodes)
         {
             float titleHeight = GetDirectoryTitleHeight(n);
-            if (n.IsVisible && titleHeight > 0)
+            if (titleHeight > 0)
+            {
                 titleAreas.AddRect(new SKRect(n.X, n.Y, n.X + n.Width, n.Y + titleHeight));
+                TitleClipNodeCount++;
+            }
         }
         canvas.Save();
         canvas.ClipPath(titleAreas, SKClipOperation.Difference, false);
@@ -337,8 +368,7 @@ public class TreemapControl : SKElement
     private float GetDirectoryTitleHeight(TreemapNode node)
     {
         if (!node.Entry.IsDirectory || node.AggregatedCount > 0 || node.Label is null) return 0f;
-        float height = GetHeaderHeight(node.Height);
-        return height >= Spec(14f) && node.Height >= height ? height : 0f;
+        return TreemapLabelPolicy.DirectoryHeaderHeight(node.Width, node.Height, node.Depth, _zoom);
     }
 
     private void DrawOutline(SKCanvas canvas, TreemapNode? node, float width, SKColor color)
@@ -357,7 +387,7 @@ public class TreemapControl : SKElement
         canvas.DrawRect(rect, paint);
     }
 
-    private static void DrawLabel(SKCanvas canvas, string text, float x, float y,
+    private void DrawLabel(SKCanvas canvas, string text, float x, float y,
         float maxWidth, SKPaint paint, SKFont font, SKColor background)
     {
         var label = TruncateLabel(text, font, maxWidth);
@@ -367,6 +397,7 @@ public class TreemapControl : SKElement
             ? new SKColor(26, 30, 40)
             : new SKColor(245, 247, 250);
         canvas.DrawText(label, x, y, SKTextAlign.Left, font, paint);
+        RenderedLabelCount++;
     }
 
     private static bool IsLightColor(SKColor color)
@@ -377,9 +408,6 @@ public class TreemapControl : SKElement
     }
 
     // cell 规格按屏幕像素恒定：标题栏始终 18 屏幕像素（与布局引擎 SquarifiedTreemapLayout 一致）。
-    private float GetHeaderHeight(float availableHeight)
-        => Math.Min(Spec(18f), availableHeight * 0.4f);
-
     internal static SKFont CreateTreemapFont(float fontSize) => new(TreemapTypeface.Value, fontSize);
 
     private static SKTypeface CreateTreemapTypeface()
@@ -512,7 +540,7 @@ public class TreemapControl : SKElement
         SelectedNode = node;
         NodeClicked?.Invoke(this, node);
 
-        float headerHeight = GetHeaderHeight(node.Height);
+        float headerHeight = GetDirectoryTitleHeight(node);
         double logicalY = (position.Y - _panY) / _zoom;
         if (clickCount == 2 && node.Entry.IsDirectory && node.AggregatedCount == 0 && node.Label is not null
             && headerHeight >= Spec(14f) && logicalY < node.Y + headerHeight)
@@ -836,7 +864,10 @@ public class TreemapControl : SKElement
     private void UpdateToolTipContent(TreemapNode node)
     {
         var entry = node.Entry;
-        string fileType = entry.IsDirectory ? L.Text("FolderType") : (entry.Extension ?? L.Text("PropertiesUnknown"));
+        string extension = string.IsNullOrWhiteSpace(entry.Extension)
+            ? System.IO.Path.GetExtension(entry.Name) : entry.Extension;
+        string fileType = entry.IsDirectory ? L.Text("FolderType")
+            : string.IsNullOrEmpty(extension) ? L.Text("TreemapNoExtension") : extension.ToLowerInvariant();
         string size = FileSizeConverter.FormatSize(entry.Size);
         string modified = entry.LastModified.ToString("g");
 
@@ -955,8 +986,8 @@ public class TreemapControl : SKElement
                 hi = mid - 1;
         }
 
-        // Require at least 3 visible characters before the ellipsis.
-        if (lo < 3)
+        // 不显示只有两三字加省略号的无效标注；完整短名称仍可直接显示。
+        if (lo < Math.Min(6, label.Length))
             return null;
 
         return string.Concat(label.AsSpan(0, lo), "...");
