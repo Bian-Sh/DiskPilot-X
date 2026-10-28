@@ -1,4 +1,5 @@
-﻿using System.Text;
+using System.Text;
+using System.Globalization;
 using DiskPilotX.Core.Services.Skills;
 using System.Text.RegularExpressions;
 
@@ -9,12 +10,15 @@ public sealed class FileSkillPromptProvider : ISkillPromptProvider
     private static readonly Regex SkillIdRegex = new("^[a-z0-9][a-z0-9-]{0,63}$", RegexOptions.Compiled);
     private readonly IReadOnlyList<string>? _skillDirectories;
     private readonly bool _legacyWritableRoot;
+    private readonly Func<string> _cultureProvider = () => CultureInfo.CurrentUICulture.Name;
     private readonly string _userRoot = CleanupSkillStore.DefaultUserRoot;
     private readonly IReadOnlyList<string> _builtInRoots = CleanupSkillStore.DefaultBuiltInRoots().ToArray();
 
     public FileSkillPromptProvider()
     {
     }
+
+    public FileSkillPromptProvider(Func<string> cultureProvider) => _cultureProvider = cultureProvider;
 
     public FileSkillPromptProvider(IEnumerable<string> skillDirectories)
     {
@@ -25,8 +29,9 @@ public sealed class FileSkillPromptProvider : ISkillPromptProvider
         _builtInRoots = _skillDirectories.Skip(1).ToArray();
     }
 
-    public FileSkillPromptProvider(IEnumerable<string> builtInRoots, string userSkillRoot)
+    public FileSkillPromptProvider(IEnumerable<string> builtInRoots, string userSkillRoot, Func<string>? cultureProvider = null)
     {
+        _cultureProvider = cultureProvider ?? _cultureProvider;
         _builtInRoots = builtInRoots.Select(Path.GetFullPath).ToArray();
         _skillDirectories = _builtInRoots;
         _userRoot = Path.GetFullPath(userSkillRoot);
@@ -112,6 +117,7 @@ public sealed class FileSkillPromptProvider : ISkillPromptProvider
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var kinds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var texts = new Dictionary<string, SkillTextCatalog>(StringComparer.OrdinalIgnoreCase);
         foreach (var directory in _builtInRoots.Concat(GetSkillDirectories(_skillDirectories)).Append(_userRoot).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             if (!Directory.Exists(directory)) continue;
@@ -133,6 +139,11 @@ public sealed class FileSkillPromptProvider : ISkillPromptProvider
                         {
                             result[id] = File.ReadAllText(file, Encoding.UTF8);
                             kinds[id] = DetectDirectoryKind(child);
+                            if (kinds[id] != "rules" && Directory.Exists(Path.Combine(child,"i18n")))
+                            {
+                                try { texts[id] = new SkillTextCatalog(CleanupSkillStore.ReadBuiltInLocalizations(child)); }
+                                catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or System.Text.Json.JsonException) { }
+                            }
                         }
                     }
                     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
@@ -146,13 +157,25 @@ public sealed class FileSkillPromptProvider : ISkillPromptProvider
             {
                 result[package.Id] = $"# {package.Title}\n\n## Purpose\n{package.Description}\n\n{package.SkillMarkdown}";
                 kinds[package.Id] = DetectSourceKind(package.Source);
+                if(kinds[package.Id] != "rules" && package.Localizations is not null) texts[package.Id] = new SkillTextCatalog(package.Localizations);
             }
         }
 
         var catalog = result
             .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(item => new AiSkillCatalogItem(item.Key, ExtractDisplayName(item.Key, item.Value), ExtractDescription(item.Value),
-                kinds.TryGetValue(item.Key, out var kind) ? kind : "rules"))
+            .Select(item =>
+            {
+                var title = ExtractDisplayName(item.Key,item.Value);
+                var description = ExtractDescription(item.Value);
+                if (texts.TryGetValue(item.Key,out var catalog))
+                {
+                    var culture = _cultureProvider();
+                    var name = catalog.Get("skill.name",culture);var detail = catalog.Get("skill.description",culture);
+                    if(name != "skill.name") title = name;
+                    if(detail != "skill.description") description = detail;
+                }
+                return new AiSkillCatalogItem(item.Key,title,description,kinds.TryGetValue(item.Key,out var kind)?kind:"rules");
+            })
             .ToList();
 
         return new LoadedSkills(result, catalog);

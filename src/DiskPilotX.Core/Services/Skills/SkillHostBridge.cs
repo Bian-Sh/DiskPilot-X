@@ -13,6 +13,16 @@ public sealed record SkillHostEntry(string Path, long SizeBytes, string Kind, Da
 /// </summary>
 public interface ISkillHostBridge
 {
+    /// <summary>读取当前本地化状态；不依赖技能运行线程的文化，不授予修改宿主语言的能力。</summary>
+    SkillLocalizationState GetLocalizationState() => SkillLocalizationState.FromCulture(System.Globalization.CultureInfo.CurrentUICulture);
+
+    /// <summary>订阅语言状态变化；调用方必须释放返回值。旧宿主默认提供空订阅。</summary>
+    IDisposable SubscribeLocalizationChanged(Action<SkillLocalizationState> observer)
+    {
+        ArgumentNullException.ThrowIfNull(observer);
+        return new SkillLocalizationSubscription();
+    }
+
     /// <summary>当前执行的 skill 标识。</summary>
     string SkillId { get; }
 

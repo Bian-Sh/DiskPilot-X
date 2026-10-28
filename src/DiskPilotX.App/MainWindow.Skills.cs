@@ -16,15 +16,21 @@ public partial class MainWindow
     private sealed record SkillPanelTask(string Id,string Digest,SkillTaskCard Card,SkillTaskWindow? Window=null);
     private readonly Dictionary<string,SkillPanelTask> skillPanels = [];
     private static readonly JsonSerializerOptions SkillJson = new() { PropertyNamingPolicy=JsonNamingPolicy.SnakeCaseLower };
+    private static string SkillPackageText(CleanupSkillPackage package,string key,string fallback)
+    {
+        var text=new SkillTextCatalog(package.Localizations).Get(key,DiskPilotX.App.Localization.L.CurrentLanguageName);
+        return text==key?fallback:SkillTextCatalog.Bind(key);
+    }
     private JsonNode ShowSkillPanel(JsonNode? args)
     {
         try
         {
-            var package=App.Services!.GetRequiredService<CleanupSkillStore>().Load(args?["id"]?.GetValue<string>()??"");
+            var package=App.Services!.GetRequiredService<CleanupSkillStore>().LoadReadOnly(args?["id"]?.GetValue<string>()??"");
             var key=package.Id+":"+package.Digest;
             if(!skillPanels.TryGetValue(key,out var task))
             {
-                var card=new SkillTaskCard(key,package.Id,package.Title,args?["summary"]?.GetValue<string>()??"选择检查范围，预览候选；可随时重新打开。");
+                var card=new SkillTaskCard(key,package.Id,SkillPackageText(package,"skill.name",package.Title),
+                    args?["summary"]?.GetValue<string>()??SkillPackageText(package,"skill.description",package.Description),package.Localizations);
                 task=new(package.Id,package.Digest,card); skillPanels.Add(key,task);
             }
             _chatViewModel?.AddSkillTask(task.Card);
@@ -43,7 +49,7 @@ public partial class MainWindow
             if(task.Window is null)
             {
                 var data=new JsonObject { ["scope_path"]=_treemapViewModel?.CurrentRoot?.Path??"",["summary"]=package.Description };
-                var window=new SkillTaskWindow(package.Title,package.UiXaml,data,(command,fields,ct)=>ExecuteSkillPanelAsync(task,command,fields,ct)) { Owner=this };
+                var window=new SkillTaskWindow(SkillPackageText(package,"skill.name",package.Title),package.UiXaml,data,(command,fields,ct)=>ExecuteSkillPanelAsync(task,command,fields,ct),package.Localizations) { Owner=this };
                 task=task with { Window=window }; skillPanels[card.TaskId]=task;
             }
             task.Window.Show();
@@ -112,12 +118,13 @@ public partial class MainWindow
             if(discovery.View is {} view && _chatViewModel is not null)
             {
                 // 气泡里永远只留一张入口卡；surface=auto 时再顺手把完整视图弹到新窗口。
+                view = view with { Localizations = view.Localizations ?? package.Localizations };
                 _chatViewModel.AddView(view);
                 if(view.AutoOpensWindow) _chatViewModel.OpenSkillWindow(view);
             }
             return JsonSerializer.SerializeToNode(new{ok=true,contract="provider",count=discovery.Entries.Count,entries=discovery.Entries},SkillJson) as JsonObject ?? new JsonObject{["ok"]=true};
         }
-        var preview=await source.RunAsync(authorization,scope,ct,parameters);
+        var preview=await source.RunAsync(authorization,scope,ct,parameters,DiskPilotX.App.Localization.L.GetState());
         var result=(JsonObject)JsonSerializer.SerializeToNode(preview,SkillJson)!; result["ok"]=true; return result;
     }
 
@@ -127,21 +134,21 @@ public partial class MainWindow
         var window = new SkillWindow(spec) { Owner = this };
         window.ContinueRequested += (source, items) =>
         {
-            var payload = DescribeSelection(items);
+            var payload = DescribeSelection(items,source.Localizations);
             window.Close();
             if (_chatViewModel is null || items.Count == 0) return;
             // 多选一律由宿主先把全部范围无头分析掉，再让模型一次性发布：
             // 模型不一定自觉调 analyze_paths，逐个 scan_path 只会一次次覆盖同一份清单。
-            if (CountablePaths(items) >= 2) { _ = BatchSelectedItemsAsync(items, previewOnly: false); return; }
+            if (CountablePaths(items) >= 2) { _ = BatchSelectedItemsAsync(items, previewOnly: false,source.Localizations); return; }
             _chatViewModel.ExplorePromptCommand.Execute(
                 "我在这份视图里选中了以下条目，请据此继续；需要时进入清理分析，但清理前必须先让我确认清单：\n" + payload + MultiSelectionHint(items.Count));
         };
         window.PreviewRequested += (source, items) =>
         {
-            var payload = DescribeSelection(items);
+            var payload = DescribeSelection(items,source.Localizations);
             window.Close();
             if (_chatViewModel is null || items.Count == 0) return;
-            if (CountablePaths(items) >= 2) { _ = BatchSelectedItemsAsync(items, previewOnly: true); return; }
+            if (CountablePaths(items) >= 2) { _ = BatchSelectedItemsAsync(items, previewOnly: true,source.Localizations); return; }
             _chatViewModel.ExplorePromptCommand.Execute(
                 "请预览这些条目的清理候选，先读取真实扫描证据，不要直接清理：\n" + payload + MultiSelectionHint(items.Count));
         };
@@ -240,13 +247,13 @@ public partial class MainWindow
 
     private static string FormatBytes(long bytes) => bytes > 0 ? FileSizeConverter.FormatSize(bytes) : "未统计";
 
-    private static string DescribeSelection(IReadOnlyList<SkillUiItem> items)
+    private static string DescribeSelection(IReadOnlyList<SkillUiItem> items,Dictionary<string,Dictionary<string,string>>? localizations = null)
     {
         if (items.Count == 0) return "（未选择任何条目）";
         return string.Join("\n", items.Select(item =>
             string.IsNullOrWhiteSpace(item.Path)
-                ? $"- {item.Title}"
-                : $"- {item.Title} → {item.Path}"));
+                ? $"- {DiskPilotX.App.Localization.SkillTextExtension.Resolve(item.Title ?? "",localizations)}"
+                : $"- {DiskPilotX.App.Localization.SkillTextExtension.Resolve(item.Title ?? "",localizations)} → {item.Path}"));
     }
 
     private static int CountablePaths(IReadOnlyList<SkillUiItem> items) =>
@@ -258,10 +265,10 @@ public partial class MainWindow
     /// publish_recommendations 就把候选合并进「推荐清理」。这样既不依赖模型自觉，
     /// 也不会出现先分析 A、分析 B 时又把 A 覆盖掉的诡异行为。
     /// </summary>
-    private async Task BatchSelectedItemsAsync(IReadOnlyList<SkillUiItem> items, bool previewOnly)
+    private async Task BatchSelectedItemsAsync(IReadOnlyList<SkillUiItem> items, bool previewOnly, Dictionary<string,Dictionary<string,string>>? localizations = null)
     {
         if (_chatViewModel is null) return;
-        var payload = DescribeSelection(items);
+        var payload = DescribeSelection(items,localizations);
         AssistantAnalysisBatch? batch = null;
         string? evidence = null;
         try
@@ -291,7 +298,7 @@ public partial class MainWindow
         }
 
         var prompt = batch is { Scopes.Count: > 0 } && evidence is not null
-            ? BuildBatchPrompt(items, previewOnly, batch, evidence)
+            ? BuildBatchPrompt(items, previewOnly, batch, evidence,localizations)
             : (previewOnly
                 ? "请预览这些条目的清理候选，先读取真实扫描证据，不要直接清理：\n"
                 : "我在这份视图里选中了以下条目，请据此继续；需要时进入清理分析，但清理前必须先让我确认清单：\n")
@@ -301,13 +308,13 @@ public partial class MainWindow
 
     /// <summary>把「宿主已经分析好」的事实写进提问里，让模型直接发布而不是再扫一遍。</summary>
     private static string BuildBatchPrompt(IReadOnlyList<SkillUiItem> items, bool previewOnly,
-        AssistantAnalysisBatch batch, string evidence)
+        AssistantAnalysisBatch batch, string evidence,Dictionary<string,Dictionary<string,string>>? localizations = null)
     {
         var builder = new System.Text.StringBuilder();
         builder.Append(previewOnly
             ? "我在这份视图里一次选中了多个条目，全部范围已经无头扫描完成。请预览它们的清理候选（不要清理）：\n"
             : "我在这份视图里一次选中了多个条目，全部范围已经无头扫描完成，进入清理分析；清理前必须先让我确认清单：\n");
-        builder.Append(DescribeSelection(items)).Append("\n\n");
+        builder.Append(DescribeSelection(items,localizations)).Append("\n\n");
         builder.Append("这些范围已经一次性扫描完毕（批次 scan_id=").Append(batch.Id).Append("，共 ")
                .Append(batch.Scopes.Count).Append(" 个范围，互不覆盖）。下面是全部范围的真实证据。\n");
         builder.Append("请据此用 mode=replace 调用一次 publish_recommendations 发布全部候选；")

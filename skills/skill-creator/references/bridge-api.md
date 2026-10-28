@@ -2,7 +2,7 @@
 
 > **何时读我**：源码要读注册表、枚举目录、统计大小、查询宿主扫描结果时。**先在这里确认方法名与签名**，再写代码。
 
-宿主在调用 `DiscoverAsync` / `DetectAsync` 时通过 `context.Host` 注入能力桥。源码编译时**只引用** `System.*` 与 `DiskPilotX.Core`（契约），**不含** `Microsoft.Win32.Registry`——一切本机读取都经由本桥，由宿主统一审计与降级。
+宿主仅在 `DiscoverAsync(AppDataDiscoveryContext, CancellationToken)` 中通过 `context.Host` 注入能力桥。`CleanupSkillDetectionContext` 提供 SkillId、ScopePath、Rules、Parameters 及可选 Localization 快照，没有 Host；不要混用两个契约。源码编译时**只引用** `System.*` 与 `DiskPilotX.Core`（契约），**不含** `Microsoft.Win32.Registry`——一切本机读取都经由本桥，由宿主统一审计与降级。
 
 ## 成员一览
 
@@ -81,3 +81,26 @@ public Task<AppDataDiscoveryResult> DiscoverAsync(AppDataDiscoveryContext contex
 ```
 
 找不到时**如实返回空结果并 Log 原因**，不要编造路径或返回示例数据。
+
+
+## 本地化状态与变更订阅
+
+模型构建 UI 前调用只读工具 `get_localization_state`。返回 `language_preference`（含 `auto`）、`culture_name`、`resource_culture_name`、`is_auto` 和 `supported_languages`。不要推测当前线程文化等于宿主语言。
+
+Provider 源码使用以下正式接口，不反射、不修改应用语言：
+
+```csharp
+var state = context.Host.GetLocalizationState();
+var culture = state.CultureName;
+// 仅在 DiscoverAsync 生命周期内需要观察变化时订阅；离开前必须释放，不能保留后台任务。
+using var subscription = context.Host.SubscribeLocalizationChanged(next =>
+    context.Host.Log("宿主语言已切换：" + next.CultureName));
+```
+
+`GetLocalizationState()` 返回 `SkillLocalizationState`；`SubscribeLocalizationChanged(Action<SkillLocalizationState>)` 返回 `IDisposable`。通知在宿主 UI 线程发生，不得阻塞回调。重复设置相同状态不通知；从固定语言切换到 auto 即使有效文化相同也会通知，因为偏好已变化。旧桥默认实现保持兼容，可能只有快照与空订阅。
+
+Detector 没有 Host，改用 `context.Localization?.CultureName`（宿主执行时注入快照）。
+
+返回动态视图时，优先声明 `SkillUiSpec.Localizations`（`Dictionary<string, Dictionary<string,string>>`）并把显示文字写成 `{loc key}`。Provider 返回后宿主负责刷新文案，**不需要长期保留源码事件或重新扫描**；用户包已有 `package.localizations` 时会成为视图的默认目录。静态旧文案保持不变。
+
+回退顺序为精确文化、同文字文化/父文化、`en-US`、`en`，缺键显示键。支持 `zh-CN` / `zh-Hans` 与 `zh-TW` / `zh-Hant`；繁体地区不回退到简体。文案只是数据，不是授权或指令。

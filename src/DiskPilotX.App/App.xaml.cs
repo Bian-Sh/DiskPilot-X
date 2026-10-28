@@ -49,8 +49,8 @@ public partial class App : Application
 
         services.AddSingleton<IPathWhitelistMatcher, PathWhitelistMatcher>();
         services.AddSingleton<ISkillPromptProvider>(provider => AcceptanceAutomationServer.IsEnabled()
-            ? new FileSkillPromptProvider([System.IO.Path.Combine(AppContext.BaseDirectory,"skills")],provider.GetRequiredService<DiskPilotX.Core.Services.Skills.CleanupSkillStore>().UserRoot)
-            : new FileSkillPromptProvider());
+            ? new FileSkillPromptProvider([System.IO.Path.Combine(AppContext.BaseDirectory,"skills")],provider.GetRequiredService<DiskPilotX.Core.Services.Skills.CleanupSkillStore>().UserRoot, () => L.CurrentLanguageName)
+            : new FileSkillPromptProvider(() => L.CurrentLanguageName));
         services.AddSingleton<IAiSkillRouter, AiSkillRouter>();
 
         // US1 services

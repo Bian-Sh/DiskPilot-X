@@ -21,6 +21,7 @@ public sealed class CleanupSkillTool(CleanupSkillStore store) : AppCopilotToolBa
             "package":{"type":"object","additionalProperties":false,"properties":{
               "id":{"type":"string","pattern":"^[a-z0-9][a-z0-9-]{0,63}$"},"title":{"type":"string"},"description":{"type":"string"},
               "version":{"type":"string"},"host_protocol_version":{"type":"integer","enum":[1]},"skill_markdown":{"type":"string"},
+              "localizations":{"type":"object","description":"文化标识到文案键值目录；UI 显示文字使用 {loc key} 响应宿主语言切换","additionalProperties":{"type":"object","additionalProperties":{"type":"string"}}},
               "ui_xaml":{"type":"string","description":"可选受约束界面，保存前由宿主校验"},"source":{"type":"string","description":"可选 ICleanupSkillDetector C# 源码，仅编译，运行须宿主另行确认；不是安全沙箱"},
               "rules":{"type":"array","maxItems":128,"items":{"type":"object","additionalProperties":false,"properties":{
                 "id":{"type":"string"},"path":{"type":"string"},"excludes":{"type":"array","items":{"type":"string"}},"preserve":{"type":"array","items":{"type":"string"}},

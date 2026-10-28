@@ -1086,4 +1086,28 @@
 删除后无法恢复，确定删除吗？</value></data>
   <data name="CopilotDeleteConversationConfirm" xml:space="preserve"><value>确认删除</value></data>
   <data name="CopilotHistoryDeleteFailed" xml:space="preserve"><value>无法删除此会话，请检查文件或访问权限。当前对话已保留。</value></data>
+  <data name="SkillNoCover" xml:space="preserve"><value>暂无封面</value></data>
+  <data name="SkillSelected" xml:space="preserve"><value>选中</value></data>
+  <data name="SkillSelectionEmpty" xml:space="preserve"><value>未选择任何条目</value></data>
+  <data name="SkillSelectionSizeFormat" xml:space="preserve"><value>已选 {0} 项 · 约 {1}</value></data>
+  <data name="SkillSelectionCountFormat" xml:space="preserve"><value>已选 {0} 项</value></data>
+  <data name="SkillPanelOpen" xml:space="preserve"><value>打开任务面板</value></data>
+  <data name="SkillPanelColNote" xml:space="preserve"><value>说明</value></data>
+  <data name="SkillPanelColPath" xml:space="preserve"><value>路径</value></data>
+  <data name="SkillPanelDone" xml:space="preserve"><value>已完成；关闭面板后仍可从聊天卡片重新打开。</value></data>
+  <data name="SkillPanelDefaultDone" xml:space="preserve"><value>操作已完成。</value></data>
+  <data name="SkillPanelChecking" xml:space="preserve"><value>正在只读检查…</value></data>
+  <data name="SkillPanelClose" xml:space="preserve"><value>收起面板</value></data>
+  <data name="SkillPanelColSize" xml:space="preserve"><value>大小</value></data>
+  <data name="SkillPanelFoundFormat" xml:space="preserve"><value>找到 {0} 项，共 {1}，尚未清理。</value></data>
+  <data name="SkillPanelHints" xml:space="preserve"><value>检查提示：</value></data>
+  <data name="SkillPanelHandoff" xml:space="preserve"><value>正在交给助手…</value></data>
+  <data name="SkillPanelCannotComplete" xml:space="preserve"><value>无法完成检查：</value></data>
+  <data name="SkillPanelHint" xml:space="preserve"><value>选择检查条件，先预览真实数据；清理仍需在助手中确认。</value></data>
+  <data name="SkillPanelFailed" xml:space="preserve"><value>操作未完成，请查看下方说明。</value></data>
+  <data name="SkillPanelPreview" xml:space="preserve"><value>预览候选</value></data>
+  <data name="SkillPanelScopeLabel" xml:space="preserve"><value>检查范围</value></data>
+  <data name="SkillPanelStopped" xml:space="preserve"><value>任务已停止。</value></data>
+  <data name="SkillPanelContinue" xml:space="preserve"><value>交给助手继续</value></data>
+  <data name="SkillPanelTruncated" xml:space="preserve"><value>仅显示前 100 项，请缩小范围查看明细。</value></data>
 </root>

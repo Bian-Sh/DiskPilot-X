@@ -70,39 +70,39 @@ public sealed class Provider : IAppDataProvider
     {
         public string Describe() => Kind switch
         {
-            LaunchKind.Played when LastPlayedUtc is null => "有游玩记录（时间未知）",
-            LaunchKind.Played => "上次游玩：" + Relative(LastPlayedUtc!.Value),
-            LaunchKind.NeverLaunched when HasPlayHistory && HistoryUtc is not null => "下载后未启动（" + Relative(HistoryUtc.Value) + "玩过）",
-            LaunchKind.NeverLaunched when HasPlayHistory => "下载后未启动（有游玩记录）",
-            LaunchKind.NeverLaunched => "从未启动",
-            _ => "启动记录未知"
+            LaunchKind.Played when LastPlayedUtc is null => SkillTextCatalog.Bind("launch.historyUnknownTime"),
+            LaunchKind.Played => SkillTextCatalog.Bind("launch.played", Relative(LastPlayedUtc!.Value)),
+            LaunchKind.NeverLaunched when HasPlayHistory && HistoryUtc is not null => SkillTextCatalog.Bind("launch.downloadedHistory", Relative(HistoryUtc.Value)),
+            LaunchKind.NeverLaunched when HasPlayHistory => SkillTextCatalog.Bind("launch.downloadedHistoryUnknownTime"),
+            LaunchKind.NeverLaunched => SkillTextCatalog.Bind("launch.never"),
+            _ => SkillTextCatalog.Bind("launch.unknown")
         };
 
         public string Badge() => Kind switch
         {
-            LaunchKind.Played when LastPlayedUtc is null => "已玩过",
+            LaunchKind.Played when LastPlayedUtc is null => SkillTextCatalog.Bind("badge.played"),
             LaunchKind.Played => PlayBadge(LastPlayedUtc!.Value),
-            LaunchKind.NeverLaunched => "未启动",
-            _ => "未知"
+            LaunchKind.NeverLaunched => SkillTextCatalog.Bind("badge.never"),
+            _ => SkillTextCatalog.Bind("badge.unknown")
         };
 
         private static string Relative(DateTime moment)
         {
             var elapsed = DateTime.UtcNow - moment;
-            if (elapsed < TimeSpan.Zero) return "刚刚";
-            if (elapsed.TotalDays >= 365) return (int)(elapsed.TotalDays / 365) + " 年前";
-            if (elapsed.TotalDays >= 30) return (int)(elapsed.TotalDays / 30) + " 个月前";
-            if (elapsed.TotalDays >= 1) return (int)elapsed.TotalDays + " 天前";
-            return "今天";
+            if (elapsed < TimeSpan.Zero) return SkillTextCatalog.Bind("relative.justNow");
+            if (elapsed.TotalDays >= 365) return SkillTextCatalog.Bind("relative.years", (int)(elapsed.TotalDays / 365));
+            if (elapsed.TotalDays >= 30) return SkillTextCatalog.Bind("relative.months", (int)(elapsed.TotalDays / 30));
+            if (elapsed.TotalDays >= 1) return SkillTextCatalog.Bind("relative.days", (int)elapsed.TotalDays);
+            return SkillTextCatalog.Bind("relative.today");
         }
 
         private static string PlayBadge(DateTime moment)
         {
             var days = (DateTime.UtcNow - moment).TotalDays;
-            if (days >= 365) return "久未游玩";
-            if (days >= 90) return "较少游玩";
-            if (days >= 14) return "偶尔游玩";
-            return "近期常玩";
+            if (days >= 365) return SkillTextCatalog.Bind("badge.stale");
+            if (days >= 90) return SkillTextCatalog.Bind("badge.rare");
+            if (days >= 14) return SkillTextCatalog.Bind("badge.occasional");
+            return SkillTextCatalog.Bind("badge.recent");
         }
     }
 
@@ -127,30 +127,33 @@ public sealed class Provider : IAppDataProvider
     public Task<AppDataDiscoveryResult> DiscoverAsync(AppDataDiscoveryContext context, CancellationToken token)
     {
         var host = context.Host;
+        var catalog = new SkillTextCatalog(context.Localizations);
+        // 日志和模型数据即时解析；视图保留绑定，切换语言不重跑发现。
+        string Localize(string value) => catalog.Resolve(value, host.GetLocalizationState().CultureName);
 
         var root = ResolveSteamRoot(host);
         if (root is null)
         {
-            host.Log("未定位到 Steam 安装目录（已尝试 HKLM/HKCU 的 SOFTWARE\\Valve\\Steam 的 InstallPath/SteamPath）。");
+            host.Log(Localize(SkillTextCatalog.Bind("log.rootMissing")));
             return Task.FromResult(new AppDataDiscoveryResult([], null));
         }
 
-        var libraries = ResolveLibraries(host, root);
+        var libraries = ResolveLibraries(host, root, Localize);
         var accounts = ResolveAccountRecords(host, root);
 
         var rows = new List<(AppDataEntry Entry, LaunchInfo Launch)>();
         foreach (var library in libraries)
         {
             token.ThrowIfCancellationRequested();
-            rows.AddRange(ScanLibrary(host, library, accounts, token));
+            rows.AddRange(ScanLibrary(host, library, accounts, Localize, token));
         }
 
         rows = [.. rows.OrderByDescending(row => row.Entry.SizeBytes).Take(MaxEntries)];
-        host.Log("发现 " + rows.Count + " 个已安装项目，合计 " + FormatSize(rows.Sum(row => row.Entry.SizeBytes)) + "。");
+        host.Log(Localize(SkillTextCatalog.Bind("log.discovered", rows.Count, FormatSize(rows.Sum(row => row.Entry.SizeBytes)))));
 
         return Task.FromResult(new AppDataDiscoveryResult(
             [.. rows.Select(row => row.Entry)],
-            BuildView(root, libraries.Count, rows)));
+            BuildView(root, libraries.Count, rows, context.Localizations)));
     }
 
     /// <summary>经 Bridge 读注册表定位客户端根目录；桥已处理 32/64 位视图差异。</summary>
@@ -180,7 +183,7 @@ public sealed class Provider : IAppDataProvider
     }
 
     /// <summary>解析库清单；缺失时仅保留根目录，不猜测。</summary>
-    private static List<string> ResolveLibraries(ISkillHostBridge host, string root)
+    private static List<string> ResolveLibraries(ISkillHostBridge host, string root, Func<string, string> localize)
     {
         var libraries = new List<string> { root };
         var vdf = Path.Combine(root, "steamapps", "libraryfolders.vdf");
@@ -188,7 +191,7 @@ public sealed class Provider : IAppDataProvider
 
         if (text is null)
         {
-            host.Log("未读取到库清单：" + vdf + "（仅盘点根目录库）");
+            host.Log(localize(SkillTextCatalog.Bind("log.libraryMissing", vdf)));
             return libraries;
         }
 
@@ -213,6 +216,7 @@ public sealed class Provider : IAppDataProvider
         ISkillHostBridge host,
         string library,
         IReadOnlyDictionary<string, AccountRecord> accounts,
+        Func<string, string> localize,
         CancellationToken token)
     {
         var steamapps = Path.Combine(library, "steamapps");
@@ -222,7 +226,7 @@ public sealed class Provider : IAppDataProvider
         foreach (var manifest in host.EnumerateFiles(steamapps, "appmanifest_*.acf"))
         {
             token.ThrowIfCancellationRequested();
-            var row = ParseManifest(host, steamapps, manifest, accounts);
+            var row = ParseManifest(host, steamapps, manifest, accounts, localize);
             if (row is not null) rows.Add(row.Value);
         }
         return rows;
@@ -232,7 +236,8 @@ public sealed class Provider : IAppDataProvider
         ISkillHostBridge host,
         string steamapps,
         string manifest,
-        IReadOnlyDictionary<string, AccountRecord> accounts)
+        IReadOnlyDictionary<string, AccountRecord> accounts,
+        Func<string, string> localize)
     {
         var text = host.ReadTextFile(manifest);
         if (string.IsNullOrWhiteSpace(text)) return null;
@@ -257,7 +262,7 @@ public sealed class Provider : IAppDataProvider
         accounts.TryGetValue(appId, out var account);
         var launch = ResolveLaunch(ParseEpoch(LastPlayedRegex, text), account);
 
-        var entry = new AppDataEntry(appId, name, installPath, size, launch.Describe());
+        var entry = new AppDataEntry(appId, name, installPath, size, localize(launch.Describe()));
         return (entry, launch);
     }
 
@@ -382,16 +387,17 @@ public sealed class Provider : IAppDataProvider
 
     private static string FormatSize(long bytes)
     {
-        if (bytes <= 0) return "0 B";
+        if (bytes <= 0) return SkillTextCatalog.Bind("size.bytes", 0);
         string[] units = ["B", "KB", "MB", "GB", "TB"];
         var value = (double)bytes;
         var index = 0;
         while (value >= 1024 && index < units.Length - 1) { value /= 1024; index++; }
-        // 手工定点取整：不依赖区域设置，避免某些区域把小数点渲染成逗号
+        // 保留原有定点取整规则；数字留到显示时按宿主文化格式化。
         var scaled = (long)(value * 10 + 0.5);
         var whole = scaled / 10;
-        var fraction = scaled % 10;
-        return (index == 0 ? whole.ToString() : whole + "." + fraction) + " " + units[index];
+        return index == 0
+            ? SkillTextCatalog.Bind("size.bytes", whole)
+            : SkillTextCatalog.Bind("size.value", scaled / 10d, units[index]);
     }
 
     private static string? FirstGroup(Regex regex, string text)
@@ -403,7 +409,7 @@ public sealed class Provider : IAppDataProvider
     /// <summary>所在库的短名（安装目录往上三级：&lt;库&gt;/steamapps/common/&lt;game&gt;）。</summary>
     private static string ShortLibrary(string? installPath)
     {
-        if (string.IsNullOrWhiteSpace(installPath)) return "-";
+        if (string.IsNullOrWhiteSpace(installPath)) return SkillTextCatalog.Bind("value.unavailable");
         try
         {
             var library = Directory.GetParent(installPath)?.Parent?.Parent;
@@ -422,14 +428,16 @@ public sealed class Provider : IAppDataProvider
     private static SkillUiSpec BuildView(
         string root,
         int libraryCount,
-        IReadOnlyList<(AppDataEntry Entry, LaunchInfo Launch)> rows)
+        IReadOnlyList<(AppDataEntry Entry, LaunchInfo Launch)> rows,
+        Dictionary<string, Dictionary<string, string>>? localizations)
     {
         if (rows.Count == 0)
         {
             return new SkillUiSpec
             {
-                Title = "Steam 游戏库盘点",
-                Subtitle = "客户端位于 " + root + "，但没有解析到任何已安装项目。",
+                Title = SkillTextCatalog.Bind("view.title"),
+                Subtitle = SkillTextCatalog.Bind("view.emptySubtitle", root),
+                Localizations = localizations,
                 Surface = SkillUiSurface.Entry,
                 Sections =
                 [
@@ -440,13 +448,13 @@ public sealed class Provider : IAppDataProvider
                         [
                             new SkillUiItem
                             {
-                                Title = "库里暂时没有已安装的游戏",
-                                Subtitle = "如果游戏确实装着，可能是库清单 libraryfolders.vdf 里指向的盘当前不可访问。"
+                                Title = SkillTextCatalog.Bind("empty.title"),
+                                Subtitle = SkillTextCatalog.Bind("empty.description")
                             }
                         ]
                     }
                 ],
-                Actions = [new SkillUiAction { Kind = "close", Label = "知道了" }]
+                Actions = [new SkillUiAction { Kind = "close", Label = SkillTextCatalog.Bind("action.acknowledge") }]
             };
         }
 
@@ -457,22 +465,22 @@ public sealed class Provider : IAppDataProvider
         var stats = new SkillUiSection
         {
             Kind = SkillUiSectionKind.StatRow,
-            Title = "库概览",
-            Subtitle = "客户端：" + root + " · 共 " + libraryCount + " 个库位置",
+            Title = SkillTextCatalog.Bind("overview.title"),
+            Subtitle = SkillTextCatalog.Bind("overview.subtitle", root, libraryCount),
             Items =
             [
-                new SkillUiItem { Title = "已安装项目", Value = rows.Count.ToString(), ValueLabel = "个" },
-                new SkillUiItem { Title = "占用合计", Value = FormatSize(total), ValueLabel = "所有库累加" },
-                new SkillUiItem { Title = "单体最大", Value = FormatSize(top.SizeBytes), ValueLabel = top.Name },
-                new SkillUiItem { Title = "平均占用", Value = FormatSize(average), ValueLabel = "每个项目" }
+                new SkillUiItem { Title = SkillTextCatalog.Bind("stats.installed"), Value = SkillTextCatalog.Bind("value.count", rows.Count), ValueLabel = SkillTextCatalog.Bind("stats.countLabel") },
+                new SkillUiItem { Title = SkillTextCatalog.Bind("stats.total"), Value = FormatSize(total), ValueLabel = SkillTextCatalog.Bind("stats.allLibraries") },
+                new SkillUiItem { Title = SkillTextCatalog.Bind("stats.largest"), Value = FormatSize(top.SizeBytes), ValueLabel = top.Name },
+                new SkillUiItem { Title = SkillTextCatalog.Bind("stats.average"), Value = FormatSize(average), ValueLabel = SkillTextCatalog.Bind("stats.perItem") }
             ]
         };
 
         var posters = new SkillUiSection
         {
             Kind = SkillUiSectionKind.PosterGrid,
-            Title = "占用排行",
-            Subtitle = "按实测体积从大到小，封面自动取自 Steam CDN，副标题显示启动情况（从未启动的下载项一眼可辨）；卡片上的「卸载」会调用 Steam 原生卸载。",
+            Title = SkillTextCatalog.Bind("posters.title"),
+            Subtitle = SkillTextCatalog.Bind("posters.description"),
             Columns = 4,
             Items = [.. rows.Take(TopPosterCount).Select(row =>
             {
@@ -481,13 +489,13 @@ public sealed class Provider : IAppDataProvider
                 {
                     Title = entry.Name,
                     Value = FormatSize(entry.SizeBytes),
-                    Subtitle = entry.Detail ?? "启动记录未知",
+                    Subtitle = row.Launch.Describe(),
                     Badge = row.Launch.Badge(),
                     AppId = entry.AppId,
                     Path = entry.Path,
                     SizeBytes = entry.SizeBytes,
                     Metric = entry.SizeBytes,
-                    Action = new SkillUiItemAction { Kind = "uninstall", Label = "卸载", Target = entry.AppId }
+                    Action = new SkillUiItemAction { Kind = "uninstall", Label = SkillTextCatalog.Bind("action.uninstall"), Target = entry.AppId }
                 };
             })]
         };
@@ -495,9 +503,9 @@ public sealed class Provider : IAppDataProvider
         var table = new SkillUiSection
         {
             Kind = SkillUiSectionKind.Table,
-            Title = "全部明细",
-            Subtitle = "共 " + rows.Count + " 行，可在窗口中滚动查看；每行右侧的「卸载」与卡片上的同样走 Steam 原生卸载。",
-            Headers = ["游戏", "占用", "启动情况", "所在库"],
+            Title = SkillTextCatalog.Bind("table.title"),
+            Subtitle = SkillTextCatalog.Bind("table.subtitle", rows.Count),
+            Headers = [SkillTextCatalog.Bind("table.game"), SkillTextCatalog.Bind("table.size"), SkillTextCatalog.Bind("table.launch"), SkillTextCatalog.Bind("table.library")],
             Items = [.. rows.Take(MaxTableRows).Select(row =>
             {
                 var entry = row.Entry;
@@ -507,29 +515,30 @@ public sealed class Provider : IAppDataProvider
                     [
                         entry.Name,
                         FormatSize(entry.SizeBytes),
-                        entry.Detail ?? "-",
+                        row.Launch.Describe(),
                         ShortLibrary(entry.Path)
                     ],
                     Path = entry.Path,
                     AppId = entry.AppId,
                     Title = entry.Name,
                     SizeBytes = entry.SizeBytes,
-                    Action = new SkillUiItemAction { Kind = "uninstall", Label = "卸载", Target = entry.AppId }
+                    Action = new SkillUiItemAction { Kind = "uninstall", Label = SkillTextCatalog.Bind("action.uninstall"), Target = entry.AppId }
                 };
             })]
         };
 
         return new SkillUiSpec
         {
-            Title = "Steam 游戏库盘点",
-            Subtitle = "共 " + rows.Count + " 个已安装项目，合计 " + FormatSize(total) + "，分布在 " + libraryCount + " 个库位置。",
+            Title = SkillTextCatalog.Bind("view.title"),
+            Subtitle = SkillTextCatalog.Bind("view.subtitle", rows.Count, FormatSize(total), libraryCount),
+            Localizations = localizations,
             // auto：气泡放入口卡的同时，把完整盘点界面直接弹出来。
             Surface = SkillUiSurface.Auto,
-            EntryTitle = "Steam 游戏库盘点",
-            EntrySummary = rows.Count + " 个已安装项目 · 合计 " + FormatSize(total) + " · 卡片上可直接调用 Steam 原生卸载",
+            EntryTitle = SkillTextCatalog.Bind("view.title"),
+            EntrySummary = SkillTextCatalog.Bind("entry.summary", rows.Count, FormatSize(total)),
             Sections = [stats, posters, table],
             // 这一屏就是终点：盘点 + 卸载，不再有「回传继续分析」。
-            Actions = [new SkillUiAction { Kind = "close", Label = "关闭" }]
+            Actions = [new SkillUiAction { Kind = "close", Label = SkillTextCatalog.Bind("action.close") }]
         };
     }
 }

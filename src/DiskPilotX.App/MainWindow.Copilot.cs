@@ -203,6 +203,8 @@ public partial class MainWindow
                 return await ExecuteSkillSourceAsync(args,ct);
             case "refresh_skill_catalog":
                 _chatViewModel?.RefreshSkills(); return new JsonObject { ["ok"]=true };
+            case "get_localization_state":
+                return JsonSerializer.SerializeToNode(DiskPilotX.App.Localization.L.GetState(), SkillJson)!;
             case "show_skill_panel":
                 return ShowSkillPanel(args);
             case "render_view":

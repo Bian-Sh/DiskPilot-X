@@ -208,6 +208,9 @@ public sealed record SkillUiSpec
     /// <summary>呈现主题；当前仅支持继承宿主 VisionPro 主题。</summary>
     public string Theme { get; init; } = "visionpro";
 
+    /// <summary>技能自有文案，显示文字使用 {loc key}，语言切换不改写数据对象。</summary>
+    public Dictionary<string, Dictionary<string, string>>? Localizations { get; init; }
+
     public IReadOnlyList<SkillUiSection> Sections { get; init; } = [];
 
     public IReadOnlyList<SkillUiAction> Actions { get; init; } = [new()];
@@ -356,9 +359,33 @@ public static class SkillUiSpecContract
             Surface = ParseSurface(GetString(payload, "surface")),
             EntryTitle = TrimTo(GetString(payload, "entry_title"), 80),
             EntrySummary = TrimTo(GetString(payload, "entry_summary"), 200),
+            Localizations = ReadLocalizations(payload),
             Sections = sections,
             Actions = ParseActions(payload)
         };
+    }
+
+    private static Dictionary<string, Dictionary<string, string>>? ReadLocalizations(JsonElement payload)
+    {
+        if (!payload.TryGetProperty("localizations", out var value)) return null;
+        if (value.ValueKind != JsonValueKind.Object || value.GetRawText().Length > 262144)
+            throw new ArgumentException("视图本地化目录无效或超过 256 KiB。");
+        var result = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var culture in value.EnumerateObject())
+        {
+            if (result.Count >= 8 || !Services.Skills.SkillTextCatalog.TryResolveCulture(culture.Name, out var parsed) ||
+                culture.Value.ValueKind != JsonValueKind.Object || result.ContainsKey(parsed.Name))
+                throw new ArgumentException("视图本地化文化无效、重复或超过 8 种。");
+            var entries = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var entry in culture.Value.EnumerateObject())
+            {
+                if (entries.Count >= 256 || entry.Name.Length is 0 or > 128 || entry.Value.ValueKind != JsonValueKind.String ||
+                    entry.Value.GetString()!.Length > 4000 || !entries.TryAdd(entry.Name, entry.Value.GetString()!))
+                    throw new ArgumentException("视图本地化键值无效、重复或超出限制。");
+            }
+            result.Add(parsed.Name, entries);
+        }
+        return result;
     }
 
     private static SkillUiSection? ParseSection(JsonElement el)

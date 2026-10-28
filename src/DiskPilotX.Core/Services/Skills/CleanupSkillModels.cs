@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DiskPilotX.Core.Services.Skills;
 
 public sealed record CleanupSkillPackage
@@ -12,6 +14,9 @@ public sealed record CleanupSkillPackage
     public IReadOnlyList<CleanupSkillReference> References { get; init; } = [];
     public string? UiXaml { get; init; }
     public string? Source { get; init; }
+    // 缺省时不写入新字段，保留旧包的序列化形状与版本摘要。
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, Dictionary<string, string>>? Localizations { get; init; }
     public string Digest { get; init; } = "";
 }
 
@@ -32,7 +37,7 @@ public sealed record CleanupSkillCandidate(string RuleId, string Path, long Size
 public sealed record CleanupSkillPreview(string Id, string Digest, string ScopePath, IReadOnlyList<CleanupSkillCandidate> Candidates, IReadOnlyList<string> Warnings);
 public sealed record CleanupSkillSourceDiagnostic(string Code, string Message, string Severity, int? Line = null, int? Column = null);
 public sealed record CleanupSkillSourceValidation(bool Success, string Digest, IReadOnlyList<CleanupSkillSourceDiagnostic> Diagnostics, string Contract = "none");
-public sealed record CleanupSkillDetectionContext(string SkillId, string ScopePath, IReadOnlyList<CleanupSkillRule> Rules, IReadOnlyDictionary<string,string>? Parameters = null);
+public sealed record CleanupSkillDetectionContext(string SkillId, string ScopePath, IReadOnlyList<CleanupSkillRule> Rules, IReadOnlyDictionary<string,string>? Parameters = null, SkillLocalizationState? Localization = null);
 
 /// <summary>可信源码的固定检测契约。此接口和加载上下文均不提供安全沙箱；只能返回候选，宿主另行确认清理。</summary>
 public interface ICleanupSkillDetector
@@ -63,7 +68,8 @@ public sealed record AppDataDiscoveryResult(
 public sealed record AppDataDiscoveryContext(
     string SkillId,
     ISkillHostBridge Host,
-    IReadOnlyDictionary<string, string>? Parameters = null);
+    IReadOnlyDictionary<string, string>? Parameters = null,
+    Dictionary<string, Dictionary<string,string>>? Localizations = null);
 
 /// <summary>
 /// 可信源码的固定发现契约：枚举/读取本机应用数据（只读），不检测清理候选。

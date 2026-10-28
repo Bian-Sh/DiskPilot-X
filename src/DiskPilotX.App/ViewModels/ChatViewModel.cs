@@ -76,6 +76,7 @@ public partial class ChatViewModel : ObservableObject
         assistant.Activity += activity => OnUi(() => ApplyActivity(activity));
         assistant.RunFinished += () => OnUi(RefreshConversationCommands);
         L.LanguageChanged += RefreshSlashCommandSuggestions;
+        L.LanguageChanged += RefreshSkills;
         L.LanguageChanged += () => OnPropertyChanged(nameof(HeaderText));
         L.LanguageChanged += () => OnPropertyChanged(nameof(ThinkingLevelOptions));
         L.LanguageChanged += () => OnPropertyChanged(nameof(ThinkingPickerLabel));

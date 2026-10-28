@@ -5,6 +5,7 @@ using System.Resources;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Markup;
+using DiskPilotX.Core.Services.Skills;
 
 namespace DiskPilotX.App.Localization;
 
@@ -49,7 +50,15 @@ public sealed class LocBinding : INotifyPropertyChanged
         _targetObject = targetObject;
         _targetProperty = dependencyProperty;
         KeepAlive(targetObject, this);
-        L.LanguageChanged += OnLanguageChanged;
+        // 目标控件通过附加属性维持绑定寿命；全局事件不能反向强引用已关闭窗口。
+        var weak = new WeakReference<LocBinding>(this);
+        Action? handler = null;
+        handler = () =>
+        {
+            if (weak.TryGetTarget(out var binding)) binding.OnLanguageChanged();
+            else L.LanguageChanged -= handler;
+        };
+        L.LanguageChanged += handler;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -93,49 +102,66 @@ public static class L
 {
     private const string LanguageEnvironmentVariable = "DISKPILOT_X_LANGUAGE";
     public const string AutoLanguage = "auto";
+    private static readonly object Gate = new();
+    private static SkillLocalizationState state = new(AutoLanguage, CultureInfo.InstalledUICulture.Name,
+        SkillLocalizationState.ResourceCulture(CultureInfo.InstalledUICulture));
+    private static readonly ResourceManager ResourceManager = new("DiskPilotX.App.Localization.Strings", typeof(L).Assembly);
 
-    private static readonly ResourceManager ResourceManager = new(
-        "DiskPilotX.App.Localization.Strings",
-        typeof(L).Assembly);
+    static L() => SetLanguage(DiskPilotX.Core.AppCompatibility.GetEnvironmentVariable(LanguageEnvironmentVariable));
 
-    static L()
-    {
-        var configuredLanguage = DiskPilotX.Core.AppCompatibility.GetEnvironmentVariable(LanguageEnvironmentVariable);
-
-        SetLanguage(configuredLanguage);
-    }
-
-    public static string CurrentLanguageName => CultureInfo.CurrentUICulture.Name;
-
+    public static string CurrentLanguageName => GetState().CultureName;
     public static event Action? LanguageChanged;
+    public static event Action<SkillLocalizationState>? LocalizationChanged;
+    public static SkillLocalizationState GetState() { lock (Gate) return state; }
+
+    public static IDisposable Subscribe(Action<SkillLocalizationState> observer)
+    {
+        ArgumentNullException.ThrowIfNull(observer);
+        LocalizationChanged += observer;
+        return new SkillLocalizationSubscription(() => LocalizationChanged -= observer);
+    }
 
     public static void SetLanguage(string? language)
     {
+        var preference = string.IsNullOrWhiteSpace(language) ? AutoLanguage : language.Trim();
         CultureInfo culture;
-        if (string.IsNullOrWhiteSpace(language) || string.Equals(language, AutoLanguage, StringComparison.OrdinalIgnoreCase))
+        try
         {
+            culture = preference.Equals(AutoLanguage, StringComparison.OrdinalIgnoreCase)
+                ? CultureInfo.InstalledUICulture : CultureInfo.GetCultureInfo(preference);
+        }
+        catch (CultureNotFoundException)
+        {
+            preference = AutoLanguage;
             culture = CultureInfo.InstalledUICulture;
         }
-        else
+        if (preference.Equals(AutoLanguage, StringComparison.OrdinalIgnoreCase)) preference = AutoLanguage;
+        var next = new SkillLocalizationState(preference, culture.Name, SkillLocalizationState.ResourceCulture(culture));
+        bool changed;
+        lock (Gate)
         {
-            culture = CultureInfo.GetCultureInfo(language);
+            changed = state != next;
+            state = next;
+            CultureInfo.DefaultThreadCurrentCulture = culture;
+            CultureInfo.DefaultThreadCurrentUICulture = culture;
         }
-
-        var changed = CultureInfo.CurrentUICulture.Name != culture.Name;
         CultureInfo.CurrentCulture = culture;
         CultureInfo.CurrentUICulture = culture;
-
-        if (changed)
+        if (!changed) return;
+        void Notify()
+        {
+            // 已排队的旧通知不能覆盖较新的语言状态。
+            if (GetState() != next) return;
             LanguageChanged?.Invoke();
+            LocalizationChanged?.Invoke(next);
+        }
+        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess()) dispatcher.BeginInvoke(Notify);
+        else Notify();
     }
 
-    public static string Text(string key)
-    {
-        return ResourceManager.GetString(key, CultureInfo.CurrentUICulture) ?? $"!{key}!";
-    }
+    public static string Text(string key) => ResourceManager.GetString(key,
+        CultureInfo.GetCultureInfo(GetState().ResourceCultureName)) ?? $"!{key}!";
 
-    public static string Format(string key, params object?[] args)
-    {
-        return string.Format(CultureInfo.CurrentCulture, Text(key), args);
-    }
+    public static string Format(string key, params object?[] args) =>
+        string.Format(CultureInfo.GetCultureInfo(GetState().CultureName), Text(key), args);
 }

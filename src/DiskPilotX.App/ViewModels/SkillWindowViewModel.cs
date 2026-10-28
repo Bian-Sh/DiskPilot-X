@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using DiskPilotX.App.Localization;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
@@ -11,7 +12,7 @@ namespace DiskPilotX.App.ViewModels;
 /// 按需视图窗口的数据与动作。窗口只负责呈现与收集用户勾选，
 /// 一切读取与清理仍由宿主回调完成，源码与 XAML 都不直接操作磁盘。
 /// </summary>
-public sealed class SkillWindowViewModel : INotifyPropertyChanged
+public sealed class SkillWindowViewModel : INotifyPropertyChanged, IDisposable
 {
     public SkillUiSpec Spec { get; }
     public IReadOnlyList<SkillUiAction> Actions => Spec.Actions;
@@ -44,11 +45,11 @@ public sealed class SkillWindowViewModel : INotifyPropertyChanged
         get
         {
             var selected = SelectedItems;
-            if (selected.Count == 0) return "未选择任何条目";
+            if (selected.Count == 0) return L.Text("SkillSelectionEmpty");
             var bytes = selected.Sum(item => item.SizeBytes);
             return bytes > 0
-                ? $"已选 {selected.Count} 项 · 约 {FileSizeConverter.FormatSize(bytes)}"
-                : $"已选 {selected.Count} 项";
+                ? L.Format("SkillSelectionSizeFormat", selected.Count, FileSizeConverter.FormatSize(bytes))
+                : L.Format("SkillSelectionCountFormat", selected.Count);
         }
     }
 
@@ -59,13 +60,13 @@ public sealed class SkillWindowViewModel : INotifyPropertyChanged
         if (selected.Count == 0) return "（用户未选择任何条目）";
         var lines = selected.Select(item =>
             string.IsNullOrWhiteSpace(item.Path)
-                ? $"- {item.Title}{ValueSuffix(item)}"
-                : $"- {item.Title}{ValueSuffix(item)} → {item.Path}");
+                ? $"- {SkillTextExtension.Resolve(item.Title ?? "",Spec.Localizations)}{ValueSuffix(item)}"
+                : $"- {SkillTextExtension.Resolve(item.Title ?? "",Spec.Localizations)}{ValueSuffix(item)} → {item.Path}");
         return string.Join("\n", lines);
     }
 
-    private static string ValueSuffix(SkillUiItem item) =>
-        string.IsNullOrWhiteSpace(item.Value) ? "" : $"（{item.Value}）";
+    private string ValueSuffix(SkillUiItem item) =>
+        string.IsNullOrWhiteSpace(item.Value) ? "" : $"（{SkillTextExtension.Resolve(item.Value!,Spec.Localizations)}）";
 
     private void ExecuteAction(SkillUiAction? action)
     {
@@ -82,6 +83,13 @@ public sealed class SkillWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(SelectionSummary));
             OnPropertyChanged(nameof(HasSelection));
         }
+    }
+
+    public void RefreshLocalization() => OnPropertyChanged(nameof(SelectionSummary));
+
+    public void Dispose()
+    {
+        foreach (var item in SelectableItems) item.PropertyChanged -= OnItemPropertyChanged;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

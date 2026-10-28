@@ -11,6 +11,10 @@ public sealed class CleanupSkillStore
     public string UserRoot { get; }
     private readonly string[] builtInRoots;
     private const int MaxPackageBytes = 4 * 1024 * 1024;
+    private const int MaxLocalizationCultures = 32;
+    private const int MaxLocalizationBytes = 128 * 1024;
+    private const int MaxTotalLocalizationBytes = 512 * 1024;
+    private const int MaxLocalizationEntries = 1024;
     private static readonly UTF8Encoding Utf8 = new(false, true);
     internal static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -89,7 +93,8 @@ public sealed class CleanupSkillStore
             SkillMarkdown = markdown,
             Rules = [],
             References = [],
-            Source = ReadBuiltInSource(directory)
+            Source = ReadBuiltInSource(directory),
+            Localizations = ReadBuiltInLocalizations(directory)
         };
         // 内置包不套用用户包的字段校验：纯规则技能没有源码也合法。
         if (package.Source is not null && Utf8.GetByteCount(package.Source) > 256 * 1024) throw new InvalidDataException("内置技能源码超过 256 KiB 限制。");
@@ -154,6 +159,15 @@ public sealed class CleanupSkillStore
         Validate(package);
         if (package.Id != id || !string.Equals(HashPackage(package), digest, StringComparison.Ordinal))
             throw new InvalidDataException("包内容与摘要不一致，请重新保存并确认。");
+        if (Directory.Exists(Path.Combine(revision,"i18n")))
+        {
+            var disk = ReadBuiltInLocalizations(revision);
+            var expected = package.Localizations?.ToDictionary(table => System.Globalization.CultureInfo.GetCultureInfo(table.Key).Name,table => table.Value,StringComparer.OrdinalIgnoreCase);
+            if(disk is null || expected is null || disk.Count != expected.Count || disk.Any(table =>
+                !expected.TryGetValue(table.Key,out var values) || values.Count != table.Value.Count ||
+                table.Value.Any(entry => !values.TryGetValue(entry.Key,out var value) || value != entry.Value)))
+                throw new InvalidDataException("技能 JSON 文案与已确认版本不一致，请通过宿主保存新版本。");
+        }
         return package with { Digest = digest };
     }
 
@@ -180,6 +194,9 @@ public sealed class CleanupSkillStore
                 SkillMarkdown = "", Rules = [], UiXaml = null, Source = null,
                 References = canonical.References.Select(r => r with { Content = "" }).ToArray()
             }, JsonOptions));
+            if(canonical.Localizations is not null)
+                foreach(var (culture,entries) in canonical.Localizations)
+                    WriteText(stage,"i18n/" + System.Globalization.CultureInfo.GetCultureInfo(culture).Name + ".json",JsonSerializer.Serialize(entries,JsonOptions));
             WriteText(stage, "SKILL.md", canonical.SkillMarkdown);
             WriteText(stage, "rules.json", JsonSerializer.Serialize(canonical.Rules, JsonOptions));
             foreach (var reference in canonical.References) WriteText(stage, "references/" + reference.Id + ".txt", reference.Content);
@@ -229,6 +246,7 @@ public sealed class CleanupSkillStore
     {
         ArgumentNullException.ThrowIfNull(package);
         CleanupSkillSafety.ValidateId(package.Id);
+        ValidateLocalizations(package.Localizations);
         if (package.UiXaml is not null) _ = DiskPilotX.Core.Models.SkillUiDocument.Parse(package.UiXaml);
         if (string.IsNullOrWhiteSpace(package.Title) || string.IsNullOrWhiteSpace(package.Description) ||
             string.IsNullOrWhiteSpace(package.SkillMarkdown) || string.IsNullOrWhiteSpace(package.Version) || package.HostProtocolVersion != 1)
@@ -259,6 +277,78 @@ public sealed class CleanupSkillStore
             throw new ArgumentException("技能包超过 4 MiB 限制。");
     }
 
+    internal static Dictionary<string, Dictionary<string, string>>? ReadBuiltInLocalizations(string directory)
+    {
+        var root = CleanupSkillSafety.SafePath(directory, "i18n");
+        if (!Directory.Exists(root)) return null;
+        // 只读这一层且先限制枚举数量，不递归扫描、不跟随链接。
+        var files = Directory.EnumerateFileSystemEntries(root).Take(MaxLocalizationCultures + 1).ToArray();
+        if (files.Length > MaxLocalizationCultures) throw new InvalidDataException("内置技能 i18n 文案目录最多包含 32 个文化文件。");
+        if (files.Length == 0) return null;
+        var tables = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        var totalBytes = 0;
+        foreach (var file in files.Order(StringComparer.OrdinalIgnoreCase))
+        {
+            var relative = "i18n/" + Path.GetFileName(file);
+            var path = CleanupSkillSafety.SafePath(directory, relative);
+            if ((File.GetAttributes(path) & FileAttributes.Directory) != 0 ||
+                !Path.GetExtension(path).Equals(".json", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException($"文案 {relative} 必须是当前 i18n 目录下的文化 JSON 文件，不允许子目录。");
+            var name = Path.GetFileNameWithoutExtension(path);
+            if (!SkillTextCatalog.TryResolveCulture(name, out var culture))
+                throw new InvalidDataException($"文案 {relative} 的文化名称无效。");
+            try
+            {
+                var json = ReadText(directory, relative, MaxLocalizationBytes);
+                totalBytes += Utf8.GetByteCount(json);
+                if (totalBytes > MaxTotalLocalizationBytes) throw new InvalidDataException("文案总大小超过 512 KiB 限制。");
+                using var document = JsonDocument.Parse(json);
+                if (document.RootElement.ValueKind != JsonValueKind.Object) throw new InvalidDataException("文案 JSON 根节点必须为键值对象。");
+                var entries = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var property in document.RootElement.EnumerateObject())
+                {
+                    if (entries.Count >= MaxLocalizationEntries) throw new InvalidDataException("单个文化的文案最多 1024 项。");
+                    if (property.Value.ValueKind != JsonValueKind.String || !entries.TryAdd(property.Name, property.Value.GetString()!))
+                        throw new InvalidDataException($"文案键 {property.Name} 重复或其值不是字符串。");
+                }
+                if (!tables.TryAdd(culture.Name, entries)) throw new InvalidDataException("文案文化重复。");
+                ValidateLocalizations(tables);
+            }
+            catch (Exception ex) when (ex is JsonException or ArgumentException or InvalidDataException)
+            {
+                throw new InvalidDataException($"文案 {relative} 无效：{ex.Message}", ex);
+            }
+        }
+        return tables;
+    }
+
+    private static void ValidateLocalizations(IReadOnlyDictionary<string, Dictionary<string, string>>? tables)
+    {
+        if (tables is null) return;
+        if (tables.Count > MaxLocalizationCultures) throw new ArgumentException("文案最多包含 32 个文化。");
+        var cultures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var totalBytes = 0;
+        foreach (var (name, entries) in tables)
+        {
+            if (!SkillTextCatalog.TryResolveCulture(name, out var culture) || !cultures.Add(culture.Name))
+                throw new ArgumentException("文案文化名称无效或重复：" + name);
+            if (entries is null || entries.Count > MaxLocalizationEntries) throw new ArgumentException($"文案文化 {name} 必须为至多 1024 项的键值对象。");
+            var rawBytes = 0;
+            foreach (var (key, value) in entries)
+            {
+                if (string.IsNullOrWhiteSpace(key) || key.Length > 256 || key.Any(char.IsControl) ||
+                    value is null || value.Length > 16384 || value.Any(c => char.IsControl(c) && c is not ('\n' or '\r' or '\t')))
+                    throw new ArgumentException($"文案文化 {name} 的键值无效：键最多 256 字符，值最多 16384 字符，禁止非法控制字符。");
+                rawBytes += Utf8.GetByteCount(key) + Utf8.GetByteCount(value);
+                if (rawBytes > MaxLocalizationBytes) throw new ArgumentException($"文案文化 {name} 超过 128 KiB 限制。");
+            }
+            // 同时限制实际序列化大小，包含 JSON 转义与缩进开销。
+            var bytes = Utf8.GetByteCount(JsonSerializer.Serialize(entries, JsonOptions));
+            if (bytes > MaxLocalizationBytes) throw new ArgumentException($"文案文化 {name} 超过 128 KiB 限制。");
+            totalBytes += bytes;
+            if (totalBytes > MaxTotalLocalizationBytes) throw new ArgumentException("文案总大小超过 512 KiB 限制。");
+        }
+    }
     internal static string Hash(string value) => Convert.ToHexStringLower(SHA256.HashData(Utf8.GetBytes(value)));
     private static string HashPackage(CleanupSkillPackage package) => Hash(JsonSerializer.Serialize(package with { Digest = "" }, JsonOptions));
     private static string? ReadOptional(string root, string relative) => File.Exists(CleanupSkillSafety.SafePath(root, relative)) ? ReadText(root, relative) : null;

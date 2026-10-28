@@ -1,5 +1,6 @@
 using System.Windows;
 using DiskPilotX.App.Helpers;
+using DiskPilotX.App.Localization;
 using DiskPilotX.App.ViewModels;
 using DiskPilotX.Core.Models;
 
@@ -19,9 +20,15 @@ public sealed partial class SkillWindow : Window
     {
         InitializeComponent();
         SetResourceReference(ForegroundProperty, "VP.TextPrimaryBrush");
-        Title = spec.Title;
+        Title = SkillTextExtension.Resolve(spec.Title, spec.Localizations);
         viewModel = new SkillWindowViewModel(spec);
         DataContext = viewModel;
+        var subscription = L.Subscribe(_ =>
+        {
+            Title = SkillTextExtension.Resolve(spec.Title, spec.Localizations);
+            viewModel.RefreshLocalization();
+        });
+        Closed += (_, _) => { subscription.Dispose(); viewModel.Dispose(); };
         viewModel.CloseRequested += Close;
         viewModel.ContinueRequested += items => ContinueRequested?.Invoke(spec, items);
         viewModel.PreviewRequested += items => PreviewRequested?.Invoke(spec, items);

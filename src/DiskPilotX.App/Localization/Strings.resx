@@ -1086,4 +1086,28 @@
 This cannot be undone.</value></data>
   <data name="CopilotDeleteConversationConfirm" xml:space="preserve"><value>Confirm deletion</value></data>
   <data name="CopilotHistoryDeleteFailed" xml:space="preserve"><value>Could not delete this conversation. Check file access permissions. The current conversation has been preserved.</value></data>
+  <data name="SkillNoCover" xml:space="preserve"><value>No cover</value></data>
+  <data name="SkillSelected" xml:space="preserve"><value>Selected</value></data>
+  <data name="SkillSelectionEmpty" xml:space="preserve"><value>No items selected</value></data>
+  <data name="SkillSelectionSizeFormat" xml:space="preserve"><value>{0} selected · approximately {1}</value></data>
+  <data name="SkillSelectionCountFormat" xml:space="preserve"><value>{0} selected</value></data>
+  <data name="SkillPanelOpen" xml:space="preserve"><value>Open task panel</value></data>
+  <data name="SkillPanelColNote" xml:space="preserve"><value>Note</value></data>
+  <data name="SkillPanelColPath" xml:space="preserve"><value>Path</value></data>
+  <data name="SkillPanelDone" xml:space="preserve"><value>Done; reopen anytime from the chat card.</value></data>
+  <data name="SkillPanelDefaultDone" xml:space="preserve"><value>Done.</value></data>
+  <data name="SkillPanelChecking" xml:space="preserve"><value>Previewing (read-only)…</value></data>
+  <data name="SkillPanelClose" xml:space="preserve"><value>Collapse panel</value></data>
+  <data name="SkillPanelColSize" xml:space="preserve"><value>Size</value></data>
+  <data name="SkillPanelFoundFormat" xml:space="preserve"><value>Found {0} item(s), {1} total. Nothing has been cleaned.</value></data>
+  <data name="SkillPanelHints" xml:space="preserve"><value>Notes:</value></data>
+  <data name="SkillPanelHandoff" xml:space="preserve"><value>Handing to assistant…</value></data>
+  <data name="SkillPanelCannotComplete" xml:space="preserve"><value>Could not finish the check: </value></data>
+  <data name="SkillPanelHint" xml:space="preserve"><value>Choose what to check and preview real data first; cleanup still needs confirmation in the chat.</value></data>
+  <data name="SkillPanelFailed" xml:space="preserve"><value>The operation did not complete; see details below.</value></data>
+  <data name="SkillPanelPreview" xml:space="preserve"><value>Preview candidates</value></data>
+  <data name="SkillPanelScopeLabel" xml:space="preserve"><value>Scope</value></data>
+  <data name="SkillPanelStopped" xml:space="preserve"><value>Task stopped.</value></data>
+  <data name="SkillPanelContinue" xml:space="preserve"><value>Hand to assistant</value></data>
+  <data name="SkillPanelTruncated" xml:space="preserve"><value>Showing the first 100 only; narrow the scope for details.</value></data>
 </root>

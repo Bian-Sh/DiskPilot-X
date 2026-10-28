@@ -11,10 +11,12 @@ public sealed record SkillUiDocument(string Type, IReadOnlyDictionary<string,str
         ["StackPanel"] = ["Orientation"], ["Grid"] = ["Columns"], ["Border"] = [],
         ["TextBlock"] = ["Text", "FontSize", "FontWeight"], ["TextBox"] = ["Text", "Name", "MaxLength"],
         ["CheckBox"] = ["Content", "Name", "IsChecked"], ["ComboBox"] = ["Name", "SelectedValue"],
-        ["ComboBoxItem"] = ["Content"], ["Button"] = ["Content", "Command"], ["DataGrid"] = ["ItemsSource"]
+        ["ComboBoxItem"] = ["Content", "Value"], ["Button"] = ["Content", "Command"], ["DataGrid"] = ["ItemsSource"]
     };
     private static readonly Regex Identifier = new("^[a-z][a-z0-9_]{0,63}$");
     private static readonly Regex Binding = new(@"^\{Binding ([a-z][a-z0-9_]{0,63})\}$");
+    private static readonly Regex Localization = new(@"^\{loc ([A-Za-z0-9_.-]{1,128})\}$");
+    public static string? LocalizationKey(string value) => Localization.Match(value) is { Success: true } match ? match.Groups[1].Value : null;
     public static SkillUiDocument Parse(string xaml)
     {
         if (string.IsNullOrWhiteSpace(xaml) || xaml.Length > 64000) throw new ArgumentException("面板描述为空或超过 64 KB。");
@@ -37,7 +39,10 @@ public sealed record SkillUiDocument(string Type, IReadOnlyDictionary<string,str
                 if (attribute.Name.NamespaceName.Length > 0 && !(key == "Name" && attribute.Name.NamespaceName == "http://schemas.microsoft.com/winfx/2006/xaml"))
                     throw new ArgumentException("面板不允许扩展属性。");
                 if (!attributes.Contains(key) || !properties.TryAdd(key, attribute.Value)) throw new ArgumentException("不允许的面板属性：" + key);
-                if (attribute.Value.Contains('{') && !Binding.IsMatch(attribute.Value)) throw new ArgumentException("面板仅允许绑定简单数据字段。");
+                if (attribute.Value.Contains('{') && !Binding.IsMatch(attribute.Value) &&
+                    !(Localization.IsMatch(attribute.Value) && ((type == "TextBlock" && key == "Text") ||
+                        (type is "CheckBox" or "ComboBoxItem" or "Button" && key == "Content"))))
+                    throw new ArgumentException("面板仅允许简单字段绑定或显示文案的 {loc key}。");
                 if (key == "Name" && (!Identifier.IsMatch(attribute.Value) || !names.Add(attribute.Value))) throw new ArgumentException("表单字段名称无效或重复。");
                 if (key == "Command" && attribute.Value is not ("preview" or "continue" or "close")) throw new ArgumentException("面板命令不受支持。");
             }

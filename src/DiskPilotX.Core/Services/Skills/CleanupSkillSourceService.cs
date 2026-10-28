@@ -64,7 +64,7 @@ public sealed class CleanupSkillSourceService(CleanupSkillStore store)
         return new(id, package.Digest, issuer);
     }
 
-    public async Task<CleanupSkillPreview> RunAsync(CleanupSkillCodeAuthorization authorization, string scopePath, CancellationToken cancellationToken = default, IReadOnlyDictionary<string,string>? parameters = null)
+    public async Task<CleanupSkillPreview> RunAsync(CleanupSkillCodeAuthorization authorization, string scopePath, CancellationToken cancellationToken = default, IReadOnlyDictionary<string,string>? parameters = null, SkillLocalizationState? localization = null)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         if(parameters is { Count: > 32 } || (parameters?.Any(p=>p.Key.Length>64 || p.Value.Length>4000) ?? false)) throw new ArgumentException("检测参数超过限制。");
@@ -86,7 +86,7 @@ public sealed class CleanupSkillSourceService(CleanupSkillStore store)
             // 编译使用已验证的内存快照；执行前再次校验，避免编译期间的修改复用旧授权。
             if (store.LoadReadOnly(package.Id).Digest != authorization.Digest) throw new UnauthorizedAccessException("编译期间包已变化，请重新确认。");
             var detector = (ICleanupSkillDetector)Activator.CreateInstance(type)!;
-            var output = await Task.Run(async () => await detector.DetectAsync(new(package.Id, scope, package.Rules, inputs), cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+            var output = await Task.Run(async () => await detector.DetectAsync(new(package.Id, scope, package.Rules, inputs, localization ?? SkillLocalizationState.FromCulture(System.Globalization.CultureInfo.CurrentUICulture)), cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             if (output is null || output.Count > 20_000) throw new InvalidDataException("源码候选为空或超出数量限制。");
             var candidates = output.Select(candidate => CleanupSkillPreviewer.VerifySourceCandidate(candidate, scope, package))
@@ -116,7 +116,7 @@ public sealed class CleanupSkillSourceService(CleanupSkillStore store)
             cancellationToken.ThrowIfCancellationRequested();
             if (store.LoadReadOnly(package.Id).Digest != authorization.Digest) throw new UnauthorizedAccessException("编译期间包已变化，请重新确认。");
             var provider = (IAppDataProvider)Activator.CreateInstance(type)!;
-            var output = await Task.Run(async () => await provider.DiscoverAsync(new(package.Id, host, inputs), cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+            var output = await Task.Run(async () => await provider.DiscoverAsync(new(package.Id, host, inputs, package.Localizations), cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             // 发现类允许「什么都没找到」——源码可返回解释性视图；只有数量越界才是错误。
             if (output?.Entries is null || output.Entries.Count > 20_000) throw new InvalidDataException("发现结果无效或超出数量限制。");

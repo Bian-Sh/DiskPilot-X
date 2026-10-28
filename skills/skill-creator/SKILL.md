@@ -158,3 +158,7 @@ public sealed class Detector : ICleanupSkillDetector
 | 按需视图（SkillUiSpec） | 模型或源码声明的界面契约，宿主用原生控件渲染 |
 | surface | 呈现面：`entry`（默认，只放入口卡）/ `auto`（入口卡 + 自动弹窗） |
 | 可信源码授权 | 运行前宿主展示源码与摘要，用户确认后才执行 |
+
+### 本地化约定
+
+生成动态 UI 前读取 `get_localization_state`，不要硬编码宿主语言。任务表单和结果视图均优先提交 `localizations` 与 `{loc key}`；详细契约见 `references/localization.md`、`references/bridge-api.md`。宿主负责切换语言后的文案刷新，源码不长期驻留、不重复扫描，也不能把翻译后标签当作操作参数。

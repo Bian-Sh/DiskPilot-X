@@ -66,14 +66,14 @@ public sealed class SteamLaunchDetectionTests : IDisposable
         // 明细表的「启动情况」列与 Detail 一致
         var table = result.View!.Sections.Single(section => section.Kind == SkillUiSectionKind.Table);
         var row200 = table.Items.Single(item => item.AppId == "200");
-        Assert.Equal("从未启动", row200.Cells![2]);
+        Assert.Equal("从未启动",new SkillTextCatalog(result.View.Localizations).Resolve(row200.Cells![2],"zh-CN"));
     }
 
     private static Dictionary<string, string> PosterBadges(SkillUiSpec? view)
     {
         Assert.NotNull(view);
         var posters = view!.Sections.Single(section => section.Kind == SkillUiSectionKind.PosterGrid);
-        return posters.Items.ToDictionary(item => item.AppId!, item => item.Badge!);
+        return posters.Items.ToDictionary(item => item.AppId!, item => new SkillTextCatalog(view.Localizations).Resolve(item.Badge!,"zh-CN"));
     }
 
     /// <summary>

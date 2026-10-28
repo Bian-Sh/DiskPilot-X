@@ -29,6 +29,10 @@ public sealed class DefaultSkillHostBridge : ISkillHostBridge
         _logger = logger;
     }
 
+    public SkillLocalizationState GetLocalizationState() => Localization.L.GetState();
+
+    public IDisposable SubscribeLocalizationChanged(Action<SkillLocalizationState> observer) => Localization.L.Subscribe(observer);
+
     public string SkillId { get; }
 
     public IReadOnlyDictionary<string, string> Parameters { get; }
