@@ -235,15 +235,16 @@ public sealed class OpenAiModelClientTests
     public async Task 两种OpenAI格式均保留流式或完整JSON用量(bool responses, bool json)
     {
         var usage = responses
-            ? "\"usage\":{\"input_tokens\":100,\"output_tokens\":20,\"total_tokens\":120,\"input_tokens_details\":{\"cached_tokens\":80},\"output_tokens_details\":{\"reasoning_tokens\":5}}"
-            : "\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":20,\"total_tokens\":120,\"prompt_tokens_details\":{\"cached_tokens\":80},\"completion_tokens_details\":{\"reasoning_tokens\":5}}";
+            ? "\"model\":\"实际服务模型\",\"usage\":{\"input_tokens\":100,\"output_tokens\":20,\"total_tokens\":120,\"input_tokens_details\":{\"cached_tokens\":80},\"output_tokens_details\":{\"reasoning_tokens\":5}}"
+            : "\"model\":\"实际服务模型\",\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":20,\"total_tokens\":120,\"prompt_tokens_details\":{\"cached_tokens\":80},\"completion_tokens_details\":{\"reasoning_tokens\":5}}";
         var body = json
             ? responses ? "{\"output\":[]," + usage + "}" : "{\"choices\":[{\"message\":{\"content\":\"答\"},\"finish_reason\":\"stop\"}]," + usage + "}"
             : responses ? "data: {\"type\":\"response.completed\",\"response\":{" + usage + "}}\n\n"
                 : "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]," + usage + "}\n\ndata: [DONE]\n\n";
         using var http = new HttpClient(new FakeHandler(_ => json ? JsonHttp(body) : Response(body)));
         var completed = Assert.Single((await Collect(responses ? ResponsesClient(http) : ChatClient(http), Request)).OfType<ModelCompletedEvent>());
-        Assert.Equal(new ModelTokenUsage(100, 20, 120, 80, null, 5), completed.Usage);
+        Assert.Equal(new ModelTokenUsage(100, 20, 120, 80, null, 5, 100), completed.Usage);
+        Assert.Equal("实际服务模型", completed.ModelId);
     }
 
     [Theory]

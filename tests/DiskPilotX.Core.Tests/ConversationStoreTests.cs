@@ -61,6 +61,22 @@ public sealed class ConversationStoreTests : IDisposable
         load.Should().Throw<InvalidDataException>();
     }
 
+    [Fact]
+    public void 删除仅移除指定正文与元数据并拒绝跨目录标识()
+    {
+        var store = new ConversationStore(directory);
+        var target = Snapshot([new Message { Sender = ChatSender.User, Text = "目标" }]);
+        var other = Snapshot([new Message { Sender = ChatSender.User, Text = "保留" }]);
+        store.Save(target);
+        store.Save(other);
+        store.Delete(target.Id);
+        store.Delete(target.Id);
+        store.List().Should().ContainSingle().Which.Id.Should().Be(other.Id);
+        File.Exists(Path.Combine(directory, target.Id + ".metadata")).Should().BeFalse();
+        var invalid = () => store.Delete("../其他目录");
+        invalid.Should().Throw<InvalidDataException>();
+    }
+
     private static ConversationSnapshot Snapshot(IEnumerable<Message> messages) => new(Guid.NewGuid().ToString("N"),
         DateTimeOffset.UtcNow, "[]", AgentSessionState.Running, [ModelMessage.User("模型问题")],
         messages.Select(SavedChatMessage.Capture).ToArray());

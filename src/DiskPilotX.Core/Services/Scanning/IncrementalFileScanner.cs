@@ -45,6 +45,19 @@ public partial class IncrementalFileScanner : IFileScanner
         }
 
         var fullPath = ScanPathResolver.Resolve(path);
+        var execution = new ScanExecutionInfo(fullPath, ScanMethod.Unknown, ScanExecutionStatus.Running, DateTime.Now);
+        void Enter(ScanMethod method)
+        {
+            execution = execution with { Method = method };
+            progress.Report(new ScanProgress("扫描路线：" + method, 0, 0) { Execution = execution });
+        }
+        void Fallback(string reason) => execution = execution with { FallbackReasons = [.. execution.FallbackReasons ?? [], reason] };
+        ScanSession Complete(ScanSession scanned)
+        {
+            scanned.Execution = execution with { Status = scanned.IsCancelled ? ScanExecutionStatus.Cancelled : ScanExecutionStatus.Completed, CompletedAt = scanned.EndTime ?? DateTime.Now };
+            progress.Report(new ScanProgress("扫描结束", scanned.TotalFiles, scanned.TotalFolders) { Execution = scanned.Execution });
+            return scanned;
+        }
         var scanWhitelist = _settingsService?.LoadSettings().ScanWhitelist ?? [];
         if (_whitelistMatcher.IsExcluded(fullPath, scanWhitelist))
         {
@@ -63,10 +76,20 @@ public partial class IncrementalFileScanner : IFileScanner
         {
             _logger.LogInformation("Trying USN incremental path: cachedPath={CachedPath}, nextUsn={NextUsn}", state.ScannedPath, state.Watermark.NextUsn);
             var result = await Task.Run(
-                () => TryIncrementalRescan(state, progress, cancellationToken),
+                () => { Enter(ScanMethod.UsnIncremental); return TryIncrementalRescan(state, progress, cancellationToken); },
                 cancellationToken).ConfigureAwait(false);
             if (result != null)
-                return result;
+            {
+                // 增量结果建立新的扫描标识，保留上一次结果的路线事实。
+                var refreshed = new ScanSession { TargetPath = result.TargetPath, RootEntry = result.RootEntry,
+                    StartTime = execution.StartedAt ?? result.StartTime, EndTime = result.EndTime,
+                    TotalFiles = result.TotalFiles, TotalFolders = result.TotalFolders, TotalSize = result.TotalSize,
+                    DriveCapacity = result.DriveCapacity, DriveFreeSpace = result.DriveFreeSpace, Provenance = result.Provenance };
+                state.CachedSession = refreshed;
+                return Complete(refreshed);
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            Fallback("USN 增量扫描未成功，继续尝试其他路线。");
             // Fallback — incremental failed, do full scan below
         }
 
@@ -75,7 +98,7 @@ public partial class IncrementalFileScanner : IFileScanner
         {
             _logger.LogInformation("Attempting MFT scan");
             var mftResult = await Task.Run(
-                () => TryMftScan(fullPath, volumeRoot, progress, cancellationToken),
+                () => { Enter(ScanMethod.Mft); return TryMftScan(fullPath, volumeRoot, progress, cancellationToken); },
                 cancellationToken).ConfigureAwait(false);
 
             if (mftResult != null)
@@ -107,10 +130,13 @@ public partial class IncrementalFileScanner : IFileScanner
                 }).ContinueWith(_ => IsReadyChanged?.Invoke(), TaskScheduler.Default);
                 IsReadyChanged?.Invoke();
 
-                return mftSession;
+                return Complete(mftSession);
             }
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
+        if (volumeRoot != null) Fallback("MFT 扫描未成功，回退普通目录遍历。");
+        Enter(ScanMethod.DirectoryTraversal);
         // Full scan (first scan or fallback)
         _logger.LogInformation("Performing full scan via FileScanner");
         var session = await _inner.ScanAsync(fullPath, progress, cancellationToken).ConfigureAwait(false);
@@ -134,7 +160,7 @@ public partial class IncrementalFileScanner : IFileScanner
             IsReadyChanged?.Invoke();
         }
 
-        return session;
+        return Complete(session);
     }
 
     private class VolumeScanState

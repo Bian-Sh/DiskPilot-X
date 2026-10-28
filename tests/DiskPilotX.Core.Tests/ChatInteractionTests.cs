@@ -213,7 +213,7 @@ public class ChatInteractionTests
         message.ApplyActivity(Event(AgentEventKind.StepStarted));
         message.ApplyActivity(Event(AgentEventKind.MessageCompleted) with { Message = ModelMessage.Assistant("完成") with { Usage = new(100, 20, 120) } });
         message.UsageText.Should().StartWith("已报告 Token");
-        message.UsageText.Should().Contain("合计 120").And.NotContain("缓存");
+        message.UsageText.Should().Contain("合计 120").And.Contain("缓存命中率 未提供");
     }
 
     [Theory]

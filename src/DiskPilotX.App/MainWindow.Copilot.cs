@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using DiskPilotX.App.Converters;
+using DiskPilotX.App.Services;
 using DiskPilotX.App.ViewModels;
 using DiskPilotX.Core.Models;
 using DiskPilotX.Core.Services.Agent;
@@ -32,10 +33,16 @@ public partial class MainWindow
                 ?.Select(n => n.Entry.Path).ToList();
             return new AgentContext(main?.CurrentSession, _treemapViewModel?.CurrentRoot,
                 _chatViewModel?.LinkedEntry ?? _treemapViewModel?.SelectedNode?.Entry, _chatViewModel?.LinkedRecommendation,
-                _recommendationsViewModel?.HasAnyRecommendations == true, multiSelection);
+                _recommendationsViewModel?.HasAnyRecommendations == true,
+                IsElevated: ProcessPrivileges.IsElevated, LastScanExecution: main?.LastScanExecution,
+                LastCompletedScanExecution: main?.LastCompletedScanExecution, MultiSelection: multiSelection);
         }).Task;
         workspace.Execute = (operation, args, ct) => Dispatcher.InvokeAsync(() => ExecuteAssistantOperationAsync(operation,args,ct)).Task.Unwrap();
-        if (_chatViewModel is not null) _chatViewModel.SkillTaskRequested += OpenSkillTask;
+        if (_chatViewModel is not null)
+        {
+            _chatViewModel.SkillTaskRequested += OpenSkillTask;
+            _chatViewModel.SkillWindowRequested += OpenSkillWindow;
+        }
         if (_chatViewModel is not null && DataContext is MainViewModel vm)
             _chatViewModel.PropertyChanged += (_, e) => { if(e.PropertyName == nameof(ChatViewModel.IsOperationRunning)) vm.IsCopilotBusy=_chatViewModel.IsOperationRunning||_cleanupRunning; };
     }
@@ -55,12 +62,17 @@ public partial class MainWindow
                 var target=ScanPathResolver.Resolve(args?["path"]?.GetValue<string>()??"");
                 if(string.IsNullOrWhiteSpace(target)||Hidden(target)||matcher.IsExcluded(target,settings.ScanWhitelist)) return AssistantError("扫描路径为空或已排除。");
                 if(main.IsScanning || _cleanupRunning) return AssistantError("当前磁盘操作尚未完成。");
-                if(main.CurrentSession is not null && _chatViewModel is not null && !await _chatViewModel.ConfirmAsync("替换当前扫描结果",$"扫描 {target}","将更新 Treemap、文件树与当前分析上下文。",ct)) return new JsonObject{["ok"]=false,["cancelled"]=true};
+                if (_chatViewModel is null) return AssistantError("扫描确认界面尚未准备好。");
+                if (!await main.ConfirmAssistantScanAsync(target, ProcessPrivileges.IsElevated,
+                    (title, description, impact, token) => _chatViewModel.ConfirmAsync(title, description, impact, token), ct))
+                    return new JsonObject { ["ok"] = false, ["cancelled"] = true, ["started"] = false, ["scan_execution"] = JsonSerializer.SerializeToNode(main.LastScanExecution?.ToPublicData()) };
                 var session=await main.ScanForAssistantAsync(target,ct);
                 session.Provenance = new(args?["source_rule_id"] is null ? "chat" : "rule", args?["conversation_id"]?.GetValue<string>(),
                     args?["message_id"]?.GetValue<string>(), args?["purpose"]?.GetValue<string>() ?? "用户请求扫描指定范围", args?["source_rule_id"]?.GetValue<string>());
                 CacheAiScanSession(session);
-                return new JsonObject{["ok"]=true,["scan_id"]=session.Id.ToString(),["path"]=session.TargetPath,["files"]=session.TotalFiles,["folders"]=session.TotalFolders};
+                // 工作区换了一份新扫描结果，清理基准跟着它走，避免沿用上一次的批次会话。
+                _assistantAnalysisSession=session;
+                return new JsonObject{["ok"]=true,["scan_id"]=session.Id.ToString(),["path"]=session.TargetPath,["files"]=session.TotalFiles,["folders"]=session.TotalFolders,["scan_execution"]=JsonSerializer.SerializeToNode(session.Execution?.ToPublicData())};
             }
             case "navigate_path":
             {
@@ -86,29 +98,84 @@ public partial class MainWindow
             }
             case "set_view":
                 return new JsonObject{["ok"]=SetAssistantView(args?["view"]?.GetValue<string>()),["view"]=TreeViewControl.Visibility==Visibility.Visible?"tree":"treemap"};
+            case "analyze_paths":
+                return await AnalyzePathsAsync(args,ct,main,settings,matcher,Hidden);
             case "publish_recommendations":
             {
-                if(main.IsScanning || _cleanupRunning || main.CurrentSession?.Id.ToString()!=args?["scan_id"]?.GetValue<string>()) return AssistantError("扫描结果已改变或磁盘正在操作。");
+                if(main.IsScanning || _cleanupRunning) return AssistantError("扫描结果已改变或磁盘正在操作。");
+                var requestedScanId=args?["scan_id"]?.GetValue<string>();
+                var mergeMode=string.Equals(args?["mode"]?.GetValue<string>(),"merge",StringComparison.OrdinalIgnoreCase);
+                var analysisMode=args?["analysis_mode"]?.GetValue<bool>()==true;
+                var raw=JsonSerializer.SerializeToElement(args);
+                var engine=App.Services!.GetRequiredService<RecommendationEngine>();
+                // 命中无头批次：每个范围用自己的会话校验，再合并成一份清单，避免逐个发布互相覆盖。
+                var batch=_analysisBatch is { } pending && pending.Id.ToString()==requestedScanId ? pending : null;
+                if(batch is not null)
+                {
+                    if(batch.Scopes.Count==0) return AssistantError("分析批次里没有可发布的范围。");
+                    var merged=new List<CleanupRecommendation>();
+                    var missing=0;
+                    var protectedFiltered=0;
+                    foreach(var scope in batch.Scopes)
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        var owned=OwnedCandidates(raw,scope.Root.Path);
+                        var scoped=engine.ValidateCandidates(scope.Session,owned,scope.Root);
+                        missing+=scoped.Diagnostics.MissingEntryCount;
+                        protectedFiltered+=scoped.Diagnostics.ProtectedFilteredCount;
+                        foreach(var item in scoped.Recommendations)
+                        {
+                            item.SourceScope=scope.Label;
+                            merged.Add(item);
+                        }
+                    }
+                    merged=DeduplicateByPath(merged);
+                    if(!analysisMode)
+                        merged=merged.Where(item=>!WouldAffectExcludedPath(item.TargetPath,settings.AiConversationWhitelist)).ToList();
+                    if(merged.Count==0) return AssistantError("没有通过校验的清理候选。");
+                    var diagnostics=new AnalysisDiagnostics
+                    {
+                        TargetPath=batch.Scopes.Count==1?batch.Scopes[0].Path:batch.Note??"多个位置",
+                        ScopePath=string.Join(" ; ",batch.Scopes.Select(scope=>scope.Path)),
+                        IsFocusedScope=true,
+                        ParsedRecommendationCount=merged.Count,
+                        MissingEntryCount=missing,
+                        ProtectedFilteredCount=protectedFiltered
+                    };
+                    var final=mergeMode?_recommendationsViewModel.Recommendations.Concat(merged).ToList():merged;
+                    for(var index=0;index<final.Count;index++) final[index].Id=(index+1).ToString();
+                    _recommendationsViewModel.SetExternalRecommendations(final,diagnostics);
+                    _assistantAnalysisSession=batch.ToSession();
+                    EnsureBottomPanelVisible(); ShowRecommendationsPanel();
+                    return RecommendationState(_assistantAnalysisSession,settings,analysisMode,originLabel:batch.Note??(batch.Scopes.Count==1?batch.Scopes[0].Label:$"{batch.Scopes.Count} 个位置"));
+                }
+                if(main.CurrentSession?.Id.ToString()!=requestedScanId) return AssistantError("扫描结果已改变，请重新读取上下文。");
                 var originalId=main.CurrentSession!.Id;
-                if(_recommendationsViewModel.HasAnyRecommendations && _chatViewModel is not null
+                if(!mergeMode && _recommendationsViewModel.HasAnyRecommendations && _chatViewModel is not null
                     && !await _chatViewModel.ConfirmAsync("替换当前清理建议","将用本轮校验后的建议替换列表。","此操作不会删除文件。",ct)) return new JsonObject{["ok"]=false,["cancelled"]=true};
                 if(main.CurrentSession?.Id!=originalId) return AssistantError("扫描结果已改变，请重新分析。");
-                var analysisMode=args?["analysis_mode"]?.GetValue<bool>()==true;
                 var focusPath=args?["focus_path"]?.GetValue<string>();
                 var localFocus=new FileTreeQueryService().FindByPath(main.CurrentSession!,focusPath??main.CurrentSession!.RootEntry!.Path);
                 if(localFocus is null)return AssistantError("分析范围已失效。");
-                var raw=JsonSerializer.SerializeToElement(args);
-                var analysis=App.Services!.GetRequiredService<RecommendationEngine>().ValidateCandidates(main.CurrentSession!,raw,localFocus);
+                var analysis=engine.ValidateCandidates(main.CurrentSession!,raw,localFocus);
                 analysis.Recommendations=analysis.Recommendations.Where(r=>analysisMode||!WouldAffectExcludedPath(r.TargetPath,settings.AiConversationWhitelist)).ToList();
+                // 确认窗口期间若规则、偏好或隐私条件改变，原列表保留并要求重新分析，避免用旧结论覆盖。
                 if (!App.Services!.GetRequiredService<AssistantWorkspace>().ValidateAnalysisCommit(args)) return AssistantError("确认期间规则、偏好或隐私条件改变，原列表已保留，请重新分析。");
                 ct.ThrowIfCancellationRequested();
-                _recommendationsViewModel.SetExternalRecommendations(analysis.Recommendations,analysis.Diagnostics);
+                var published=mergeMode?_recommendationsViewModel.Recommendations.Concat(analysis.Recommendations).ToList():analysis.Recommendations;
+                for(var index=0;index<published.Count;index++) published[index].Id=(index+1).ToString();
+                _recommendationsViewModel.SetExternalRecommendations(published,analysis.Diagnostics);
+                _assistantAnalysisSession=main.CurrentSession;
                 EnsureBottomPanelVisible(); ShowRecommendationsPanel();
                 return RecommendationState(main.CurrentSession!,settings,analysisMode);
             }
             case "list_recommendations":
-                if(main.CurrentSession is null) return AssistantError("尚无扫描结果。");
-                return RecommendationState(main.CurrentSession,settings);
+            {
+                // 清单可能建立在无头批次会话上（多范围分析），此时读它而不是工作区会话。
+                var source=_assistantAnalysisSession??main.CurrentSession;
+                if(source is null) return AssistantError("尚无扫描结果。");
+                return RecommendationState(source,settings);
+            }
             case "select_recommendations":
             {
                 var ids=ReadIds(args);var selected=args?["selected"]?.GetValue<bool>()??true;
@@ -152,8 +219,12 @@ public partial class MainWindow
                 return await ExecuteSkillSourceAsync(args,ct);
             case "refresh_skill_catalog":
                 _chatViewModel?.RefreshSkills(); return new JsonObject { ["ok"]=true };
+            case "get_localization_state":
+                return JsonSerializer.SerializeToNode(DiskPilotX.App.Localization.L.GetState(), SkillJson)!;
             case "show_skill_panel":
                 return ShowSkillPanel(args);
+            case "render_view":
+                return RenderView(args);
             default:return AssistantError("未知磁盘操作。");
         }
     }
@@ -163,13 +234,129 @@ public partial class MainWindow
         if(view=="treemap"){TreemapTabBtn.IsChecked=true;return true;}
         return false;
     }
-    private JsonNode RecommendationState(ScanSession session,AppSettings settings,bool analysisMode=false)
+
+    /// <summary>
+    /// 多范围无头分析：一次性扫描多个用户选定的路径，各范围保有自己的扫描会话，
+    /// 返回按范围分段的真实证据，供模型一次性给出全部候选。主工作区视图不受影响。
+    /// </summary>
+    private async Task<JsonNode> AnalyzePathsAsync(JsonNode? args,CancellationToken ct,MainViewModel main,AppSettings settings,
+        IPathWhitelistMatcher matcher,Func<string?,bool> hidden)
+    {
+        var paths=ReadPaths(args);
+        if(paths.Count==0) return AssistantError("请提供至少一个本地绝对路径。");
+        var rejected=paths.FirstOrDefault(path=>hidden(path)||matcher.IsExcluded(path,settings.ScanWhitelist));
+        if(rejected is not null) return AssistantError($"路径不允许用于 AI 分析：{rejected}");
+        if (!ProcessPrivileges.IsElevated)
+        {
+            if (_chatViewModel is null) return AssistantError("扫描确认界面尚未准备好。");
+            if (!await main.ConfirmAssistantScanAsync(paths[0], false,
+                (title, description, impact, token) => _chatViewModel.ConfirmAsync(title,
+                    description + "\n本次只读范围：" + string.Join("；", paths), impact, token), ct, replacesWorkspace: false))
+                return new JsonObject { ["ok"] = false, ["cancelled"] = true, ["started"] = false, ["scan_execution"] = JsonSerializer.SerializeToNode(main.LastScanExecution?.ToPublicData()) };
+        }
+        var batch=new AssistantAnalysisBatch { Note=TrimTo(args?["note"]?.GetValue<string>(),400) };
+        foreach(var path in paths)
+        {
+            ct.ThrowIfCancellationRequested();
+            var resolved=ScanPathResolver.Resolve(path);
+            try
+            {
+                var progress=new Progress<ScanProgress>(p=>main.ScanProgressText=
+                    $"正在无头扫描 {p.CurrentPath}（{p.FileCount} 个文件 / {p.FolderCount} 个文件夹）");
+                var session=await main.ScanHeadlessAsync(resolved,ct,progress);
+                batch.Scopes.Add(new AssistantAnalysisScope { Path=resolved, Label=ScopeLabel(resolved), Session=session });
+            }
+            catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
+            { batch.Errors.Add($"{resolved}：{ex.Message}"); }
+        }
+        if(batch.Scopes.Count==0)
+            return AssistantError("这些路径都没能完成扫描：" + string.Join("；", batch.Errors));
+        _analysisBatch=batch;
+        main.ScanProgressText=$"无头扫描完成：{batch.Scopes.Count} 个范围，共 {FileSizeConverter.FormatSize(batch.Scopes.Sum(scope=>scope.Session.TotalSize))}";
+        var scopes=new JsonArray();
+        foreach(var scope in batch.Scopes)
+            scopes.Add(new JsonObject { ["path"]=scope.Path,["label"]=scope.Label,
+                ["files"]=scope.Session.TotalFiles,["folders"]=scope.Session.TotalFolders,["size_bytes"]=scope.Session.TotalSize });
+        var errors=new JsonArray();
+        foreach(var error in batch.Errors) errors.Add(error);
+        return new JsonObject
+        {
+            ["ok"]=true,["scan_id"]=batch.Id.ToString(),["batch"]=true,["scope_count"]=batch.Scopes.Count,
+            ["scopes"]=scopes,["errors"]=errors,
+            // 回显给工具的一面保留完整证据长度（有上限，多个范围时自动收敛）。
+            ["evidence"]=AssistantAnalysisEvidence.Build(App.Services!.GetRequiredService<RecommendationEngine>(),batch,12_000,36_000)
+        };
+    }
+
+    /// <summary>把候选按路径前缀归属到某个范围；范围之间互不重叠。</summary>
+    private static JsonElement OwnedCandidates(JsonElement raw,string rootPath)
+    {
+        var array=new JsonArray();
+        if(raw.ValueKind==JsonValueKind.Object && raw.TryGetProperty("recommendations",out var items) && items.ValueKind==JsonValueKind.Array)
+            foreach(var item in items.EnumerateArray())
+                if(item.ValueKind==JsonValueKind.Object && item.TryGetProperty("path",out var pathNode)
+                    && pathNode.ValueKind==JsonValueKind.String && IsUnder(pathNode.GetString(),rootPath))
+                    array.Add(JsonNode.Parse(item.GetRawText()));
+        return JsonSerializer.SerializeToElement(new JsonObject { ["recommendations"]=array });
+    }
+
+    private static bool IsUnder(string? path,string? rootPath)
+    {
+        if(string.IsNullOrWhiteSpace(path)||string.IsNullOrWhiteSpace(rootPath)) return false;
+        string full;
+        try { full=Path.GetFullPath(path); } catch(Exception ex) when(ex is ArgumentException or IOException or NotSupportedException) { return false; }
+        return IsPathUnder(full,rootPath);
+    }
+
+    /// <summary>跨范围去重：同一条路径或父子路径只保留体积更大的那条。</summary>
+    private static List<CleanupRecommendation> DeduplicateByPath(List<CleanupRecommendation> items)
+    {
+        var ordered=items.OrderByDescending(item=>item.Size).ToList();
+        var kept=new List<CleanupRecommendation>();
+        foreach(var item in ordered)
+            if(!kept.Any(existing=>IsUnder(item.TargetPath,existing.TargetPath)||IsUnder(existing.TargetPath,item.TargetPath)))
+                kept.Add(item);
+        return kept;
+    }
+
+    private static List<string> ReadPaths(JsonNode? args)
+    {
+        var result=new List<string>();
+        if(args?["paths"] is not JsonArray array) return result;
+        foreach(var entry in array)
+        {
+            var value=entry?.GetValue<string>();
+            if(string.IsNullOrWhiteSpace(value)) continue;
+            string full;
+            try { full=Path.GetFullPath(value.Trim()); } catch(Exception ex) when(ex is ArgumentException or IOException or NotSupportedException) { continue; }
+            if(!result.Any(existing=>string.Equals(existing,full,StringComparison.OrdinalIgnoreCase))) result.Add(full);
+            if(result.Count>=6) break;
+        }
+        return result;
+    }
+
+    private static string ScopeLabel(string path)
+    {
+        var trimmed=path.TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);
+        var name=Path.GetFileName(trimmed);
+        return string.IsNullOrWhiteSpace(name)?trimmed:name;
+    }
+
+    private static string? TrimTo(string? value,int maxLength)
+    {
+        if(string.IsNullOrWhiteSpace(value)) return null;
+        var text=value.Trim();
+        return text.Length<=maxLength?text:text[..maxLength];
+    }
+
+    private JsonNode RecommendationState(ScanSession session,AppSettings settings,bool analysisMode=false,string? originLabel=null)
     {
         var all=_recommendationsViewModel!.Recommendations.ToList();
         var matcher=App.Services!.GetRequiredService<IPathWhitelistMatcher>();
         return JsonSerializer.SerializeToNode(new{ok=true,scan_id=session.Id,version=CleanupPlan.ComputeVersion(session,all,CurrentDeletionMode),
-            deletion_mode=CurrentDeletionMode.ToString(),recommendations=all.Where(r=>analysisMode||!matcher.IsExcluded(r.TargetPath,settings.AiConversationWhitelist))
-                .Select(r=>new{id=r.Id,path=r.TargetPath,size_bytes=r.Size,safety_rating=r.SafetyRating.ToString(),explanation=r.Explanation,selected=r.IsAccepted})})!;
+            deletion_mode=CurrentDeletionMode.ToString(),origin_label=originLabel??string.Empty,
+            recommendations=all.Where(r=>analysisMode||!matcher.IsExcluded(r.TargetPath,settings.AiConversationWhitelist))
+                .Select(r=>new{id=r.Id,path=r.TargetPath,size_bytes=r.Size,safety_rating=r.SafetyRating.ToString(),explanation=r.Explanation,source_scope=r.SourceScope,selected=r.IsAccepted})})!;
     }
     private static bool WouldAffectExcludedPath(string target,IEnumerable<PathWhitelistEntry> rules)
     {
@@ -183,5 +370,29 @@ public partial class MainWindow
     {
         var lines=recommendations.OrderByDescending(r=>r.Size).Take(3).Select(r=>$"- {Path.GetFileName(r.TargetPath.TrimEnd(Path.DirectorySeparatorChar))}: {FileSizeConverter.FormatSize(r.Size)}").ToArray();
         return lines.Length==0?null:"主要清理候选："+Environment.NewLine+string.Join(Environment.NewLine,lines);
+    }
+
+    /// <summary>
+    /// 解析并渲染模型按需构建的视图契约。
+    /// 气泡里一律只放一张入口卡；surface=auto 时额外立即弹出完整视图窗口，
+    /// surface=entry（默认）时只放入口卡，等用户点击再开窗。
+    /// </summary>
+    private JsonNode RenderView(JsonNode? args)
+    {
+        if (_chatViewModel is null) return AssistantError("聊天面板尚未就绪。");
+        if (args is not JsonObject) return AssistantError("render_view 需要 sections 数组。");
+        try
+        {
+            var spec = SkillUiSpecContract.Parse(JsonSerializer.SerializeToElement(args));
+            if (spec.Sections.Count == 0 && spec.Surface != SkillUiSurface.Window)
+                return new JsonObject { ["ok"] = false, ["error"] = "视图契约无效或为空。kind 必须是 poster_grid/stat_row/table/bar_chart/text。" };
+            _chatViewModel.AddView(spec);
+            if (spec.AutoOpensWindow) _chatViewModel.OpenSkillWindow(spec);
+            return new JsonObject { ["ok"] = true, ["surface"] = spec.Surface.ToString().ToLowerInvariant(), ["sections"] = spec.Sections.Count };
+        }
+        catch (Exception ex) when (ex is JsonException or ArgumentException)
+        {
+            return AssistantError("视图契约解析失败：" + ex.Message);
+        }
     }
 }

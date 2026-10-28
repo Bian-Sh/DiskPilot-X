@@ -19,18 +19,18 @@ public sealed record SavedChatSegment(ChatSegmentKind Kind, string Text, string?
 /// <summary>只保存展示数据，不序列化磁盘对象、交互确认或凭据配置。</summary>
 public sealed record SavedChatMessage(Guid Id, ChatSender Sender, string Text, string Thinking, DateTime Timestamp,
     string CompletedAtText, bool IsError, IReadOnlyList<SavedChatSegment> Segments,
-    DateTime? CompletedAt = null, ChatSegmentStatus? ProcessStatus = null, ModelTokenUsage? Usage = null)
+    DateTime? CompletedAt = null, ChatSegmentStatus? ProcessStatus = null, ModelTokenUsage? Usage = null, string? ModelId = null, bool HasIncompleteCacheUsage = false)
 {
     public static SavedChatMessage Capture(Message message) => new(message.Id, message.Sender, message.Text,
         message.Thinking, message.Timestamp, message.CompletedAtText, message.IsError,
         message.Segments.Select(segment => new SavedChatSegment(segment.Kind, segment.Text, segment.Detail,
             segment.ToolName, segment.ToolCallId, segment.Status, segment.IsSummary, segment.IsFinal)).ToArray(),
-        message.CompletedAt, message.ProcessStatus, message.Usage);
+        message.CompletedAt, message.ProcessStatus, message.Usage, message.ModelId, message.HasIncompleteCacheUsage);
 
     public Message Restore(ChatSegmentStatus? sessionStatus = null)
     {
         var message = new Message { Id = Id, Sender = Sender, Text = Text, Thinking = Thinking,
-            Timestamp = Timestamp, CompletedAtText = CompletedAtText, IsError = IsError, Usage = Usage };
+            Timestamp = Timestamp, CompletedAtText = CompletedAtText, IsError = IsError, Usage = Usage, ModelId = ModelId, HasIncompleteCacheUsage = HasIncompleteCacheUsage };
         foreach (var segment in Segments)
             message.Segments.Add(new ChatSegment(segment.Kind) { Text = segment.Text, Detail = segment.Detail,
                 ToolName = segment.ToolName, ToolCallId = segment.ToolCallId, IsSummary = segment.IsSummary, IsFinal = segment.IsFinal,
@@ -117,6 +117,14 @@ public sealed class ConversationStore(string rootDirectory)
             try { File.Delete(temporary); }
             catch (Exception exception) when (IsStorageError(exception)) { }
         }
+    }
+
+    public void Delete(string id)
+    {
+        var path = PathFor(id);
+        // 先移除授权元数据；正文删除失败时仍保留会话，不会误报删除成功。
+        File.Delete(Path.ChangeExtension(path, ".metadata"));
+        File.Delete(path);
     }
 
     public ConversationSnapshot Load(string id)

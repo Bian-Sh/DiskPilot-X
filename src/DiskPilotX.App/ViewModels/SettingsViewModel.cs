@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
@@ -37,8 +38,11 @@ public partial class SettingsViewModel : ObservableObject
     private readonly ILogger<SettingsViewModel> _logger;
     private bool _proxyPasswordEdited;
     private readonly IPathWhitelistMatcher _whitelistMatcher;
+    private readonly Func<string> _readClipboard;
+    private readonly Action<string> _writeClipboard;
     private bool _isLoadingSettings;
     private bool _suppressPersistence;
+    private int _saveToastVersion;
 
     public event Action? SettingsChanged;
 
@@ -327,7 +331,8 @@ public partial class SettingsViewModel : ObservableObject
     public static IReadOnlyList<ThemeProfile> AvailableThemePresets { get; } = ThemeProfile.BuiltInPresets;
 
     public SettingsViewModel(ISettingsService settingsService, ModelConnectionTester llmClient, ThemeManager themeManager,
-        ModelCatalogService? modelCatalog = null, IPathWhitelistMatcher? whitelistMatcher = null, ILogger<SettingsViewModel>? logger = null)
+        ModelCatalogService? modelCatalog = null, IPathWhitelistMatcher? whitelistMatcher = null, ILogger<SettingsViewModel>? logger = null,
+        Func<string>? readClipboard = null, Action<string>? writeClipboard = null)
     {
         _settingsService = settingsService;
         _llmClient = llmClient;
@@ -335,6 +340,9 @@ public partial class SettingsViewModel : ObservableObject
         _modelCatalog = modelCatalog;
         _logger = logger ?? NullLogger<SettingsViewModel>.Instance;
         _whitelistMatcher = whitelistMatcher ?? new PathWhitelistMatcher();
+        // 回归检查可替换读写边界，不必覆盖用户的真实系统剪贴板。
+        _readClipboard = readClipboard ?? Clipboard.GetText;
+        _writeClipboard = writeClipboard ?? Clipboard.SetText;
         L.LanguageChanged += RefreshValidationStatusText;
         L.LanguageChanged += RefreshOptionLabels;
         CliIdentityService.VersionChanged += RefreshCliIdentityDisplay;
@@ -668,9 +676,19 @@ public partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        var json = JsonSerializer.Serialize(source.Select(CloneWhitelistEntry).ToList(), new JsonSerializerOptions { WriteIndented = true });
-        Clipboard.SetText(json);
-        WhitelistErrorMessage = null;
+        try
+        {
+            var json = JsonSerializer.Serialize(source.Select(CloneWhitelistEntry).ToList(), new JsonSerializerOptions { WriteIndented = true });
+            _writeClipboard(json);
+            WhitelistErrorMessage = null;
+            _ = ShowSaveToastAsync(L.Text("SettingsWhitelistCopiedToast"));
+        }
+        catch (ExternalException ex)
+        {
+            HideSaveToast();
+            LogSettingsException("复制白名单配置失败", ex);
+            WhitelistErrorMessage = L.Text("SettingsWhitelistClipboardUnavailable");
+        }
     }
 
     [RelayCommand]
@@ -684,16 +702,22 @@ public partial class SettingsViewModel : ObservableObject
 
         try
         {
-            var text = Clipboard.GetText();
+            var text = _readClipboard();
             var incoming = JsonSerializer.Deserialize<List<PathWhitelistEntry>>(text, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            if (incoming is null)
+            // 先验证整份配置，拒绝空条目或缺失路径，避免空引用异常以及部分导入。
+            if (incoming is null || incoming.Any(entry => entry is null || string.IsNullOrWhiteSpace(entry.Path)))
             {
-                throw new JsonException("empty whitelist json");
+                throw new JsonException("白名单配置包含空条目或缺少有效路径。");
             }
 
             ReplaceCollection(target, _whitelistMatcher.MergeEntries(target, incoming));
             WhitelistErrorMessage = null;
             PersistWhitelists();
+        }
+        catch (ExternalException ex)
+        {
+            LogSettingsException("读取白名单配置失败", ex);
+            WhitelistErrorMessage = L.Text("SettingsWhitelistClipboardUnavailable");
         }
         catch (Exception ex) when (ex is JsonException or ArgumentException)
         {
@@ -789,6 +813,7 @@ public partial class SettingsViewModel : ObservableObject
         {
             Name = "Custom",
             IsBuiltIn = false,
+            LogPaletteIsLight = _themeManager.CurrentProfile.UsesLightLogPalette,
             AccentColor = ThemeManager.ToHex(accent),
             AccentHoverColor = ThemeManager.ToHex(accentHover),
             BackgroundColor = bgHex,
@@ -903,8 +928,20 @@ public partial class SettingsViewModel : ObservableObject
         SettingsChanged?.Invoke();
     }
 
+    private async Task ShowSaveToastAsync(string message)
+    {
+        var version = ++_saveToastVersion;
+        SaveToastMessage = message;
+        IsSaveToastVisible = true;
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        // 连续操作时，旧任务不能提前隐藏新提示。
+        if (version == _saveToastVersion)
+            IsSaveToastVisible = false;
+    }
+
     public void HideSaveToast()
     {
+        ++_saveToastVersion;
         IsSaveToastVisible = false;
     }
 

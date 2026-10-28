@@ -4,8 +4,8 @@
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <!-- Run without elevation so UI automation and normal user launches are not blocked by UAC. -->
-        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+        <!-- 用户交付包双击时由 Windows 自动请求管理员权限。 -->
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
       </requestedPrivileges>
     </security>
   </trustInfo>

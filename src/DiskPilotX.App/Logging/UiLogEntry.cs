@@ -19,24 +19,43 @@ public sealed record UiLogEntry(DateTimeOffset Timestamp, LogEventLevel Level, s
         _ => $"[{Level}]"
     };
 
-    public Brush TimeBrush => ThemeBrush("VP.TextTertiaryBrush", Colors.Gray);
+    public Brush TimeBrush => LogBrush("VP.LogTimeBrush", ThemeBrush("VP.TextTertiaryBrush", Colors.Gray));
+
+    // 日志色系独立于界面强调色；下列基色仅作回退，明暗由日志专用主题画刷校正。
+    private static readonly Brush VerboseLevelBrush = FreezeBrush(Color.FromRgb(122, 162, 247));
+    private static readonly Brush DebugLevelBrush = FreezeBrush(Color.FromRgb(187, 154, 247));
+    private static readonly Brush InfoLevelBrush = FreezeBrush(Color.FromRgb(158, 206, 106));
+    private static readonly Brush WarningLevelBrush = FreezeBrush(Color.FromRgb(224, 175, 104));
+    private static readonly Brush ErrorLevelBrush = FreezeBrush(Color.FromRgb(247, 118, 142));
+    private static readonly Brush WarningMessageBrush = FreezeBrush(Color.FromRgb(255, 199, 119));
+    private static readonly Brush ErrorMessageBrush = FreezeBrush(Color.FromRgb(255, 158, 171));
 
     public Brush LevelBrush => Level switch
     {
-        LogEventLevel.Verbose => ThemeBrush("VP.AccentTextBrush", Color.FromRgb(122, 162, 247)),
-        LogEventLevel.Debug => ThemeBrush("VP.AccentHoverTextBrush", Color.FromRgb(187, 154, 247)),
-        LogEventLevel.Information => ThemeBrush("VP.SuccessTextBrush", Color.FromRgb(158, 206, 106)),
-        LogEventLevel.Warning => ThemeBrush("VP.WarningTextBrush", Color.FromRgb(224, 175, 104)),
-        LogEventLevel.Error or LogEventLevel.Fatal => ThemeBrush("VP.DangerTextBrush", Color.FromRgb(247, 118, 142)),
+        LogEventLevel.Verbose => LogBrush("VP.LogVerboseBrush", VerboseLevelBrush),
+        LogEventLevel.Debug => LogBrush("VP.LogDebugBrush", DebugLevelBrush),
+        LogEventLevel.Information => LogBrush("VP.LogInfoBrush", InfoLevelBrush),
+        LogEventLevel.Warning => LogBrush("VP.LogWarningBrush", WarningLevelBrush),
+        LogEventLevel.Error or LogEventLevel.Fatal => LogBrush("VP.LogErrorBrush", ErrorLevelBrush),
         _ => ThemeBrush("VP.TextSecondaryBrush", Colors.Gray)
     };
 
     public Brush MessageBrush => Level switch
     {
-        LogEventLevel.Warning => ThemeBrush("VP.WarningTextBrush", Color.FromRgb(255, 199, 119)),
-        LogEventLevel.Error or LogEventLevel.Fatal => ThemeBrush("VP.DangerTextBrush", Color.FromRgb(255, 158, 171)),
-        _ => ThemeBrush("VP.TextPrimaryBrush", Colors.Black)
+        LogEventLevel.Warning => LogBrush("VP.LogWarningMessageBrush", WarningMessageBrush),
+        LogEventLevel.Error or LogEventLevel.Fatal => LogBrush("VP.LogErrorMessageBrush", ErrorMessageBrush),
+        _ => LogBrush("VP.LogMessageBrush", ThemeBrush("VP.TextPrimaryBrush", Colors.Black))
     };
+
+    private static Brush LogBrush(string key, Brush fallback) =>
+        Application.Current?.TryFindResource(key) as Brush ?? fallback;
+
+    private static Brush FreezeBrush(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
+    }
 
     private static Brush ThemeBrush(string key, Color fallback)
     {

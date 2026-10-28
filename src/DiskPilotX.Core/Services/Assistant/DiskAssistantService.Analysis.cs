@@ -120,13 +120,13 @@ public sealed partial class DiskAssistantService
     {
         if (!analysisMode || analysisTask is null || context.Session?.RootEntry is null) return context;
         var focus = query.FindByPath(context.Session, analysisTask.ScopePath);
-        if (focus is null) return new(null, null, null, null);
+        if (focus is null) return context with { Session = null, CurrentViewRoot = null, LinkedEntry = null, LinkedRecommendation = null };
         var source = context.Session;
         var scan = new ScanSession { Id = source.Id, TargetPath = focus.Path, RootEntry = focus, TotalSize = focus.Size,
             TotalFiles = focus.SubtreeFileCount, TotalFolders = focus.SubtreeFolderCount, StartTime = source.StartTime,
-            EndTime = source.EndTime, Provenance = source.Provenance };
+            EndTime = source.EndTime, Provenance = source.Provenance, Execution = source.Execution };
         return new(scan, focus, analysisTask.Contains(context.LinkedEntry?.Path ?? "") ? context.LinkedEntry : null,
-            analysisTask.Contains(context.LinkedRecommendation?.TargetPath ?? "") ? context.LinkedRecommendation : null, context.HasExistingRecommendations);
+            analysisTask.Contains(context.LinkedRecommendation?.TargetPath ?? "") ? context.LinkedRecommendation : null, context.HasExistingRecommendations, context.IsElevated, context.LastScanExecution, context.LastCompletedScanExecution);
     }
 
     private void SetAnalysisWaiting(bool waiting)

@@ -115,7 +115,7 @@
     <value>AI 設定</value>
   </data>
   <data name="ApiKeyToolTip" xml:space="preserve">
-    <value>Enter your Anthropic API key. The key will be encrypted at rest.</value>
+    <value>輸入 API Key，金鑰將加密儲存在本機。</value>
   </data>
   <data name="ValidateButton" xml:space="preserve">
     <value>驗證</value>
@@ -412,6 +412,9 @@
   <data name="ConsoleFilterToolTip" xml:space="preserve">
     <value>篩選控制檯日誌</value>
   </data>
+  <data name="ConsoleClearMenuItem" xml:space="preserve">
+    <value>清空控制檯</value>
+  </data>
   <data name="TreemapNoDataText" xml:space="preserve">
     <value>無資料可供展示，請掃描~</value>
   </data>
@@ -539,19 +542,19 @@
     <value>免責宣告</value>
   </data>
   <data name="SettingsDisclaimerIntro" xml:space="preserve">
-    <value>使用本應用前，請了解以下說明。本應用用於輔助你檢視本地儲存佔用、理解檔案分佈並整理磁碟空間，所有掃描、分析、建議和清理結果都應作為輔助資訊，而不是對檔案價值或可刪除性的最終判斷。</value>
+    <value>DiskPilot-X 協助你了解本機儲存空間用量、查看檔案分布並整理磁碟空間。掃描結果、清理建議和 AI 回答僅供參考，可能存在遺漏、誤判或過時資訊，不能取代你對檔案用途與保留價值的判斷。</value>
   </data>
   <data name="SettingsDisclaimerPrivacy" xml:space="preserve">
-    <value>應用只會掃描你主動選擇的本地路徑，並在介面中展示相關檔案或目錄的名稱、路徑、大小、層級關係等資訊。若你啟用 AI 分析或 AI 對話，為生成清理建議或回答問題，應用可能會把必要的檔案樹摘要、路徑、大小、推薦結果和上下文傳送給你配置的模型服務；第三方模型服務對這些資料的處理方式由其自身條款和隱私政策約束。</value>
+    <value>啟用 AI 功能時，相關檔案或目錄的名稱、路徑、大小、檔案樹摘要、建議結果與對話內容可能傳送至你設定的模型服務。第三方服務如何處理與保留資料，取決於其自身條款與隱私政策；使用前請先了解。</value>
   </data>
   <data name="SettingsDisclaimerRisk" xml:space="preserve">
-    <value>由於檔案用途、業務場景和使用者習慣無法被完全自動判斷，掃描結果、規則分析、清理推薦和 AI 回答都可能存在遺漏、誤判或過期資訊。刪除、移動或清理檔案可能影響軟體執行、專案構建、同步備份或業務流程，且永久刪除可能造成無法恢復的資料損失。</value>
+    <value>刪除、移動或清理檔案可能影響軟體運作、專案建置、同步備份及工作流程。永久刪除可能無法復原；對系統目錄、專案資料、同步磁碟及不熟悉的路徑，請格外謹慎。</value>
   </data>
   <data name="SettingsDisclaimerResponsibility" xml:space="preserve">
-    <value>你應在執行清理前自行核對目標檔案、確認推薦依據、評估影響範圍，並根據需要提前備份重要資料。實際刪除、移動或清理操作由你確認並執行，相關後果由你自行承擔；開發者不對誤刪、資料丟失、業務中斷、第三方模型服務行為或不當使用造成的損失承擔責任。</value>
+    <value>執行前，請核對目標路徑、建議依據與影響範圍。實際操作由你確認並執行，請審慎評估相關後果；工具及 AI 建議不構成資料安全或清理結果的保證。</value>
   </data>
   <data name="SettingsDisclaimerRecommendation" xml:space="preserve">
-    <value>建議先從低風險專案開始清理，優先使用回收站模式或其他可恢復的移動方式；對工作資料、專案檔案、系統目錄、同步盤和不熟悉的路徑，應先備份或暫緩處理，確認無誤後再繼續。</value>
+    <value>建議：先備份重要資料，從低風險項目開始，優先使用資源回收筒或可復原的移動方式。</value>
   </data>
   <data name="SettingsValidationValidating" xml:space="preserve">
     <value>驗證中...</value>
@@ -761,19 +764,19 @@
     <value>白名單</value>
   </data>
   <data name="SettingsWhitelistDescription" xml:space="preserve">
-    <value>白名單表示排除/保護：掃描跳過、清理推薦不推薦、AI 對話不查詢也不暴露匹配路徑。</value>
+    <value>白名單中的資料夾及其子項目，將在對應功能中排除。掃描與清理建議的規則分別生效。</value>
   </data>
   <data name="SettingsWhitelistScanTitle" xml:space="preserve">
     <value>掃描白名單</value>
   </data>
   <data name="SettingsWhitelistScanHint" xml:space="preserve">
-    <value>普通掃描和 NTFS 快速掃描都會跳過；如果掃描目標本身被排除，將阻止掃描。</value>
+    <value>在此處設定的路徑不會被掃描。</value>
   </data>
   <data name="SettingsWhitelistCleanupTitle" xml:space="preserve">
     <value>清理推薦白名單</value>
   </data>
   <data name="SettingsWhitelistCleanupHint" xml:space="preserve">
-    <value>構造模型輸入前過濾，模型返回結果後再次過濾，避免受保護路徑進入推薦列表。</value>
+    <value>在此處設定的路徑不會列入清理建議。</value>
   </data>
   <data name="SettingsWhitelistAiTitle" xml:space="preserve">
     <value>AI 對話白名單</value>
@@ -782,10 +785,10 @@
     <value>從上下文摘要、選中項、推薦關聯項和只讀檔案樹工具中隱藏。</value>
   </data>
   <data name="SettingsWhitelistPathPlaceholder" xml:space="preserve">
-    <value>路徑</value>
+    <value>輸入或貼上路徑，按 Enter 新增</value>
   </data>
   <data name="SettingsWhitelistDescriptionPlaceholder" xml:space="preserve">
-    <value>備註</value>
+    <value>備註（選填）</value>
   </data>
   <data name="SettingsWhitelistBrowse" xml:space="preserve">
     <value>選擇資料夾</value>
@@ -797,13 +800,13 @@
     <value>刪除</value>
   </data>
   <data name="SettingsWhitelistCopyJson" xml:space="preserve">
-    <value>複製 JSON</value>
+    <value>複製白名單設定</value>
   </data>
   <data name="SettingsWhitelistPasteJson" xml:space="preserve">
-    <value>貼上 JSON</value>
+    <value>貼上白名單設定</value>
   </data>
   <data name="SettingsWhitelistPasteInvalidJson" xml:space="preserve">
-    <value>剪貼簿內容不是有效的白名單 JSON 陣列。</value>
+    <value>剪貼簿內容不是有效的白名單設定，請重新複製後再試。</value>
   </data>
   <data name="ScanTargetExcludedByWhitelist" xml:space="preserve">
     <value>所選掃描目標已被白名單設定排除。</value>
@@ -1042,4 +1045,70 @@
   </data>
   <data name="CopilotTool_report_task_topics" xml:space="preserve"><value>記錄公開任務主題</value></data>
   <data name="TreemapNoExtension" xml:space="preserve"><value>無副檔名</value></data>
+  <data name="SettingsDisclaimerHeadline" xml:space="preserve">
+    <value>安心整理，從了解邊界開始</value>
+  </data>
+  <data name="SettingsDisclaimerSubtitle" xml:space="preserve">
+    <value>了解工具能力、操作風險與 AI 資料使用方式，再決定下一步。</value>
+  </data>
+  <data name="SettingsDisclaimerUsageTitle" xml:space="preserve">
+    <value>使用須知 · 輔助判斷，不替你做決定</value>
+  </data>
+  <data name="SettingsDisclaimerRiskTitle" xml:space="preserve">
+    <value>操作風險 · 先確認，再清理</value>
+  </data>
+  <data name="SettingsDisclaimerAiTitle" xml:space="preserve">
+    <value>AI 與隱私 · 由你決定分享什麼</value>
+  </data>
+  <data name="SettingsDisclaimerAiPrivacy" xml:space="preserve">
+    <value>API Key 加密儲存在本機，並使用 Windows 目前使用者保護。呼叫模型時，金鑰會用於向你設定的服務端點驗證；請僅使用可信任的服務位址。</value>
+  </data>
+  <data name="SettingsDisclaimerAiSensitive" xml:space="preserve">
+    <value>請勿在 AI 對話中貼上 API Key、密碼、身分資訊、客戶資料或商業機密。白名單可減少應用程式自動附帶的路徑資訊，但不會替你遮蔽主動輸入或貼上的敏感內容。</value>
+  </data>
+  <data name="SettingsWhitelistPathInputHint" xml:space="preserve">
+    <value>按 Enter 新增路徑；點選輸入框內的資料夾圖示也可直接選擇並新增。按 Esc 收合輸入框。</value>
+  </data>
+  <data name="SettingsWhitelistEmptyHint" xml:space="preserve">
+    <value>尚無項目，點選右上角「＋」新增路徑。</value>
+  </data>
+  <data name="SettingsWhitelistAddHint" xml:space="preserve">
+    <value>新增路徑</value>
+  </data>
+  <data name="SettingsWhitelistClipboardUnavailable" xml:space="preserve">
+    <value>暫時無法存取剪貼簿，可能正被其他應用程式使用。請稍後再試。</value>
+  </data>
+  <data name="SettingsWhitelistCopiedToast" xml:space="preserve">
+    <value>已複製白名單設定</value>
+  </data>
+  <data name="CopilotDeleteConversation" xml:space="preserve"><value>刪除對話</value></data>
+  <data name="CopilotDeleteConversationPrompt" xml:space="preserve"><value>即將刪除對話「{0}」及其聊天記錄。
+
+刪除後無法復原，確定刪除嗎？</value></data>
+  <data name="CopilotDeleteConversationConfirm" xml:space="preserve"><value>確認刪除</value></data>
+  <data name="CopilotHistoryDeleteFailed" xml:space="preserve"><value>無法刪除此對話，請檢查檔案或存取權限。目前對話已保留。</value></data>
+  <data name="SkillNoCover" xml:space="preserve"><value>暫無封面</value></data>
+  <data name="SkillSelected" xml:space="preserve"><value>選中</value></data>
+  <data name="SkillSelectionEmpty" xml:space="preserve"><value>未選擇任何項目</value></data>
+  <data name="SkillSelectionSizeFormat" xml:space="preserve"><value>已選 {0} 項 · 約 {1}</value></data>
+  <data name="SkillSelectionCountFormat" xml:space="preserve"><value>已選 {0} 項</value></data>
+  <data name="SkillPanelOpen" xml:space="preserve"><value>開啟任務面板</value></data>
+  <data name="SkillPanelColNote" xml:space="preserve"><value>說明</value></data>
+  <data name="SkillPanelColPath" xml:space="preserve"><value>路徑</value></data>
+  <data name="SkillPanelDone" xml:space="preserve"><value>已完成；關閉面板後仍可從聊天卡片重新開啟。</value></data>
+  <data name="SkillPanelDefaultDone" xml:space="preserve"><value>操作已完成。</value></data>
+  <data name="SkillPanelChecking" xml:space="preserve"><value>正在唯讀檢查…</value></data>
+  <data name="SkillPanelClose" xml:space="preserve"><value>收合面板</value></data>
+  <data name="SkillPanelColSize" xml:space="preserve"><value>大小</value></data>
+  <data name="SkillPanelFoundFormat" xml:space="preserve"><value>找到 {0} 項，共 {1}，尚未清理。</value></data>
+  <data name="SkillPanelHints" xml:space="preserve"><value>檢查提示：</value></data>
+  <data name="SkillPanelHandoff" xml:space="preserve"><value>正在交給助手…</value></data>
+  <data name="SkillPanelCannotComplete" xml:space="preserve"><value>無法完成檢查：</value></data>
+  <data name="SkillPanelHint" xml:space="preserve"><value>選擇檢查條件，先預覽實際資料；清理仍需在助手中確認。</value></data>
+  <data name="SkillPanelFailed" xml:space="preserve"><value>操作未完成，請查看下方說明。</value></data>
+  <data name="SkillPanelPreview" xml:space="preserve"><value>預覽候選</value></data>
+  <data name="SkillPanelScopeLabel" xml:space="preserve"><value>檢查範圍</value></data>
+  <data name="SkillPanelStopped" xml:space="preserve"><value>工作已停止。</value></data>
+  <data name="SkillPanelContinue" xml:space="preserve"><value>交給助手繼續</value></data>
+  <data name="SkillPanelTruncated" xml:space="preserve"><value>僅顯示前 100 項，請縮小範圍檢視明細。</value></data>
 </root>

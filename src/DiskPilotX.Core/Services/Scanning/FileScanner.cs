@@ -45,6 +45,8 @@ public class FileScanner : IFileScanner
             TargetPath = path,
             StartTime = DateTime.Now
         };
+        session.Execution = new(path, ScanMethod.DirectoryTraversal, ScanExecutionStatus.Running, session.StartTime);
+        progress.Report(new ScanProgress("开始普通目录遍历...", 0, 0) { Execution = session.Execution });
 
         PopulateDriveInfo(session, path);
 
@@ -194,6 +196,8 @@ public class FileScanner : IFileScanner
         session.TotalSize = rootEntry.Size;
         session.EndTime = DateTime.Now;
         session.RootEntry = rootEntry;
+        session.Execution = session.Execution with { Status = session.IsCancelled ? ScanExecutionStatus.Cancelled : ScanExecutionStatus.Completed, CompletedAt = session.EndTime };
+        progress.Report(new ScanProgress("普通目录遍历结束", fileCount, folderCount) { Execution = session.Execution });
 
         if (session.IsCancelled)
         {

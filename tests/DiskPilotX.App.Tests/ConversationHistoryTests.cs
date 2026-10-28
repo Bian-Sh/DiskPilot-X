@@ -49,6 +49,7 @@ public sealed class ConversationHistoryTests : IDisposable
         var running = vm.SubmitOrStopCommand.ExecuteAsync(null);
         await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         vm.ClearConversationCommand.CanExecute(null).Should().BeFalse();
+        vm.DeleteConversationCommand.CanExecute(vm.ConversationHistory.FirstOrDefault()).Should().BeFalse();
         vm.LoadConversationCommand.CanExecute(vm.ConversationHistory.FirstOrDefault()).Should().BeFalse();
         vm.ClearConversationCommand.Execute(null);
         vm.Messages.Should().NotBeEmpty();
@@ -136,6 +137,92 @@ public sealed class ConversationHistoryTests : IDisposable
         await restarted.SubmitOrStopCommand.ExecuteAsync(null);
         client.Request!.Messages.Should().Contain(message => message.Content != null && message.Content.Contains("失败前的问题"));
         restarted.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task 未确认或取消删除时保留会话及文件()
+    {
+        var vm = Create(new ReplyClient());
+        vm.InputText = "不可误删";
+        await vm.SubmitOrStopCommand.ExecuteAsync(null);
+        var summary = vm.ConversationHistory.Single();
+        await vm.DeleteConversationCommand.ExecuteAsync(summary);
+        vm.ConversationHistory.Should().ContainSingle();
+        vm.ConfirmConversationDeletion = _ => Task.FromResult(false);
+        await vm.DeleteConversationCommand.ExecuteAsync(summary);
+        vm.CurrentConversationId.Should().Be(summary.Id);
+        vm.Messages.Should().NotBeEmpty();
+        new ConversationStore(directory).Load(summary.Id).Messages.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task 确认删除当前会话后重置且新建不会复活旧记录()
+    {
+        var vm = Create(new ReplyClient());
+        vm.InputText = "删除当前";
+        await vm.SubmitOrStopCommand.ExecuteAsync(null);
+        var summary = vm.ConversationHistory.Single();
+        vm.ConfirmConversationDeletion = item => Task.FromResult(item.Id == summary.Id);
+        await vm.DeleteConversationCommand.ExecuteAsync(summary);
+        vm.CurrentConversationId.Should().BeNull();
+        vm.Messages.Should().BeEmpty();
+        vm.HasConversationHistory.Should().BeFalse();
+        File.Exists(Path.Combine(directory, summary.Id + ".json")).Should().BeFalse();
+        File.Exists(Path.Combine(directory, summary.Id + ".metadata")).Should().BeFalse();
+        vm.ClearConversationCommand.Execute(null);
+        Create(new ReplyClient()).ConversationHistory.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task 删除其他会话只影响指定记录不切换当前会话()
+    {
+        var vm = Create(new ReplyClient());
+        vm.InputText = "旧会话";
+        await vm.SubmitOrStopCommand.ExecuteAsync(null);
+        var old = vm.ConversationHistory.Single();
+        vm.ClearConversationCommand.Execute(null);
+        vm.InputText = "当前会话";
+        await vm.SubmitOrStopCommand.ExecuteAsync(null);
+        var current = vm.CurrentConversationId;
+        vm.ConfirmConversationDeletion = _ => Task.FromResult(true);
+        await vm.DeleteConversationCommand.ExecuteAsync(old);
+        vm.CurrentConversationId.Should().Be(current);
+        vm.Messages.First().Text.Should().Be("当前会话");
+        Create(new ReplyClient()).ConversationHistory.Should().ContainSingle().Which.Id.Should().Be(current);
+    }
+
+    [Fact]
+    public async Task 删除文件失败时保留当前会话并提示错误()
+    {
+        var vm = Create(new ReplyClient());
+        vm.InputText = "删除失败保留";
+        await vm.SubmitOrStopCommand.ExecuteAsync(null);
+        var summary = vm.ConversationHistory.Single();
+        vm.ConfirmConversationDeletion = _ => Task.FromResult(true);
+        using var locked = new FileStream(Path.Combine(directory, summary.Id + ".json"), FileMode.Open, FileAccess.Read, FileShare.None);
+        await vm.DeleteConversationCommand.ExecuteAsync(summary);
+        vm.CurrentConversationId.Should().Be(summary.Id);
+        vm.Messages.First().Text.Should().Be("删除失败保留");
+        vm.ConversationHistory.Should().ContainSingle();
+        vm.ErrorMessage.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task 模态确认尚未返回时不会删除且同一命令不能重复执行()
+    {
+        var vm = Create(new ReplyClient());
+        vm.InputText = "等待模态确认";
+        await vm.SubmitOrStopCommand.ExecuteAsync(null);
+        var summary = vm.ConversationHistory.Single();
+        var confirmation = new TaskCompletionSource<bool>();
+        vm.ConfirmConversationDeletion = _ => confirmation.Task;
+        var deleting = vm.DeleteConversationCommand.ExecuteAsync(summary);
+        vm.DeleteConversationCommand.CanExecute(summary).Should().BeFalse();
+        new ConversationStore(directory).Load(summary.Id).Messages.Should().NotBeEmpty();
+        confirmation.SetResult(false);
+        await deleting;
+        vm.ConversationHistory.Should().ContainSingle();
+        vm.DeleteConversationCommand.CanExecute(summary).Should().BeTrue();
     }
 
     private sealed class ErrorClient : IModelClient

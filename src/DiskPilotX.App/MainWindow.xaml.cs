@@ -18,6 +18,7 @@ using DiskPilotX.App.Diagnostics;
 using DiskPilotX.App.Helpers;
 using DiskPilotX.App.Localization;
 using DiskPilotX.App.Converters;
+using DiskPilotX.App.Services;
 using DiskPilotX.App.ViewModels;
 using DiskPilotX.App.Views;
 using DiskPilotX.Core.Models;
@@ -47,6 +48,13 @@ public partial class MainWindow : Window
     private UpdateViewModel? _updateViewModel;
     private AcceptanceAutomationServer? _acceptanceAutomationServer;
     private readonly Dictionary<string, ScanSession> _aiScanSessionsByRoot = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>最近一次多范围无头分析的批次（analyze_paths 产出，publish_recommendations 消费）。</summary>
+    private AssistantAnalysisBatch? _analysisBatch;
+    /// <summary>
+    /// 最近一次由助手发布清理建议所依据的会话。可能是主工作区会话，也可能是无头批次会话，
+    /// 清理执行与清单读取都以它为准，避免误用工作区里另一份扫描结果。
+    /// </summary>
+    private ScanSession? _assistantAnalysisSession;
     private string? _displayPathOverride;
     private bool _suppressSelectedPathNavigation;
     private bool _closeConfirmed;

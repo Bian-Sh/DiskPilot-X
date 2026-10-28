@@ -10,13 +10,19 @@ namespace DiskPilotX.App.Services;
 /// <summary>
 /// 将主题配色、统一磨砂材质和文字对比度实时应用到 WPF 资源。
 /// </summary>
-public class ThemeManager
+public partial class ThemeManager
 {
     private readonly ISettingsService _settingsService;
     private ThemeProfile _currentProfile;
     private Window? _mainWindow;
     private bool _glassBackdropActive;
     private const double MinimumGlassTintOpacity = 0.08;
+
+    /// <summary>
+    /// 动态弹窗各自的材质状态。挂在窗口自身上，窗口关闭即随之回收，不会像字典那样把窗口钉住。
+    /// </summary>
+    private static readonly DependencyProperty WindowGlassActiveProperty =
+        DependencyProperty.RegisterAttached("WindowGlassActive", typeof(bool), typeof(ThemeManager), new PropertyMetadata(false));
 
     public ThemeProfile CurrentProfile => _currentProfile;
 
@@ -77,17 +83,11 @@ public class ThemeManager
         var app = Application.Current;
         if (app == null) return;
 
-        var textPrimary = _currentProfile.AutoTextContrast
-            ? GetContrastTextColor(_currentProfile.BackgroundColor)
-            : _currentProfile.TextPrimaryColor;
-
-        var textSecondary = _currentProfile.AutoTextContrast
-            ? AdjustAlpha(textPrimary, 0.78)
-            : _currentProfile.TextSecondaryColor;
-
-        var textTertiary = _currentProfile.AutoTextContrast
-            ? AdjustAlpha(textPrimary, 0.60)
-            : _currentProfile.TextTertiaryColor;
+        // 自动对比度在磨砂与不透明主题下始终开启，会覆盖预设文字色并派生次级文字透明度。
+        // 开发排障：若 text 的颜色、层级或显示不符合预期，请先考虑这里的自动调整可能引入干扰。
+        var textPrimary = GetContrastTextColor(_currentProfile.BackgroundColor);
+        var textSecondary = AdjustAlpha(textPrimary, 0.78);
+        var textTertiary = AdjustAlpha(textPrimary, 0.60);
 
         var profile = _currentProfile;
 
@@ -160,31 +160,44 @@ public class ThemeManager
         SetColor("VP.BorderLight", Color.FromArgb((byte)profile.BorderLightAlpha, overlayR, overlayG, overlayB));
         SetColor("VP.BorderSubtle", Color.FromArgb((byte)profile.BorderSubtleAlpha, overlayR, overlayG, overlayB));
         SetColor("VP.Overlay", Color.FromArgb((byte)profile.OverlayAlpha, bgAlt.R, bgAlt.G, bgAlt.B));
+        ApplyConsoleResources(SetBrush);
     }
 
-    private void ApplyGlassBackdrop()
+    /// <summary>
+    /// 把当前磨砂透明主题施加到指定窗口。
+    /// 传 null 表示刷新主窗口；动态弹窗创建时调用本方法即可与宿主保持同一套材质。
+    /// </summary>
+    public void ApplyGlassBackdrop(Window? window = null)
     {
-        if (_mainWindow == null)
+        if (window is null) ApplyBackdropCore(_mainWindow, trackMain: true);
+        else ApplyBackdropCore(window, trackMain: false);
+    }
+
+    private void ApplyBackdropCore(Window? window, bool trackMain)
+    {
+        if (window == null)
         {
-            _glassBackdropActive = false;
+            if (trackMain) _glassBackdropActive = false;
             return;
         }
 
         var background = ParseColor(_currentProfile.BackgroundColor);
         var isDark = (0.299 * background.R + 0.587 * background.G + 0.114 * background.B) / 255.0 <= 0.5;
-        Helpers.AcrylicHelper.SetDarkMode(_mainWindow, isDark);
+        Helpers.AcrylicHelper.SetDarkMode(window, isDark);
+
+        var alreadyActive = trackMain
+            ? _glassBackdropActive
+            : (bool)window.GetValue(WindowGlassActiveProperty);
+        var active = false;
         if (_currentProfile.GlassEnabled)
         {
             // 调整滑杆只更新画刷，不反复重建原生材质，避免拖动时闪烁。
-            if (!_glassBackdropActive)
-                _glassBackdropActive = Helpers.AcrylicHelper.TryEnableAcrylic(_mainWindow);
+            active = alreadyActive || Helpers.AcrylicHelper.TryEnableAcrylic(window);
         }
-        else
-        {
-            _glassBackdropActive = false;
-        }
-        if (!_glassBackdropActive)
-            Helpers.AcrylicHelper.DisableBackdrop(_mainWindow);
+        if (!active) Helpers.AcrylicHelper.DisableBackdrop(window);
+
+        if (trackMain) _glassBackdropActive = active;
+        else window.SetValue(WindowGlassActiveProperty, active);
     }
 
     public static Color ParseColor(string hex)
@@ -217,8 +230,24 @@ public class ThemeManager
             ? MinimumGlassTintOpacity + (1 - MinimumGlassTintOpacity) * _currentProfile.GlassOpacity
             : 1.0;
     }
-    // 语义色保留原色作背景和图标；文字单独保证与实色面板至少 4.5:1 的对比度。
-    private static Color ReadableSemanticText(Color color, Color background)
+    // 保留色系并校正亮度；日志玻璃模式可提高目标，其余文字默认 4.5:1。
+    private static Color ReadableSemanticText(Color color, Color background, double minimumContrast = 4.5)
+    {
+        double MinimumContrast(Color value) => ColorContrast(value, background);
+        var target = MinimumContrast(Colors.Black) >= MinimumContrast(Colors.White) ? Colors.Black : Colors.White;
+        color = Color.FromRgb(color.R, color.G, color.B);
+        for (var step = 0; step < 24; step++)
+        {
+            if (MinimumContrast(color) >= minimumContrast) return color;
+            color = Color.FromRgb(
+                (byte)Math.Round(color.R + (target.R - color.R) * 0.15),
+                (byte)Math.Round(color.G + (target.G - color.G) * 0.15),
+                (byte)Math.Round(color.B + (target.B - color.B) * 0.15));
+        }
+        return target;
+    }
+
+    private static double ColorContrast(Color left, Color right)
     {
         static double Luminance(Color value)
         {
@@ -229,20 +258,9 @@ public class ThemeManager
             }
             return 0.2126 * Channel(value.R) + 0.7152 * Channel(value.G) + 0.0722 * Channel(value.B);
         }
-        static double Contrast(double left, double right) => (Math.Max(left, right) + 0.05) / (Math.Min(left, right) + 0.05);
-
-        var backdrop = Luminance(background);
-        var target = Contrast(0, backdrop) >= Contrast(1, backdrop) ? Colors.Black : Colors.White;
-        color = Color.FromRgb(color.R, color.G, color.B);
-        for (var step = 0; step < 24; step++)
-        {
-            if (Contrast(Luminance(color), backdrop) >= 4.5) return color;
-            color = Color.FromRgb(
-                (byte)Math.Round(color.R + (target.R - color.R) * 0.15),
-                (byte)Math.Round(color.G + (target.G - color.G) * 0.15),
-                (byte)Math.Round(color.B + (target.B - color.B) * 0.15));
-        }
-        return target;
+        var a = Luminance(left);
+        var b = Luminance(right);
+        return (Math.Max(a, b) + 0.05) / (Math.Min(a, b) + 0.05);
     }
 
     private sealed class ThemeColor(Color value) : INotifyPropertyChanged

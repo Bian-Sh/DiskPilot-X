@@ -123,6 +123,12 @@ internal sealed class AcceptanceAutomationServer : IDisposable
         return request.Command.Trim().ToLowerInvariant() switch
         {
             "state" => _window.GetAcceptanceState(),
+            "localization" => _window.AcceptanceLocalization(request.Text),
+            "localization_fixture" => _window.AcceptanceLocalizationFixture(request.Text),
+            "source_probe" => _window.AcceptanceSourceProbe(),
+            "source_probe_state" => _window.AcceptanceSourceProbeState(),
+            "csharp_skill_probe" => _window.AcceptanceCSharpSkill(request.Text),
+            "csharp_skill_probe_state" => _window.AcceptanceCSharpSkillState(),
             "treemap_pointer" => _window.AcceptanceTreemapPointer(request.X, request.Y, request.Text),
             "treemap_wheel" => _window.AcceptanceTreemapWheel(request.X, request.Y, request.Delta),
             "ask_user" => _window.AcceptanceAskUser(request.Text),

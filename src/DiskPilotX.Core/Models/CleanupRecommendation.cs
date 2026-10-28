@@ -49,6 +49,15 @@ public class CleanupRecommendation : INotifyPropertyChanged
 
     public DateTime? LastModified { get; set; }
 
+    /// <summary>
+    /// 条目来自哪个分析范围（多范围无头分析时填根目录名）。
+    /// 同一份清单里可能混合多个游戏/目录的候选，界面据此标注来源。
+    /// </summary>
+    public string SourceScope { get; set; } = string.Empty;
+
+    /// <summary>分组表头文字：仅同一来源范围的第一条会带值，由宿主在重建列表时写入。</summary>
+    public string ScopeHeader { get; set; } = string.Empty;
+
     public bool? UnityHubListed { get; set; }
 
     public string UnityMetadataText

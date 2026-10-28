@@ -16,6 +16,7 @@
     <UserControl.Resources>
         <converters:FileSizeConverter x:Key="FileSizeConverter" />
         <converters:SafetyRatingToBrushConverter x:Key="SafetyRatingToBrushConverter" />
+        <converters:NullToVisibilityConverter x:Key="NullVis" />
     </UserControl.Resources>
 
     <Grid>
@@ -263,6 +264,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -271,8 +273,15 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
+                            <!-- 来源范围分组表头：多范围整合时用于区分候选归属 -->
+                            <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="4" Margin="0,0,0,6"
+                                    Visibility="{Binding ScopeHeader,Converter={StaticResource NullVis}}">
+                                <TextBlock Text="{Binding ScopeHeader}" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource VP.TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
+                            </Border>
+
                             <!-- CheckBox -->
-                            <CheckBox Grid.Row="0" Grid.Column="0"
+                            <CheckBox Grid.Row="1" Grid.Column="0"
                                       Style="{DynamicResource VP.CheckBox}"
                                       IsChecked="{Binding IsAccepted, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       Checked="RecommendationSelectionChanged"
@@ -281,7 +290,7 @@
                                       Margin="0,0,8,0" />
 
                             <!-- File Path -->
-                            <Button Grid.Row="0" Grid.Column="1"
+                            <Button Grid.Row="1" Grid.Column="1"
                                     Padding="0"
                                     Margin="0,0,8,0"
                                     HorizontalAlignment="Stretch"
@@ -299,7 +308,7 @@
                             </Button>
 
                             <!-- Size -->
-                            <TextBlock Grid.Row="0" Grid.Column="2"
+                            <TextBlock Grid.Row="1" Grid.Column="2"
                                        Text="{Binding Size, Converter={StaticResource FileSizeConverter}}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,8,0"
@@ -308,7 +317,7 @@
                                        Foreground="{DynamicResource VP.TextPrimaryBrush}" />
 
                             <!-- Safety Badge -->
-                            <Border Grid.Row="0" Grid.Column="3"
+                            <Border Grid.Row="1" Grid.Column="3"
                                     Background="{Binding SafetyRating, Converter={StaticResource SafetyRatingToBrushConverter}}"
                                     CornerRadius="4"
                                     Padding="6,2"
@@ -319,10 +328,19 @@
                                            FontWeight="SemiBold" />
                             </Border>
 
-                            <!-- Category + Explanation -->
-                            <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
+                            <!-- Category + Source scope + Explanation -->
+                            <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3"
                                         Orientation="Horizontal"
                                         Margin="0,3,0,0">
+                                <!-- 多范围整合时标注条目来自哪个分析范围 -->
+                                <Border Background="{DynamicResource VP.SurfaceActiveBrush}"
+                                        CornerRadius="4" Padding="6,2" Margin="0,0,8,0"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding SourceScope,Converter={StaticResource NullVis}}">
+                                    <TextBlock Text="{Binding SourceScope}"
+                                               FontSize="10.5" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource VP.TextSecondaryBrush}"/>
+                                </Border>
                                 <TextBlock Text="{Binding Category}"
                                            FontSize="11"
                                            Foreground="{DynamicResource VP.TextTertiaryBrush}"
@@ -334,7 +352,7 @@
                                            Foreground="{DynamicResource VP.TextTertiaryBrush}" />
                             </StackPanel>
 
-                            <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3"
+                            <TextBlock Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3"
                                        Text="{Binding UnityMetadataText}"
                                        Margin="0,3,0,0"
                                        FontSize="10.5"

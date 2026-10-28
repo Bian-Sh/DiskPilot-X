@@ -26,6 +26,14 @@ public partial class AppModalHost : UserControl
         return ShowAsync<int>(view, ModalResult.Negative, 460, 180);
     }
 
+    /// <summary>复用关闭确认的模态外观；破坏性操作默认取消，必须显式点击确认。</summary>
+    public Task<int> ShowConfirmationAsync(string title, string content, string positiveText)
+    {
+        var view = CreateMessageView(title, content, ModalMessageType.Warning,
+            ModalButtonFlags.Positive | ModalButtonFlags.Negative, positiveText, defaultToNegative: true);
+        return ShowAsync<int>(view, ModalResult.Negative, 460, 240);
+    }
+
     public async Task<MessageBoxResult> ShowMessageAsync(string message, string title, MessageBoxButton buttons, MessageBoxImage image)
     {
         var result = await ShowAsync(title, message, ToModalMessageType(image), ToModalButtonFlags(buttons));
@@ -167,7 +175,8 @@ public partial class AppModalHost : UserControl
         storyboard.Begin();
     }
 
-    private FrameworkElement CreateMessageView(string title, string content, ModalMessageType messageType, ModalButtonFlags buttonFlags)
+    private FrameworkElement CreateMessageView(string title, string content, ModalMessageType messageType, ModalButtonFlags buttonFlags,
+        string? positiveText = null, bool defaultToNegative = false)
     {
         var root = new Grid { MinWidth = 360, MaxWidth = 480 };
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(14) });             // top edge
@@ -271,12 +280,12 @@ public partial class AppModalHost : UserControl
         {
             var button = new Button
             {
-                Content = label,
+                Content = result == ModalResult.Positive ? positiveText ?? label : label,
                 MinWidth = 88,
                 Height = 34,
                 Margin = isFirstButton ? new Thickness(0) : new Thickness(10, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
-                IsDefault = isPrimary,
+                IsDefault = defaultToNegative ? result == ModalResult.Negative : isPrimary,
                 IsCancel = result == ModalResult.Negative,
                 Style = (Style)FindResource(isPrimary ? "VP.AccentButton" : "VP.Button")
             };

@@ -1,0 +1,8 @@
+<StackPanel>
+  <TextBlock Text="{loc form.roots}" FontSize="14" FontWeight="Bold" />
+  <TextBox Name="roots" MaxLength="4000" />
+  <TextBlock Text="{loc form.rootsHint}" FontSize="11" />
+  <TextBlock Text="{loc form.depth}" FontSize="14" FontWeight="Bold" />
+  <TextBox Name="depth" Text="6" MaxLength="2" />
+  <TextBlock Text="{loc form.safety}" FontSize="11" />
+</StackPanel>

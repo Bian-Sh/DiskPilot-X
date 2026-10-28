@@ -40,7 +40,7 @@ public sealed class MarkdownTableRenderingTests
         {
             var document = ConvertToDocument("| A |\n| --- |\n| `x.exe` 与 **加粗** |");
             var paragraph = (Paragraph)document.Blocks.OfType<Table>().Single().RowGroups[1].Rows[0].Cells[0].Blocks.FirstBlock;
-            Assert.NotEmpty(paragraph.Inlines.OfType<InlineUIContainer>());
+            Assert.Contains(paragraph.Inlines.OfType<Span>(), inline => inline.FontFamily.Source.Contains("Consolas"));
             Assert.Contains(paragraph.Inlines.OfType<Span>(), s => s.FontWeight == FontWeights.Bold);
         });
     }

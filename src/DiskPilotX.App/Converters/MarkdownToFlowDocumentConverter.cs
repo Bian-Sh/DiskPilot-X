@@ -52,6 +52,8 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
         {
             FontFamily = new FontFamily("Segoe UI, Microsoft YaHei UI"),
             FontSize = 13,
+            TextAlignment = TextAlignment.Left,
+            IsHyphenationEnabled = false,
             Foreground = FindBrush("VP.TextPrimaryBrush", Color.FromRgb(0xE8, 0xE8, 0xE8)),
         };
 
@@ -99,7 +101,11 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
                             document.Blocks.Add(currentParagraph);
                             currentParagraph = new Paragraph();
                         }
-                        document.Blocks.Add(CreateCodeBlock(codeBlock));
+                        // 自定义图表围栏块优先渲染为原生图表，其余走代码块
+                        if (MarkdownChartRenderer.IsChartLanguage(codeBlock.Info))
+                            document.Blocks.Add(MarkdownChartRenderer.Render(codeBlock.Info, string.Join(Environment.NewLine, codeBlock.Lines)));
+                        else
+                            document.Blocks.Add(CreateCodeBlock(codeBlock));
                         break;
 
                     case ThematicBreakBlock:
@@ -211,7 +217,8 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
             switch (inline)
             {
                 case LiteralInline literal:
-                    paragraph.Inlines.Add(new Run(literal.Content.ToString()));
+                    foreach (var run in ChatMarkdownTypography.CreateRuns(literal.Content.ToString()))
+                        paragraph.Inlines.Add(run);
                     break;
 
                 case EmphasisInline emphasis:
@@ -258,7 +265,8 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
             switch (inline)
             {
                 case LiteralInline literal:
-                    parent.Inlines.Add(new Run(literal.Content.ToString()));
+                    foreach (var run in ChatMarkdownTypography.CreateRuns(literal.Content.ToString()))
+                        parent.Inlines.Add(run);
                     break;
 
                 case EmphasisInline emphasis:
@@ -296,23 +304,18 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
         }
     }
 
-    private static InlineUIContainer CreateCodeInline(CodeInline code)
+    private static Span CreateCodeInline(CodeInline code)
     {
-        var border = new Border
+        // 使用文本元素而非嵌入控件，代码与正文共用基线并保留换行、选择及原文复制。
+        var span = new Span
         {
+            FontFamily = new FontFamily("Cascadia Code, Consolas, Microsoft YaHei UI"),
+            FontSize = 12,
+            BaselineAlignment = BaselineAlignment.Baseline,
             Background = FindBrush("VP.SurfaceHoverBrush", Color.FromRgb(0x2A, 0x2A, 0x2A)),
-            CornerRadius = new CornerRadius(3),
-            Padding = new Thickness(4, 2, 4, 2),
-            Child = new TextBlock
-            {
-                Text = code.Content,
-                FontFamily = new FontFamily("Cascadia Code, SF Mono, Menlo, Consolas, monospace"),
-                FontSize = 12,
-                Foreground = FindBrush("VP.TextPrimaryBrush", Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            }
         };
-
-        return new InlineUIContainer(border);
+        foreach (var run in ChatMarkdownTypography.CreateRuns(code.Content)) span.Inlines.Add(run);
+        return span;
     }
 
     private static Section CreateCodeBlock(FencedCodeBlock codeBlock)
@@ -419,42 +422,42 @@ public class MarkdownToFlowDocumentConverter : IValueConverter
         if (bodyGroup.Rows.Count > 0) table.RowGroups.Add(bodyGroup);
         return table;
     }
-    private static Section CreateList(ListBlock list)
+    private static System.Windows.Documents.List CreateList(ListBlock list)
     {
-        var section = new Section
+        var result = new System.Windows.Documents.List
         {
-            Margin = new Thickness(16, 4, 0, 4),
+            Margin = new Thickness(0, 4, 0, 4),
+            Padding = new Thickness(22, 0, 0, 0),
+            MarkerOffset = 6,
+            MarkerStyle = list.IsOrdered ? TextMarkerStyle.Decimal : TextMarkerStyle.Disc,
+            StartIndex = int.TryParse(list.OrderedStart, out var start) && start > 0 ? start : 1,
         };
-
-        int index = 0;
-        foreach (var item in list)
+        foreach (var listItem in list.OfType<ListItemBlock>())
         {
-            if (item is ListItemBlock listItem)
+            var item = new ListItem();
+            foreach (var block in listItem)
             {
-                var paragraph = new Paragraph
+                switch (block)
                 {
-                    Margin = new Thickness(0, 2, 0, 2),
-                };
-
-                var bullet = list.IsOrdered ? $"{++index}. " : "• ";
-                paragraph.Inlines.Add(new Run(bullet)
-                {
-                    Foreground = FindBrush("VP.TextSecondaryBrush", Color.FromRgb(0xA8, 0xA8, 0xA8)),
-                });
-
-                foreach (var subBlock in listItem)
-                {
-                    if (subBlock is ParagraphBlock para && para.Inline != null)
-                    {
-                        AddInlinesToParagraph(paragraph, para.Inline);
-                    }
+                    case ParagraphBlock paragraph:
+                        var content = CreateParagraph(paragraph);
+                        content.Margin = new Thickness(0, 2, 0, 2);
+                        item.Blocks.Add(content);
+                        break;
+                    case ListBlock nested:
+                        item.Blocks.Add(CreateList(nested));
+                        break;
+                    case QuoteBlock quote:
+                        item.Blocks.Add(CreateQuote(quote));
+                        break;
+                    case FencedCodeBlock code:
+                        item.Blocks.Add(CreateCodeBlock(code));
+                        break;
                 }
-
-                section.Blocks.Add(paragraph);
             }
+            result.ListItems.Add(item);
         }
-
-        return section;
+        return result;
     }
 
     private static Section CreateQuote(QuoteBlock quote)

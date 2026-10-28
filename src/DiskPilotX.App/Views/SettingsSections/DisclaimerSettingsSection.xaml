@@ -1,58 +1,74 @@
 <UserControl x:Class="DiskPilotX.App.Views.SettingsSections.DisclaimerSettingsSection"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:loc="clr-namespace:DiskPilotX.App.Localization"
-             mc:Ignorable="d"
              FontFamily="{DynamicResource VP.FontFamily}">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="SettingsSharedResources.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="DisclaimerBody" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{DynamicResource VP.TextSecondaryBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="LineHeight" Value="20" />
+                <Setter Property="Margin" Value="0,7,0,0" />
+            </Style>
+            <Style x:Key="DisclaimerSubtitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
-
     <StackPanel>
-        <TextBlock x:Name="DisclaimerSectionAnchor" Text="{loc:Loc SettingsDisclaimerNav}"
-                   FontSize="15" FontWeight="SemiBold"
-                   Foreground="{DynamicResource VP.TextSecondaryBrush}"
-                   Margin="0,16,0,10" />
-        <Border x:Name="DisclaimerSection" Background="{DynamicResource VP.SettingsCardBrush}"
-                BorderBrush="{DynamicResource VP.BorderSubtleBrush}"
-                BorderThickness="1" CornerRadius="10"
-                Padding="14,12">
+        <TextBlock x:Name="DisclaimerSectionAnchor" Text="{loc:Loc SettingsDisclaimerNav}" FontSize="15" FontWeight="SemiBold"
+                   Foreground="{DynamicResource VP.TextSecondaryBrush}" Margin="0,16,0,10" />
+        <Border x:Name="DisclaimerSection" Background="{DynamicResource VP.SettingsCardBrush}" BorderBrush="{DynamicResource VP.BorderSubtleBrush}"
+                BorderThickness="1" CornerRadius="10" Padding="18,18">
             <StackPanel>
-                <TextBlock Text="{loc:Loc SettingsDisclaimerIntro}"
-                           Foreground="{DynamicResource VP.TextPrimaryBrush}"
-                           FontSize="13"
-                           TextWrapping="Wrap"
-                           LineHeight="20" />
-                <TextBlock Text="{loc:Loc SettingsDisclaimerPrivacy}"
-                           Foreground="{DynamicResource VP.TextSecondaryBrush}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           LineHeight="19"
-                           Margin="0,10,0,0" />
-                <TextBlock Text="{loc:Loc SettingsDisclaimerRisk}"
-                           Foreground="{DynamicResource VP.TextSecondaryBrush}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           LineHeight="19"
-                           Margin="0,8,0,0" />
-                <TextBlock Text="{loc:Loc SettingsDisclaimerResponsibility}"
-                           Foreground="{DynamicResource VP.TextSecondaryBrush}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           LineHeight="19"
-                           Margin="0,8,0,0" />
-                <TextBlock Text="{loc:Loc SettingsDisclaimerRecommendation}"
-                           Foreground="{DynamicResource VP.TextSecondaryBrush}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           LineHeight="19"
-                           Margin="0,8,0,0" />
+                <TextBlock Text="{loc:Loc SettingsDisclaimerHeadline}" FontSize="18" FontWeight="SemiBold"
+                           Foreground="{DynamicResource VP.TextPrimaryBrush}" />
+                <TextBlock Text="{loc:Loc SettingsDisclaimerSubtitle}" Style="{StaticResource DisclaimerBody}" Margin="0,6,0,18" />
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="17" Margin="0,2,0,0"
+                               Foreground="{DynamicResource VP.AccentTextBrush}" />
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="{loc:Loc SettingsDisclaimerUsageTitle}" Style="{StaticResource DisclaimerSubtitle}" />
+                        <TextBlock Text="{loc:Loc SettingsDisclaimerIntro}" Style="{StaticResource DisclaimerBody}" />
+                    </StackPanel>
+                </Grid>
+                <Separator Margin="0,18" Background="{DynamicResource VP.BorderSubtleBrush}" />
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="17" Margin="0,2,0,0"
+                               Foreground="{DynamicResource VP.WarningTextBrush}" />
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="{loc:Loc SettingsDisclaimerRiskTitle}" Style="{StaticResource DisclaimerSubtitle}" />
+                        <TextBlock Text="{loc:Loc SettingsDisclaimerRisk}" Style="{StaticResource DisclaimerBody}" />
+                        <TextBlock Text="{loc:Loc SettingsDisclaimerRecommendation}" Style="{StaticResource DisclaimerBody}"
+                                   Foreground="{DynamicResource VP.WarningTextBrush}" />
+                        <TextBlock Text="{loc:Loc SettingsDisclaimerResponsibility}" Style="{StaticResource DisclaimerBody}" />
+                    </StackPanel>
+                </Grid>
+                <Separator Margin="0,18" Background="{DynamicResource VP.BorderSubtleBrush}" />
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <TextBlock Text="&#xE72E;" FontFamily="Segoe MDL2 Assets" FontSize="17" Margin="0,2,0,0"
+                               Foreground="{DynamicResource VP.SuccessTextBrush}" />
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="{loc:Loc SettingsDisclaimerAiTitle}" Style="{StaticResource DisclaimerSubtitle}" />
+                        <TextBlock Text="{loc:Loc SettingsDisclaimerAiPrivacy}" Style="{StaticResource DisclaimerBody}" />
+                        <TextBlock Text="{loc:Loc SettingsDisclaimerPrivacy}" Style="{StaticResource DisclaimerBody}" />
+                        <Border Background="{DynamicResource VP.SurfaceBrush}" BorderBrush="{DynamicResource VP.AccentBrush}"
+                                BorderThickness="2,0,0,0" CornerRadius="0,6,6,0" Padding="10,8" Margin="0,10,0,0">
+                            <TextBlock Text="{loc:Loc SettingsDisclaimerAiSensitive}" Style="{StaticResource DisclaimerBody}" Margin="0"
+                                       Foreground="{DynamicResource VP.TextPrimaryBrush}" />
+                        </Border>
+                    </StackPanel>
+                </Grid>
             </StackPanel>
         </Border>
     </StackPanel>

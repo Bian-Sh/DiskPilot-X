@@ -159,6 +159,10 @@ public class AiSkillRouterTests
         content.Should().NotBeNull();
         content.Should().Contain("# DiskPilot-X App Guide Skill");
         content.Should().Contain("## Module Guide");
+        content.Should().Contain("缓存命中率 = 缓存读取 / 总输入（含缓存）");
+        content.Should().Contain("input_tokens + cache_read_input_tokens + cache_creation_input_tokens");
+        content.Should().Contain("不是各次百分比的平均值");
+        content.Should().Contain("仅在用户询问模型、token 或缓存时解释");
     }
 }
 

@@ -26,6 +26,9 @@ public class ChatMessage : INotifyPropertyChanged
     public ObservableCollection<ChatSegment> Segments { get; } = new();
     public ObservableCollection<SkillTaskCard> SkillTasks { get; } = new();
 
+    /// <summary>气泡内渲染的按需视图（紧凑模式）。可在窗口中打开完整视图。</summary>
+    public ObservableCollection<SkillUiSpec> Views { get; } = new();
+
     private ChatSegment? _activeSegment;
     private bool _hasStepDeltas;
     private int _stepStartIndex;
@@ -34,11 +37,28 @@ public class ChatMessage : INotifyPropertyChanged
     private TimeSpan _elapsed;
     private ModelTokenUsage? _usage;
     private readonly HashSet<string> _usageMessageIds = new(StringComparer.Ordinal);
+    private string? _modelId;
+    private bool _hasIncompleteCacheUsage;
+    public string? ModelId
+    {
+        get => _modelId;
+        set { if (_modelId == value) return; _modelId = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasModelId)); }
+    }
+    public bool HasModelId => !string.IsNullOrWhiteSpace(ModelId);
+    public bool HasIncompleteCacheUsage
+    {
+        get => _hasIncompleteCacheUsage;
+        set { if (_hasIncompleteCacheUsage == value) return; _hasIncompleteCacheUsage = value; OnPropertyChanged(nameof(CacheHitRateText)); OnPropertyChanged(nameof(UsageDetails)); OnPropertyChanged(nameof(UsageText)); }
+    }
+    private static long? CacheInput(ModelTokenUsage usage) => usage.GetTotalInputTokens();
+    public string CacheHitRateText => HasIncompleteCacheUsage ? "未提供（部分请求缺少统计）"
+        : Usage is { CachedInputTokens: >= 0 } usage && CacheInput(usage) is > 0 and var input && usage.CachedInputTokens <= input
+            ? (usage.CachedInputTokens.Value / (double)input).ToString("P1") : "未提供";
 
     public ModelTokenUsage? Usage
     {
         get => _usage;
-        set { if (_usage == value) return; _usage = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasUsage)); OnPropertyChanged(nameof(UsageText)); OnPropertyChanged(nameof(UsageSummary)); OnPropertyChanged(nameof(UsageDetails)); }
+        set { if (_usage == value) return; _usage = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasUsage)); OnPropertyChanged(nameof(UsageText)); OnPropertyChanged(nameof(UsageSummary)); OnPropertyChanged(nameof(UsageDetails)); OnPropertyChanged(nameof(CacheHitRateText)); }
     }
     public bool HasUsage => Usage is not null;
     public string UsageSummary => Usage?.TotalTokens is { } total
@@ -52,6 +72,8 @@ public class ChatMessage : INotifyPropertyChanged
             if (Usage is not { } usage) return rows;
             void Add(string label, long? count) { if (count.HasValue) rows.Add(new(label, count.Value.ToString("N0"))); }
             Add("缓存读取", usage.CachedInputTokens); Add("缓存写入", usage.CacheCreationTokens);
+            rows.Add(new("缓存命中率", CacheHitRateText));
+            if (usage.TotalInputTokens != usage.InputTokens) Add("总输入（含缓存）", usage.TotalInputTokens);
             Add("输入", usage.InputTokens); Add("输出", usage.OutputTokens); Add("推理", usage.ReasoningTokens); Add("合计", usage.TotalTokens);
             return rows;
         }
@@ -170,8 +192,17 @@ public class ChatMessage : INotifyPropertyChanged
                 try { using var json = JsonDocument.Parse(result.Content ?? ""); if(json.RootElement.ValueKind == JsonValueKind.Object && json.RootElement.TryGetProperty("cancelled",out var cancelled) && cancelled.ValueKind == JsonValueKind.True) resultSegment.Status = ChatSegmentStatus.Cancelled; } catch(JsonException) { }
                 break;
             case AgentEventKind.MessageCompleted when activity.Message?.Role == ChatRole.Assistant:
-                if (activity.Message.Usage is { } usage && _usageMessageIds.Add(activity.Message.Id))
-                    Usage = Usage is null ? usage : Usage.Add(usage);
+                if (!string.IsNullOrWhiteSpace(activity.Message.ModelId)) ModelId = activity.Message.ModelId;
+                if (_usageMessageIds.Add(activity.Message.Id))
+                {
+                    if (activity.Message.Usage is { } usage)
+                    {
+                        var input = CacheInput(usage);
+                        HasIncompleteCacheUsage |= usage.CachedInputTokens is not { } cached || input is null || cached < 0 || input < 0 || cached > input;
+                        Usage = Usage is null ? usage : Usage.Add(usage);
+                    }
+                    else HasIncompleteCacheUsage = true;
+                }
                 // 完整消息是流式内容的快照；仅在没有增量时用于补齐内容。
                 if (!_hasStepDeltas)
                 {

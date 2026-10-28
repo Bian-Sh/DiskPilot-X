@@ -357,7 +357,7 @@ public sealed class AnthropicModelClientTests
             + Sse(new { type = "message_stop" });
         using var http = TextHttp(body);
         var completed = Assert.Single((await Collect(Client(http), Request)).OfType<ModelCompletedEvent>());
-        Assert.Equal(new ModelTokenUsage(10, 15, 125, 80, 20), completed.Usage);
+        Assert.Equal(new ModelTokenUsage(10, 15, 125, 80, 20, TotalInputTokens: 110), completed.Usage);
     }
 
     private static AnthropicModelClient Client(HttpClient http, bool thinking = false) => new(http, Key, "https://gateway.example/proxy/v1", "claude-test", thinking ? ThinkingLevel.Medium : ThinkingLevel.Off);

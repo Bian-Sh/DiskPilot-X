@@ -35,7 +35,9 @@ public partial class MainWindow
     }
     private async Task<JsonNode> ExecuteSharedCleanupAsync(List<string> ids,string? expectedVersion,bool fromAssistant,CancellationToken ct)
     {
-        if(_cleanupRunning||DataContext is not MainViewModel main||main.CurrentSession is null||main.IsScanning||_recommendationsViewModel is null||_recommendationsViewModel.IsAnalyzing)
+        // 清理基准会话：可能是无头批次会话（多范围分析整合后的清单），不强行要求工作区已有扫描。
+        var planSession=_assistantAnalysisSession??(DataContext as MainViewModel)?.CurrentSession;
+        if(_cleanupRunning||DataContext is not MainViewModel main||planSession is null||main.IsScanning||_recommendationsViewModel is null||_recommendationsViewModel.IsAnalyzing)
             return AssistantError("当前有磁盘任务正在运行，或尚无可清理结果。");
         if(ids.Count==0)return AssistantError("请先选择具体清理项。");
         _cleanupRunning=true;main.IsCopilotBusy=true;
@@ -43,12 +45,11 @@ public partial class MainWindow
         try
         {
             var items=_recommendationsViewModel.Recommendations.ToList();
-            var planSession=main.CurrentSession;
             var planMode=CurrentDeletionMode;
             var requestedVersion=CleanupPlan.ComputeVersion(planSession,items,planMode);
             main.ScanProgressText="正在复核清理目录的完整状态";
             var plan=await Task.Run(()=>CleanupPlan.Capture(planSession,items,ids,planMode,ct),ct);
-            if(plan.RecommendationVersion!=requestedVersion || !plan.MatchesCurrentList(main.CurrentSession,_recommendationsViewModel.Recommendations.ToList(),CurrentDeletionMode))return AssistantError("清单或扫描状态已改变，请重新确认。");
+            if(plan.RecommendationVersion!=requestedVersion || !plan.MatchesCurrentList(planSession,_recommendationsViewModel.Recommendations.ToList(),CurrentDeletionMode))return AssistantError("清单或扫描状态已改变，请重新确认。");
             if(fromAssistant&&(string.IsNullOrWhiteSpace(expectedVersion)||plan.RecommendationVersion!=expectedVersion))return AssistantError("清理清单版本已改变，请重新读取并确认。");
             await Task.Run(()=>ValidateCleanupItems(plan,planSession,fromAssistant,ct:ct),ct);
             var description=string.Join(Environment.NewLine,plan.Items.Select(r=>$"{r.TargetPath}（{FileSizeConverter.FormatSize(r.Size)}）"));
@@ -62,13 +63,12 @@ public partial class MainWindow
             else confirmed=await ShowAppModalAsync("确认清理具体清单",description+Environment.NewLine+impact,ModalMessageType.Warning,ModalButtonFlags.Positive|ModalButtonFlags.Negative)==ModalResult.Positive;
             ct.ThrowIfCancellationRequested();
             if(!confirmed)return new JsonObject{["ok"]=false,["cancelled"]=true,["message"]="已取消，未删除任何项目。"};
-            var approvedSession=main.CurrentSession;
             var approvedItems=_recommendationsViewModel.Recommendations.ToList();
             var approvedMode=CurrentDeletionMode;
             main.ScanProgressText="正在核对批准后的目录状态";
-            var approvalCurrent=await Task.Run(()=>plan.IsCurrent(approvedSession,approvedItems,approvedMode,ct),ct);
-            if(!approvalCurrent || !plan.MatchesCurrentList(main.CurrentSession,_recommendationsViewModel.Recommendations.ToList(),CurrentDeletionMode))return AssistantError("确认期间清单、选择、目录内容或删除方式已改变，请重新确认。");
-            await Task.Run(()=>ValidateCleanupItems(plan,approvedSession!,fromAssistant,ct:ct),ct);
+            var approvalCurrent=await Task.Run(()=>plan.IsCurrent(planSession,approvedItems,approvedMode,ct),ct);
+            if(!approvalCurrent || !plan.MatchesCurrentList(planSession,_recommendationsViewModel.Recommendations.ToList(),CurrentDeletionMode))return AssistantError("确认期间清单、选择、目录内容或删除方式已改变，请重新确认。");
+            await Task.Run(()=>ValidateCleanupItems(plan,planSession,fromAssistant,ct:ct),ct);
             var progress=new Progress<CleanupProgress>(p=>main.ScanProgressText=$"正在清理 {p.CompletedCount+1}/{p.TotalCount}");
             var results=completedActions;
             foreach(var item in plan.Items)
@@ -76,16 +76,15 @@ public partial class MainWindow
                 ct.ThrowIfCancellationRequested();
                 try
                 {
-                    var itemSession=main.CurrentSession;
-                    if(itemSession?.Id!=plan.ScanId || CurrentDeletionMode!=plan.Mode)throw new InvalidOperationException("扫描或删除方式改变。");
+                    if(planSession.Id!=plan.ScanId || CurrentDeletionMode!=plan.Mode)throw new InvalidOperationException("扫描或删除方式改变。");
                     var currentItem=_recommendationsViewModel.Recommendations.FirstOrDefault(candidate=>candidate.Id==item.Id);
                     if(currentItem is null || currentItem.TargetPath!=item.TargetPath || currentItem.IsAccepted!=item.IsAccepted || currentItem.IsDismissed!=item.IsDismissed)throw new InvalidOperationException("清理选择改变。");
-                    await Task.Run(()=> { ValidateCleanupItems(plan,itemSession,fromAssistant,item,ct); if(!plan.IsTargetCurrent(item,ct))throw new InvalidOperationException("目标内容或保护状态改变。"); },ct);
-                    if(main.CurrentSession?.Id!=plan.ScanId || CurrentDeletionMode!=plan.Mode || currentItem.IsAccepted!=item.IsAccepted || currentItem.IsDismissed!=item.IsDismissed)throw new InvalidOperationException("执行前上下文改变。");
+                    await Task.Run(()=> { ValidateCleanupItems(plan,planSession,fromAssistant,item,ct); if(!plan.IsTargetCurrent(item,ct))throw new InvalidOperationException("目标内容或保护状态改变。"); },ct);
+                    if(planSession.Id!=plan.ScanId || CurrentDeletionMode!=plan.Mode || currentItem.IsAccepted!=item.IsAccepted || currentItem.IsDismissed!=item.IsDismissed)throw new InvalidOperationException("执行前上下文改变。");
                     var result=await App.Services!.GetRequiredService<ICleanupService>().ExecuteCleanupAsync([item],plan.Mode,progress,ct);
                     results.AddRange(result);
                     // 每项完成立即同步，停止后也不会丢失已产生的真实结果。
-                    ApplyCleanupResults(result,main);
+                    ApplyCleanupResults(result,main,planSession);
                 }
                 catch(InvalidOperationException)
                 {
@@ -128,11 +127,16 @@ public partial class MainWindow
             if(File.Exists(item.TargetPath)&&File.GetAttributes(item.TargetPath).HasFlag(FileAttributes.ReparsePoint))throw new InvalidOperationException("禁止清理链接。");
         }
     }
-    private void ApplyCleanupResults(List<CleanupAction> results,MainViewModel main)
+    private void ApplyCleanupResults(List<CleanupAction> results,MainViewModel main,ScanSession session)
     {
-        _treemapViewModel?.ApplyCleanupResults(results,main.CurrentSession!);
-        if(TreeViewControl.DataContext is TreeViewModel tree) { if(main.CurrentSession?.RootEntry is {} root)tree.SetRoot(root,main.CurrentSession); else tree.RootItems.Clear(); }
-        main.UpdateStatusBar(main.CurrentSession!);
+        // 无头批次会话不在工作区里，Treemap / 文件树无需（也不能）跟着更新。
+        var isWorkspaceSession=ReferenceEquals(main.CurrentSession,session);
+        if(isWorkspaceSession)
+        {
+            _treemapViewModel?.ApplyCleanupResults(results,session);
+            if(TreeViewControl.DataContext is TreeViewModel tree) { if(session.RootEntry is {} root)tree.SetRoot(root,session); else tree.RootItems.Clear(); }
+            main.UpdateStatusBar(session);
+        }
         var completed=results.Where(r=>r.Result is CleanupResult.Success or CleanupResult.AlreadyRemoved).Select(r=>r.Recommendation.Id).ToHashSet();
         _recommendationsViewModel!.SetExternalRecommendations(_recommendationsViewModel.Recommendations.Where(r=>!completed.Contains(r.Id)));
         main.ScanProgressText=$"本次已释放 {FileSizeConverter.FormatSize(results.Sum(r=>r.ActualSizeFreed))}";

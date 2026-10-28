@@ -156,6 +156,24 @@ public sealed class ConversationTitleTests : IDisposable
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
+    [Fact]
+    public async Task 删除当前会话后迟到的标题不能恢复记录()
+    {
+        var client = new TitleClient();
+        var vm = Create(client);
+        vm.InputText = "等待标题的会话";
+        await vm.SubmitOrStopCommand.ExecuteAsync(null);
+        var pendingTitle = TitleTask(vm);
+        vm.ConfirmConversationDeletion = _ => Task.FromResult(true);
+        await vm.DeleteConversationCommand.ExecuteAsync(vm.ConversationHistory.Single());
+        client.CompleteTitle("不应复活的标题");
+        await pendingTitle;
+        vm.CurrentConversationId.Should().BeNull();
+        vm.Messages.Should().BeEmpty();
+        vm.ConversationHistory.Should().BeEmpty();
+        new ConversationStore(directory).List().Should().BeEmpty();
+    }
+
     private static Task TitleTask(ChatViewModel vm) => (Task)typeof(ChatViewModel)
         .GetField("titleGenerationTask", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(vm)!;
 

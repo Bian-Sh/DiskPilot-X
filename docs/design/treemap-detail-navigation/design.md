@@ -27,7 +27,7 @@
 取消全图5000节点硬截断。深度优先布局不能因为早期目录耗尽预算而省略后续同级区域；LOD、每目录128项加真实长尾聚合、64层安全上限继续保留。
 布局保留全部满足像素LOD的节点，以确保平移时细节立即恢复；绘制时把控件视口逆变换到逻辑坐标，仅对相交节点排序并构造画刷、渐变和文字。部分相交的节点保留，裁剪仍由Skia画布完成。避免引入遮挡查询、GPU深度缓冲或依赖平移的重布局状态。
 
-测试包默认使用app.manifest（asInvoker）；交付包显式传入`-p:DiskPilotRequestElevation=true`，仅由App项目选用app.admin.manifest（requireAdministrator）。禁止向整个项目引用链传入全局ApplicationManifest路径，避免Core与TinyHarness等类库也嵌入不同清单、破坏发布内容一致性。两包均为win-x64、自包含文件夹发布，PublishSingleFile=false、PublishTrimmed=false。
+与main合并后沿用正式清单app.manifest（requireAdministrator）；测试包显式传入`-p:DiskPilotTestPackage=true`，仅由App项目选用app.test.manifest（asInvoker）。兼容旧测试参数`-p:DiskPilotRequestElevation=false`，但优先使用main的标准参数。禁止向整个项目引用链传入全局ApplicationManifest路径，避免Core与TinyHarness等类库也嵌入不同清单、破坏发布内容一致性。两包均为win-x64、自包含文件夹发布，PublishSingleFile=false、PublishTrimmed=false。
 
 ## 文字LOD与默认文件类型配色（2026-10-28，用户最终确认）
 

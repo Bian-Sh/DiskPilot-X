@@ -81,6 +81,7 @@ public sealed class AgentLoop
             var finishReason = "stop";
             var completionReceived = false;
             ModelTokenUsage? usage = null;
+            string? modelId = null;
 
             // 逐条拉取模型流。yield 不允许出现在带 catch 的 try 内，因此仅在 try 中移动枚举器，事件在 try 外处理。
             var availableTools = disabledToolResults.Count == 0
@@ -146,6 +147,7 @@ public sealed class AgentLoop
                         break;
                     case ModelCompletedEvent completedEvent:
                         usage = completedEvent.Usage;
+                        modelId = completedEvent.ModelId;
                         finishReason = completedEvent.FinishReason;
                         completionReceived = true;
                         break;
@@ -177,7 +179,7 @@ public sealed class AgentLoop
             blocks.AddRange(safeToolCalls.Select(call => new ChatContentBlock(ChatContentKind.ToolCall, ToolCall: call)));
             session.AddMessage(ChatMessage.AssistantToolCalls(
                 safeToolCalls,
-                textBuilder.Length > 0 ? textBuilder.ToString() : null) with { Blocks = blocks, Usage = usage });
+                textBuilder.Length > 0 ? textBuilder.ToString() : null) with { Blocks = blocks, Usage = usage, ModelId = modelId });
             yield return AgentEvent.Create(session.Id, AgentEventKind.MessageCompleted) with { Message = session.Messages[^1], Step = step + 1 };
 
             if (dedupedToolCalls.Count == 0)

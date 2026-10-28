@@ -1,0 +1,621 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using static DiskPilotX.Core.Services.Skills.SkillTextCatalog;
+using DiskPilotX.Core.Models;
+using DiskPilotX.Core.Services.Skills;
+
+/// <summary>
+/// Unity 项目缓存盘点（只读发现）。
+///
+/// 设计要点：
+/// ① 搜索范围只来自任务面板：roots 填一个或多个绝对路径（分号分隔），depth 控制向下层数。
+///    面板输入为空、全是相对路径或全部不存在时，直接返回空结果并说明原因，
+///    绝不退化成「扫描本机全部磁盘」——不静默扩大范围。
+/// ② Unity 项目常常散落在多个磁盘，Unity Hub 只记录自己打开过的项目，不能作为唯一来源，
+///    因此判定依据只有目录结构。
+/// ③ 项目判定：目录里同时存在 Assets 与 ProjectSettings。
+/// ④ 缓存口径：只统计 Library / Temp / obj / Logs；排除 Build(s)、MemoryCaptures、Recordings、
+///    .vs/.idea 等 IDE 目录，Assets / Packages / ProjectSettings 属于项目本体，永不计入。
+/// ⑤ 读不到的元数据（Unity 版本）如实标注「未读到」，不编造。
+///
+/// 一切本机读取都经 context.Host（API Bridge）。本源码不是安全沙箱：
+/// 只做只读发现，不写文件、不删文件、不启进程、不联网。
+/// </summary>
+public sealed class Provider : IAppDataProvider
+{
+    private const int DefaultDepth = 6;
+    private const int MaxDepthLimit = 8;
+    private const int MaxEntries = 20000;
+    private const int MaxTableRows = 60;
+    private const int MaxScannedDirectories = 200000;
+    private const int MaxRoots = 32;
+    private const long BigCacheThreshold = 5368709120L; // 5 GB
+
+    private static readonly Regex VersionRegex = new(@"m_EditorVersion\s*:\s*(\S+)", RegexOptions.Compiled);
+
+    /// <summary>用户确认过的缓存白名单（顺序即展示顺序）。</summary>
+    private static readonly string[] CacheFolders = ["Library", "Temp", "obj", "Logs"];
+
+    /// <summary>不往下遍历的目录：系统目录、构建/录制产物、IDE 目录，以及被当作缓存统计的目录本身。</summary>
+    private static readonly HashSet<string> SkipNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Windows", "Program Files", "Program Files (x86)", "ProgramData", "AppData",
+        "System Volume Information", "$Recycle.Bin", "$WinREAgent", "Recovery", "PerfLogs",
+        "Config.Msi", "MSOCache", "WindowsApps", "steamapps", "node_modules",
+        ".git", ".svn", ".vs", ".idea", ".vscode",
+        "Library", "Temp", "obj", "Logs", "Build", "Builds",
+        "MemoryCaptures", "Recordings", "Hub", "Unity Hub"
+    };
+
+    public Task<AppDataDiscoveryResult> DiscoverAsync(AppDataDiscoveryContext context, CancellationToken token)
+    {
+        var host = context.Host;
+        var texts = new SkillTextCatalog(context.Localizations);
+        var notes = new List<string>();
+        var roots = new List<string>();
+
+        // 面板主字段：roots（分号分隔的多个绝对路径）
+        CollectRoots(host, texts, ReadParameter(context.Parameters, "roots", "search_roots", "paths", "root"), roots, notes);
+
+        // 仅当 roots 没给出任何有效目录时，才用面板里用户自己填的 scope_path 兜底。
+        // 兜底对象仍是用户输入的目录，不会换成全部磁盘。
+        if (roots.Count == 0)
+        {
+            var scope = ReadParameter(context.Parameters, "scope_path", "scope");
+            CollectRoots(host, texts, scope, roots, notes);
+            if (roots.Count > 0) notes.Add(Bind("input.scopeFallback"));
+        }
+
+        var depth = ResolveDepth(ReadParameter(context.Parameters, "depth", "max_depth", "search_depth"), notes);
+
+        if (roots.Count == 0)
+        {
+            Log(host, texts, Bind("log.noRoots"));
+            return Task.FromResult(new AppDataDiscoveryResult([], BuildNoRootView(notes) with { Localizations = context.Localizations }));
+        }
+
+        var projects = new List<ProjectInfo>();
+        var scanned = 0;
+        foreach (var root in roots)
+        {
+            token.ThrowIfCancellationRequested();
+            Log(host, texts, Bind("log.search", root, depth));
+            scanned += Walk(host, texts, root, depth, projects, token);
+            if (projects.Count >= MaxEntries) break;
+        }
+
+        var ordered = projects
+            .OrderByDescending(item => item.CacheBytes)
+            .ThenBy(item => item.Path, StringComparer.OrdinalIgnoreCase)
+            .Take(MaxEntries)
+            .ToList();
+
+        Log(host, texts, Bind("log.summary", roots.Count, scanned, ordered.Count,
+            FormatSize(ordered.Sum(item => item.CacheBytes))));
+
+        return Task.FromResult(new AppDataDiscoveryResult(
+            [.. ordered.Select(item => new AppDataEntry(item.Name, item.Name, item.Path, item.CacheBytes, texts.Resolve(item.Detail, host.GetLocalizationState().CultureName)))],
+            BuildView(ordered, roots, depth, notes) with { Localizations = context.Localizations }));
+    }
+
+    // ---------- 参数解析与校验 ----------
+
+    /// <summary>
+    /// 解析并校验根目录。只接受真实存在的绝对路径；相对路径、无效路径、不存在的目录
+    /// 逐条跳过并把原因写进 notes。绝不因为校验失败而换成全部磁盘。
+    /// </summary>
+    private static void CollectRoots(ISkillHostBridge host, SkillTextCatalog texts, string? raw, List<string> roots, List<string> notes)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return;
+
+        var pieces = raw.Split([';', ',', '|', '\n', '\r', '\t'], StringSplitOptions.RemoveEmptyEntries);
+        foreach (var piece in pieces)
+        {
+            var candidate = piece.Trim().Trim('"').Trim();
+            if (candidate.Length == 0) continue;
+
+            if (roots.Count >= MaxRoots)
+            {
+                var limitNote = Bind("input.maxRoots", MaxRoots);
+                if (!notes.Contains(limitNote)) notes.Add(limitNote);
+                break;
+            }
+
+            if (!Path.IsPathRooted(candidate))
+            {
+                notes.Add(Bind("input.relative", candidate));
+                Log(host, texts, Bind("log.relative", candidate));
+                continue;
+            }
+
+            string full;
+            try
+            {
+                full = Path.GetFullPath(candidate);
+            }
+            catch
+            {
+                notes.Add(Bind("input.invalid", candidate));
+                Log(host, texts, Bind("log.invalid", candidate));
+                continue;
+            }
+
+            bool exists;
+            try { exists = host.DirectoryExists(full); }
+            catch { exists = false; }
+            if (!exists)
+            {
+                notes.Add(Bind("input.missing", full));
+                Log(host, texts, Bind("log.missing", full));
+                continue;
+            }
+
+            if (!roots.Any(existing => string.Equals(existing, full, StringComparison.OrdinalIgnoreCase)))
+                roots.Add(full);
+        }
+    }
+
+    /// <summary>层数：非数字用默认值，越界按边界值，并把修正情况如实写进 notes。</summary>
+    private static int ResolveDepth(string? raw, List<string> notes)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return DefaultDepth;
+        if (!int.TryParse(raw.Trim(), out var parsed))
+        {
+            notes.Add(Bind("input.depthDefault", DefaultDepth));
+            return DefaultDepth;
+        }
+        if (parsed < 1)
+        {
+            notes.Add(Bind("input.depthMin"));
+            return 1;
+        }
+        if (parsed > MaxDepthLimit)
+        {
+            notes.Add(Bind("input.depthMax", MaxDepthLimit));
+            return MaxDepthLimit;
+        }
+        return parsed;
+    }
+
+    /// <summary>从面板参数字典里按候选键名取字符串；取不到就返回 null（不猜默认值）。</summary>
+    private static string? ReadParameter(object? parameters, params string[] keys)
+    {
+        if (parameters is null || keys.Length == 0) return null;
+        var type = parameters.GetType();
+
+        foreach (var key in keys)
+        {
+            try
+            {
+                var indexer = type.GetProperty("Item", [typeof(string)]);
+                if (indexer is not null)
+                {
+                    var text = AsText(indexer.GetValue(parameters, [key]));
+                    if (!string.IsNullOrWhiteSpace(text)) return text;
+                }
+            }
+            catch { }
+
+            try
+            {
+                var property = type.GetProperty(key, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                if (property is not null)
+                {
+                    var text = AsText(property.GetValue(parameters));
+                    if (!string.IsNullOrWhiteSpace(text)) return text;
+                }
+            }
+            catch { }
+        }
+
+        return null;
+    }
+
+    private static string? AsText(object? value)
+    {
+        if (value is null) return null;
+        return value as string ?? value.ToString();
+    }
+
+    // ---------- 遍历与度量 ----------
+
+    private static int Walk(ISkillHostBridge host, SkillTextCatalog texts, string root, int maxDepth, List<ProjectInfo> projects, CancellationToken token)
+    {
+        var queue = new Queue<(string Path, int Depth)>();
+        queue.Enqueue((root, 0));
+        var scanned = 0;
+
+        while (queue.Count > 0)
+        {
+            token.ThrowIfCancellationRequested();
+            var (current, depth) = queue.Dequeue();
+            scanned++;
+
+            if (scanned > MaxScannedDirectories)
+            {
+                Log(host, texts, Bind("log.directoryLimit", MaxScannedDirectories));
+                break;
+            }
+
+            if (IsUnityProject(host, current))
+            {
+                var info = Describe(host, current);
+                if (info is not null) projects.Add(info);
+                if (projects.Count >= MaxEntries) break;
+                continue; // 项目内部不再递归
+            }
+
+            if (depth >= maxDepth) continue;
+
+            IEnumerable<string> children;
+            try { children = host.EnumerateDirectories(current); }
+            catch { continue; }
+
+            foreach (var child in children)
+            {
+                if (string.IsNullOrWhiteSpace(child)) continue;
+                if (!ShouldDescend(child)) continue;
+                queue.Enqueue((child, depth + 1));
+            }
+        }
+
+        return scanned;
+    }
+
+    /// <summary>是否值得继续往下走：排除系统目录、构建/录制产物、IDE 目录与 Unity 编辑器安装目录。</summary>
+    private static bool ShouldDescend(string path)
+    {
+        var name = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        if (name.StartsWith("$", StringComparison.Ordinal)) return false;
+        if (SkipNames.Contains(name)) return false;
+        if (path.IndexOf("\\Unity\\Hub", StringComparison.OrdinalIgnoreCase) >= 0) return false;
+        return true;
+    }
+
+    /// <summary>项目判定：同时存在 Assets 与 ProjectSettings 才算 Unity 项目。</summary>
+    private static bool IsUnityProject(ISkillHostBridge host, string path)
+    {
+        try
+        {
+            return host.DirectoryExists(Path.Combine(path, "Assets"))
+                && host.DirectoryExists(Path.Combine(path, "ProjectSettings"));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>按白名单测缓存大小，并读 Unity 版本；读不到的都如实标注。</summary>
+    private static ProjectInfo? Describe(ISkillHostBridge host, string projectPath)
+    {
+        var parts = new List<string>();
+        long total = 0;
+
+        foreach (var folder in CacheFolders)
+        {
+            var candidate = Path.Combine(projectPath, folder);
+            if (!host.DirectoryExists(candidate)) continue;
+            long size;
+            try { size = host.GetDirectorySize(candidate); }
+            catch { continue; }
+            if (size <= 0) continue;
+            parts.Add(folder + " " + FormatSize(size));
+            total += size;
+        }
+
+        var version = ReadUnityVersion(host, projectPath);
+        var name = Path.GetFileName(projectPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (string.IsNullOrWhiteSpace(name)) name = projectPath;
+
+        var head = version ?? Bind("detail.versionUnknown");
+        var detail = parts.Count == 0 ? Bind("detail.noCache", head) : Bind("detail.cache", head, string.Join(" · ", parts));
+
+        return new ProjectInfo(name, projectPath, version, total, detail);
+    }
+
+    private static string? ReadUnityVersion(ISkillHostBridge host, string projectPath)
+    {
+        var file = Path.Combine(projectPath, "ProjectSettings", "ProjectVersion.txt");
+        string? text;
+        try { text = host.ReadTextFile(file); }
+        catch { return null; }
+        if (string.IsNullOrWhiteSpace(text)) return null;
+
+        var match = VersionRegex.Match(text);
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    // ---------- 视图 ----------
+
+    /// <summary>根目录无效时的视图：明确要求回面板补目录，不悄悄扩大范围。</summary>
+    private static SkillUiSpec BuildNoRootView(IReadOnlyList<string> notes)
+    {
+        var items = new List<SkillUiItem>
+        {
+            new SkillUiItem
+            {
+                Title = Bind("noRoots.title"),
+                Subtitle = Bind("noRoots.help")
+            }
+        };
+
+        foreach (var note in notes.Take(10)) items.Add(new SkillUiItem { Title = note });
+
+        return new SkillUiSpec
+        {
+            Title = Bind("skill.name"),
+            Subtitle = Bind("noRoots.subtitle"),
+            Surface = SkillUiSurface.Entry,
+            EntryTitle = Bind("noRoots.entryTitle"),
+            EntrySummary = Bind("noRoots.entrySummary"),
+            Sections =
+            [
+                new SkillUiSection
+                {
+                    Kind = SkillUiSectionKind.Text,
+                    Title = Bind("input.title"),
+                    Items = [.. items]
+                }
+            ],
+            Actions = [new SkillUiAction { Kind = "close", Label = Bind("action.ok") }]
+        };
+    }
+
+    private static SkillUiSpec BuildView(IReadOnlyList<ProjectInfo> projects, IReadOnlyList<string> roots, int depth, IReadOnlyList<string> notes)
+    {
+        if (projects.Count == 0) return BuildEmptyView(roots, depth, notes);
+
+        var total = projects.Sum(item => item.CacheBytes);
+        var withCache = projects.Count(item => item.CacheBytes > 0);
+        var top = projects[0];
+
+        var groups = projects
+            .GroupBy(item => DiskOf(item.Path))
+            .Select(group => new DiskGroup(
+                group.Key,
+                group.Count(),
+                group.Sum(item => item.CacheBytes),
+                group.OrderByDescending(item => item.CacheBytes).First()))
+            .OrderByDescending(group => group.Bytes)
+            .ToList();
+
+        var stats = new SkillUiSection
+        {
+            Kind = SkillUiSectionKind.StatRow,
+            Title = Bind("stats.title"),
+            Subtitle = Bind("stats.subtitle", DescribeRoots(roots), depth),
+            Items =
+            [
+                new SkillUiItem
+                {
+                    Title = Bind("stats.projects"),
+                    Value = Bind("value.count", projects.Count),
+                    ValueLabel = Bind("stats.withCache", withCache)
+                },
+                new SkillUiItem
+                {
+                    Title = Bind("stats.total"),
+                    Value = FormatSize(total),
+                    ValueLabel = Bind("stats.totalHint")
+                },
+                new SkillUiItem
+                {
+                    Title = Bind("stats.largest"),
+                    Value = FormatSize(top.CacheBytes),
+                    ValueLabel = top.Name
+                },
+                new SkillUiItem
+                {
+                    Title = Bind("stats.disks"),
+                    Value = Bind("value.count", groups.Count),
+                    ValueLabel = Bind("stats.disksHint")
+                }
+            ]
+        };
+
+        var diskTable = new SkillUiSection
+        {
+            Kind = SkillUiSectionKind.Table,
+            Title = Bind("disk.title"),
+            Subtitle = Bind("disk.subtitle"),
+            Headers = [Bind("header.disk"), Bind("header.count"), Bind("stats.total"), Bind("header.largest")],
+            Items =
+            [
+                .. groups.Select(group => new SkillUiItem
+                {
+                    Title = group.Disk,
+                    Cells =
+                    [
+                        group.Disk,
+                        Bind("value.count", group.Count),
+                        FormatSize(group.Bytes),
+                        Bind("disk.top", group.Top.Name, FormatSize(group.Top.CacheBytes))
+                    ],
+                    Value = FormatSize(group.Bytes),
+                    Metric = group.Bytes
+                })
+            ]
+        };
+
+        var detailRows = projects.Take(MaxTableRows).ToList();
+        var detailTable = new SkillUiSection
+        {
+            Kind = SkillUiSectionKind.Table,
+            Title = Bind("table.title"),
+            Subtitle = projects.Count > MaxTableRows
+                ? Bind("table.truncated", projects.Count, MaxTableRows)
+                : Bind("table.subtitle", projects.Count),
+            Headers = [Bind("header.project"), Bind("header.projectDisk"), Bind("header.version"), Bind("stats.total"), Bind("header.breakdown")],
+            Items =
+            [
+                .. detailRows.Select(item => new SkillUiItem
+                {
+                    Title = item.Name,
+                    Cells =
+                    [
+                        item.Name,
+                        DiskOf(item.Path),
+                        item.Version ?? Bind("detail.unavailable"),
+                        FormatSize(item.CacheBytes),
+                        item.Detail
+                    ],
+                    Path = item.Path,
+                    SizeBytes = item.CacheBytes,
+                    Metric = item.CacheBytes,
+                    Badge = item.CacheBytes <= 0
+                        ? Bind("badge.none")
+                        : (item.CacheBytes >= BigCacheThreshold ? Bind("badge.large") : Bind("badge.cache")),
+                    Selectable = true
+                })
+            ]
+        };
+
+        var sections = new List<SkillUiSection> { stats, diskTable, detailTable };
+        if (notes.Count > 0) sections.Add(BuildNotesSection(notes));
+
+        return new SkillUiSpec
+        {
+            Title = Bind("skill.name"),
+            Subtitle = Bind("view.subtitle", projects.Count, FormatSize(total), groups.Count),
+            Surface = SkillUiSurface.Auto,
+            EntryTitle = Bind("skill.name"),
+            EntrySummary = Bind("view.entrySummary", projects.Count, FormatSize(total)),
+            Sections = [.. sections],
+            Actions =
+            [
+                new SkillUiAction { Kind = "continue", Label = Bind("action.continue") },
+                new SkillUiAction { Kind = "close", Label = Bind("action.close") }
+            ]
+        };
+    }
+
+    private static SkillUiSpec BuildEmptyView(IReadOnlyList<string> roots, int depth, IReadOnlyList<string> notes)
+    {
+        var hint = roots.Count == 0
+            ? Bind("empty.noRoots")
+            : Bind("empty.scope", DescribeRoots(roots), depth);
+
+        var sections = new List<SkillUiSection>
+        {
+            new SkillUiSection
+            {
+                Kind = SkillUiSectionKind.Text,
+                Items =
+                [
+                    new SkillUiItem
+                    {
+                        Title = Bind("empty.title"),
+                        Subtitle = Bind("empty.help", hint)
+                    }
+                ]
+            }
+        };
+        if (notes.Count > 0) sections.Add(BuildNotesSection(notes));
+
+        return new SkillUiSpec
+        {
+            Title = Bind("skill.name"),
+            Subtitle = Bind("empty.subtitle"),
+            Surface = SkillUiSurface.Entry,
+            Sections = [.. sections],
+            Actions = [new SkillUiAction { Kind = "close", Label = Bind("action.ok") }]
+        };
+    }
+
+    /// <summary>把被跳过 / 被修正的输入如实列出来，让用户知道范围没有被偷偷扩大。</summary>
+    private static SkillUiSection BuildNotesSection(IReadOnlyList<string> notes)
+    {
+        return new SkillUiSection
+        {
+            Kind = SkillUiSectionKind.Text,
+            Title = Bind("input.title"),
+            Subtitle = Bind("input.subtitle"),
+            Items = [.. notes.Take(10).Select(note => new SkillUiItem { Title = note })]
+        };
+    }
+
+    private sealed class DiskGroup
+    {
+        public DiskGroup(string disk, int count, long bytes, ProjectInfo top)
+        {
+            Disk = disk;
+            Count = count;
+            Bytes = bytes;
+            Top = top;
+        }
+
+        public string Disk { get; }
+        public int Count { get; }
+        public long Bytes { get; }
+        public ProjectInfo Top { get; }
+    }
+
+    private sealed class ProjectInfo
+    {
+        public ProjectInfo(string name, string path, string? version, long cacheBytes, string detail)
+        {
+            Name = name;
+            Path = path;
+            Version = version;
+            CacheBytes = cacheBytes;
+            Detail = detail;
+        }
+
+        public string Name { get; }
+        public string Path { get; }
+        public string? Version { get; }
+        public long CacheBytes { get; }
+        public string Detail { get; }
+    }
+
+    // ---------- 工具 ----------
+
+    /// <summary>根目录展示文案：太多时只列前 3 个，避免副标题被挤爆。</summary>
+    private static string DescribeRoots(IReadOnlyList<string> roots)
+    {
+        if (roots.Count == 0) return Bind("roots.none");
+        if (roots.Count == 1) return roots[0];
+        if (roots.Count == 2) return Bind("roots.two", roots[0], roots[1]);
+        var firstThree = Bind("roots.three", roots[0], roots[1], roots[2]);
+        return roots.Count == 3 ? firstThree : Bind("roots.more", firstThree, roots.Count);
+    }
+
+    /// <summary>日志是执行时快照；窗口字段仍保留 token，交由宿主随语言切换解析。</summary>
+    private static void Log(ISkillHostBridge host, SkillTextCatalog texts, string value) =>
+        host.Log(texts.Resolve(value, host.GetLocalizationState().CultureName));
+
+    private static string DiskOf(string path)
+    {
+        try
+        {
+            var root = Path.GetPathRoot(path);
+            return string.IsNullOrWhiteSpace(root) ? path : root;
+        }
+        catch
+        {
+            return path;
+        }
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes <= 0) return "0 B";
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        var value = (double)bytes;
+        var index = 0;
+        while (value >= 1024 && index < units.Length - 1) { value /= 1024; index++; }
+        // 手工定点取整：不依赖区域设置，避免某些区域把小数点渲染成逗号
+        var scaled = (long)(value * 10 + 0.5);
+        var whole = scaled / 10;
+        var fraction = scaled % 10;
+        return (index == 0 ? whole.ToString() : whole + "." + fraction) + " " + units[index];
+    }
+}
