@@ -335,6 +335,21 @@ public class UpdateExperienceTests
         Assert.Null(service.GetCachedInstallerPath("9.0.0"));
     }
 
+    [Fact]
+    public async Task 缓存元数据写入失败也不能跳过已知摘要校验()
+    {
+        var handler = new ResponseHandler("""
+          {"tag_name":"v9.0.0","assets":[{"name":"DiskPilot-X-9.0.0-setup.exe","browser_download_url":"https://example.org/setup.exe","size":3,"digest":"sha256:0000000000000000000000000000000000000000000000000000000000000000"}]}
+          """);
+        using var client = new HttpClient(handler);
+        var dir = Path.Combine(Path.GetTempPath(), "DiskPilotX-update-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(dir,"update-cache.json"));
+        var service = new UpdateService(client, dir);
+        Assert.True((await service.CheckForUpdateAsync(forceRefresh:true)).Success);
+        handler.Body="abc";
+        await Assert.ThrowsAsync<IOException>(()=>service.DownloadMsiAsync("https://example.org/setup.exe","9.0.0",3,new Progress<(long,long)>(),default));
+    }
+
     private static string FindRoot()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)

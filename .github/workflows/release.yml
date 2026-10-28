@@ -66,7 +66,8 @@ jobs:
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
-          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { $env:INPUT_VERSION }
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -notmatch '^v\d+\.\d+\.\d+$') { throw '版本tag格式必须为v三段数字。' }
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.Substring(1) } else { $env:INPUT_VERSION }
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "正式构建需要 vMAJOR.MINOR.PATCH tag，实际：$version" }
           "version=$version" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
       - name: 生成发布说明

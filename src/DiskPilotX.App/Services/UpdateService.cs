@@ -21,6 +21,7 @@ public class UpdateService : IUpdateService
     private string CacheMetaPath => Path.Combine(CacheDir, "update-cache.json");
 
     private readonly Func<HttpClient> _client;
+    private UpdateCheckResult? _lastCheckedRelease;
 
     public UpdateService() : this(new HttpClient(), DefaultCacheDir) { }
 
@@ -73,7 +74,10 @@ public class UpdateService : IUpdateService
         {
             var cached = forceRefresh ? null : TryGetCachedResult();
             if (cached is not null)
+            {
+                _lastCheckedRelease = cached;
                 return cached;
+            }
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(CheckTimeoutSeconds));
@@ -108,6 +112,8 @@ public class UpdateService : IUpdateService
                 InstallerSha256 = ParseSha256(msiAsset?.Digest)
             };
 
+            // 缓存写入失败也保留本次可信响应，避免下载时跳过已知摘要。
+            _lastCheckedRelease = result;
             CacheResult(result);
             return result;
         }
@@ -166,7 +172,9 @@ public class UpdateService : IUpdateService
             if (totalRead == 0 || (expectedSize > 0 && totalRead != expectedSize) || (contentLength > 0 && totalRead != contentLength))
                 throw new IOException("更新安装包下载不完整，请重试。");
             var meta = LoadCacheMeta();
-            if (meta?.LatestVersion == version && meta.InstallerSha256 is { Length: 64 } expected)
+            var knownDigest = _lastCheckedRelease is { } release && release.LatestVersion == version && release.MsiDownloadUrl == url
+                ? release.InstallerSha256 : meta?.LatestVersion == version ? meta.InstallerSha256 : null;
+            if (knownDigest is { Length: 64 } expected)
             {
                 await using var input = File.OpenRead(partialPath);
                 var actual = Convert.ToHexString(await SHA256.HashDataAsync(input, ct));
