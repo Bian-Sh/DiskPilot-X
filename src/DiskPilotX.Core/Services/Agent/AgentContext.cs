@@ -1,4 +1,4 @@
-﻿using DiskPilotX.Core.Models;
+using DiskPilotX.Core.Models;
 
 namespace DiskPilotX.Core.Services.Agent;
 
@@ -10,4 +10,5 @@ public sealed record AgentContext(
     bool HasExistingRecommendations = false,
     bool? IsElevated = null,
     DiskPilotX.Core.Services.Scanning.ScanExecutionInfo? LastScanExecution = null,
-    DiskPilotX.Core.Services.Scanning.ScanExecutionInfo? LastCompletedScanExecution = null);
+    DiskPilotX.Core.Services.Scanning.ScanExecutionInfo? LastCompletedScanExecution = null,
+    IReadOnlyList<string>? MultiSelection = null);

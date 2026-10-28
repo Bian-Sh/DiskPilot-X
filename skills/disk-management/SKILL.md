@@ -10,6 +10,7 @@
 - resolve_path、scan_path：校验范围、扫描并等待真实结果。先有证据再分析。
 - find_by_name、find_by_path、list_children、summarize_subtree、find_large_files：查询当前扫描树。列表中的 path 相对本次结果的 base_path（list_children 和 summarize_subtree 使用顶层 path）；后续查询、导航或提交清理候选前先拼成完整路径。需要修改时间等元数据时传 details=true；深层结果可选 format=tree，#序号保留原始大小排名，目录标签为 JSON 字符串，单子目录链使用 / 合并。truncated=true 表示结果尚未列全，不应据此断定其他文件不存在。
 - navigate_path、set_view：在磁盘主工作区定位并切换 treemap/tree。
+- focus_path：把 treemap 视图定位（focus）到指定文件夹或文件并高亮，方便在地图上精确指向某个点位。目录会钻取定位，文件会定位到其所在层级并高亮该文件。get_copilot_context 会返回当前 focus_path 与 multi_selection（用户在地图上 Ctrl 多选的路径列表）。
 - list_analysis_rules、read_analysis_rule、preview_analysis_rule：发现最新规则，按需读取与只读检查；适用线索不是可删除依据，所有写入和源码执行仍走既有授权。
 - get_analysis_context、read_analysis_history：优先读取受限任务摘要，关联原文必须另经用户同意，不继承历史确认。
 - complete_analysis：报告真实覆盖、未评估部分和结论类型，不能把空列表或过滤当作无需清理。

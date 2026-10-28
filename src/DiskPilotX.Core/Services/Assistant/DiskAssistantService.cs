@@ -1,4 +1,4 @@
-﻿using DiskPilotX.Core.Enums;
+using DiskPilotX.Core.Enums;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -336,6 +336,7 @@ public sealed partial class DiskAssistantService
             var c = await GetVisibleContext(ct, options.IsAnalysis).ConfigureAwait(false);
             return JsonSerializer.SerializeToNode(new { ok = true, scan_id = c.Session?.Id, root = c.Session?.RootEntry?.Path,
                 current_path = c.CurrentViewRoot?.Path, selected_path = c.LinkedEntry?.Path, selected_recommendation = c.LinkedRecommendation?.Id,
+                focus_path = c.LinkedEntry?.Path, multi_selection = c.MultiSelection ?? Array.Empty<string>(),
                 size_bytes = c.Session?.RootEntry?.Size, has_recommendations = c.HasExistingRecommendations,
                 discovery_skills = GetDiscoverySkills(), is_elevated = c.IsElevated ?? Scanning.ProcessPrivileges.IsElevated,
                 current_scan = Scanning.ScanExecutionInfo.FromSession(c.Session)?.ToPublicData(),
@@ -364,6 +365,8 @@ public sealed partial class DiskAssistantService
             }, timeoutSeconds: 1800);
         Add("navigate_path", "定位已扫描目录，并可切换 treemap 或 tree 视图。", """{"type":"object","properties":{"path":{"type":"string"},"view":{"type":"string","enum":["treemap","tree"]}},"required":["path"]}""",
             async (a, ct) => await ExecuteVisible("navigate_path", a, ct).ConfigureAwait(false));
+        Add("focus_path", "把 treemap 视图定位（focus）到指定文件夹或文件并高亮，方便在地图上精确指向某个点位。目录会钻取定位，文件会定位到其所在层级并高亮该文件。", """{"type":"object","properties":{"path":{"type":"string"},"highlight":{"type":"boolean","default":true}},"required":["path"]}""",
+            async (a, ct) => await ExecuteVisible("focus_path", a, ct).ConfigureAwait(false));
         Add("set_view", "切换磁盘视图，treemap 为矩形树图，tree 为文件树。", """{"type":"object","properties":{"view":{"type":"string","enum":["treemap","tree"]}},"required":["view"]}""", (a, ct) => workspace.Execute("set_view", a, ct));
         Add("get_analysis_evidence", "读取当前范围的有界元数据、内容指纹和清理证据。", """{"type":"object","properties":{"path":{"type":"string"}}}""", async (a, ct) =>
         {
@@ -473,13 +476,14 @@ public sealed partial class DiskAssistantService
         var last = Hidden(context.LastScanExecution?.TargetPath) ? null : context.LastScanExecution;
         var completed = Hidden(context.LastCompletedScanExecution?.TargetPath) ? null : context.LastCompletedScanExecution;
         if (context.Session?.RootEntry is not { } original || Hidden(original.Path))
-            return context with { Session = null, CurrentViewRoot = null, LinkedEntry = null, LinkedRecommendation = null, LastScanExecution = last, LastCompletedScanExecution = completed };
+            return context with { Session = null, CurrentViewRoot = null, LinkedEntry = null, LinkedRecommendation = null, LastScanExecution = last, LastCompletedScanExecution = completed, MultiSelection = null };
         var filtered = Copy(original);
         var source = context.Session;
         var session = new ScanSession { Id = source.Id, TargetPath = filtered.Path, RootEntry = filtered, TotalSize = filtered.Size,
             TotalFiles = filtered.SubtreeFileCount, TotalFolders = filtered.SubtreeFolderCount, StartTime = source.StartTime, EndTime = source.EndTime, Provenance = source.Provenance, Execution = source.Execution };
         return ScopeAnalysisContext(new(session, Hidden(context.CurrentViewRoot?.Path) ? filtered : query.FindByPath(session, context.CurrentViewRoot?.Path ?? filtered.Path),
-            Hidden(context.LinkedEntry?.Path) ? null : context.LinkedEntry, Hidden(context.LinkedRecommendation?.TargetPath) ? null : context.LinkedRecommendation, context.HasExistingRecommendations, context.IsElevated, last, completed), analysisMode);
+            Hidden(context.LinkedEntry?.Path) ? null : context.LinkedEntry, Hidden(context.LinkedRecommendation?.TargetPath) ? null : context.LinkedRecommendation, context.HasExistingRecommendations, context.IsElevated, last, completed,
+            MultiSelection: context.MultiSelection?.Where(path => !Hidden(path)).ToArray()), analysisMode);
         FileEntry Copy(FileEntry entry)
         {
             var root = Clone(entry);
