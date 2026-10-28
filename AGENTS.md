@@ -6,7 +6,7 @@
 
 - **主仓库固定为** `D:/AppData/Visual Studio/Projects/DiskPilot-X`；创建工作树或打包前，先核对主目录的 `AGENTS.md` 和当前 Git 状态。
 - **所有新建 Git worktree 统一放入** `D:/AppData/Visual Studio/Projects/DiskPilot-X/.worktrees/<任务名>/`。任务名必须唯一；创建前先检查已有工作树，禁止覆盖、复用其他任务正在使用的目录，或在已有 worktree 内再嵌套 `.worktrees`。
-- **所有测试包、用户交付包及交付压缩包统一放入** `D:/AppData/Visual Studio/Projects/DiskPilot-X/outputs/<可读时间>_<任务名>_<测试包或用户交付包>/`。同一次任务的压缩包也放在此统一发布根目录中，不写到客户端私有目录。
+- **所有测试包和用户交付包统一放入** `D:/AppData/Visual Studio/Projects/DiskPilot-X/outputs/<可读时间>_<任务名>_<测试包或用户交付包>/`，以完整文件夹交付，不写到客户端私有目录。
 - 无论当前工作目录是主仓库还是某个 worktree，以上两个根目录都保持不变；创建与发布命令必须显式传入解析后的绝对目标路径，禁止把当前目录下的相对 `outputs/` 当作统一发布目录。
 - 本文后续所有 `outputs/` 均指上述主仓库的统一发布目录；工作树内的 `bin/`、`obj/` 等构建中间目录不属于交付包。
 - 打包前必须核对并记录源码目录、分支、基础提交及是否包含未提交改动。独立 worktree 不会自动继承主目录的未提交修改；禁止把旧工作树的包称为最新 `main`，也不得擅自复制、覆盖其他会话的源码来凑齐版本。
@@ -18,11 +18,17 @@
 
 以下规则针对实际的 DiskPilot-X .NET/WPF 应用；与下方历史模板描述冲突时，以实际代码及本节为准。
 
+### 交付入口与格式：优先 EXE 和文件夹，不要 ZIP
+
+- 打包后的最终回复必须优先提供**用户交付包的 EXE 启动路径和所在完整发布文件夹**，使用可点击的 Markdown `file:///` 链接。
+- **不生成、不提供 ZIP 等交付压缩包**，不得用压缩包链接代替 EXE 启动路径和文件夹路径。
+- EXE 启动链接指向完整发布文件夹内的程序；不得因此改成单文件发布，或省略运行时 DLL、其他依赖及 `skills/`。
+
 ### 禁止单文件发布
 
 - 2026-10-28 的 Steam 库盘点故障：发布包将程序集打进单个 EXE，而 `CleanupSkillSourceService` 使用 Roslyn 从磁盘读取 .NET 与宿主契约程序集，导致运行时源码编译失败。这是打包兼容性问题，不应要求用户安装 SDK，也不能以改扫目录代替修复。
 - 测试包和用户交付包均必须使用文件夹发布，显式指定 `PublishSingleFile=false`、`PublishTrimmed=false`、`SelfContained=true`；不要采用单文件自解压作为替代方案。
-- 保留发布目录中的运行时 DLL、`DiskPilotX.Core.dll`、其他依赖及 `skills/`；交付完整文件夹或其压缩包，禁止只交付 EXE。
+- 保留发布目录中的运行时 DLL、`DiskPilotX.Core.dll`、其他依赖及 `skills/`；交付完整文件夹，禁止只交付 EXE 文件。此限制不妨碍提供完整发布目录内的 EXE 启动链接。
 - 每次修改应用后重新打包，放入 `outputs/<可读时间>_<用途>/`，用途明确区分测试包与用户交付包；禁止覆盖或清理非本次任务产物。
 
 ### 测试包：不请求提权
