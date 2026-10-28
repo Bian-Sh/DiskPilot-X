@@ -274,7 +274,8 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
                 Entry = entry, X = rect.X, Y = rect.Y, Width = rect.Width, Height = rect.Height,
                 Depth = depth, ColorHex = GetDirectoryContentColor(entry),
                 AggregatedCount = item.AggregatedCount, AggregatedSize = item.Size,
-                Label = $"+{item.AggregatedCount} 项 ({FormatSize(item.Size)})",
+                Label = $"+{item.AggregatedCount} 项",
+                SizeLabel = FormatSize(item.Size),
             });
         }
         else if (entry.IsDirectory)
@@ -301,7 +302,8 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
                 ColorHex = fileColor,
                 Depth = depth,
                 IsVisible = true,
-                Label = label
+                Label = label,
+                SizeLabel = FormatSize(entry.Size)
             });
         }
     }

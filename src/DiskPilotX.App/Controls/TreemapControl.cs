@@ -278,21 +278,8 @@ public class TreemapControl : SKElement
         {
             fillPaint.Color = titleColor;
             canvas.DrawRect(new SKRect(rect.Left, rect.Top, rect.Right, rect.Top + headerHeight), fillPaint);
-            float nameWidth = node.Width - Spec(8f);
-            if (node.SizeLabel is { } size && node.Width * _zoom >= 240f)
-            {
-                float sizeWidth = font.MeasureText(size);
-                // 容量与名称分开，只有留有充分名称空间时才显示弱化的容量。
-                if (nameWidth - sizeWidth >= Spec(120f))
-                {
-                    textPaint.Color = new SKColor(170, 175, 182);
-                    canvas.DrawText(size, rect.Right - Spec(5f), node.Y + headerHeight / 2f + Spec(3.5f),
-                        SKTextAlign.Right, font, textPaint);
-                    nameWidth -= sizeWidth + Spec(12f);
-                }
-            }
-            DrawLabel(canvas, node.Label, node.X + Spec(4f), node.Y + headerHeight / 2f + Spec(3.5f),
-                nameWidth, textPaint, font, titleColor);
+            DrawLabel(canvas, node, node.X + Spec(4f), node.Y + headerHeight / 2f + Spec(3.5f),
+                node.Width - Spec(8f), textPaint, font, titleColor);
         }
 
         if (node.Entry.IsAccessDenied)
@@ -324,7 +311,7 @@ public class TreemapControl : SKElement
         if (detailed) canvas.DrawRect(frame, borderPaint);
 
         if (node.Label is not null && TreemapLabelPolicy.ShowFileLabel(node.Width, node.Height, _zoom))
-            DrawLabel(canvas, node.Label, rect.Left + Spec(3f), rect.Top + Spec(11f),
+            DrawLabel(canvas, node, rect.Left + Spec(3f), rect.Top + Spec(11f),
                 rect.Width - Spec(6f), textPaint, font, color);
 
         if (node.Entry.IsAccessDenied)
@@ -387,10 +374,11 @@ public class TreemapControl : SKElement
         canvas.DrawRect(rect, paint);
     }
 
-    private void DrawLabel(SKCanvas canvas, string text, float x, float y,
+    private void DrawLabel(SKCanvas canvas, TreemapNode node, float x, float y,
         float maxWidth, SKPaint paint, SKFont font, SKColor background)
     {
-        var label = TruncateLabel(text, font, maxWidth);
+        string size = node.SizeLabel ?? FileSizeConverter.FormatSize(node.AggregatedSize ?? node.Entry.Size);
+        var label = FormatLabel(node.Label!, size, font, maxWidth);
         if (label is null) return;
         // 按底色亮度自适应文字色（亮底深字、暗底白字），不加阴影保持清晰。
         paint.Color = IsLightColor(background)
@@ -868,7 +856,7 @@ public class TreemapControl : SKElement
             ? System.IO.Path.GetExtension(entry.Name) : entry.Extension;
         string fileType = entry.IsDirectory ? L.Text("FolderType")
             : string.IsNullOrEmpty(extension) ? L.Text("TreemapNoExtension") : extension.ToLowerInvariant();
-        string size = FileSizeConverter.FormatSize(entry.Size);
+        string size = FileSizeConverter.FormatSize(node.AggregatedSize ?? entry.Size);
         string modified = entry.LastModified.ToString("g");
 
         var panel = new StackPanel { Margin = new Thickness(2) };
@@ -880,6 +868,13 @@ public class TreemapControl : SKElement
             TextWrapping = TextWrapping.Wrap,
             MaxWidth = 400,
         });
+
+        if (node.AggregatedCount > 0)
+            panel.Children.Add(new TextBlock
+            {
+                Text = node.Label ?? $"+{node.AggregatedCount} 项",
+                Margin = new Thickness(0, 2, 0, 0),
+            });
 
         panel.Children.Add(new TextBlock
         {
@@ -956,41 +951,31 @@ public class TreemapControl : SKElement
         canvas.Restore();
     }
 
-    /// <summary>
-    /// Truncates a label to fit within maxWidth, appending "..." if needed.
-    /// Returns null if even "..." won't fit.
-    /// </summary>
-    private static string? TruncateLabel(string label, SKFont font, float maxWidth)
+    /// <summary>容量紧接名称且完整保留；不足一个完整名称字符和省略号时整行隐藏。</summary>
+    private static string? FormatLabel(string name, string size, SKFont font, float maxWidth)
     {
-        if (maxWidth <= 0)
+        if (string.IsNullOrEmpty(name) || maxWidth <= 0)
             return null;
 
-        float fullWidth = font.MeasureText(label);
-        if (fullWidth <= maxWidth)
-            return label;
+        string suffix = $" ({size})";
+        string full = name + suffix;
+        if (font.MeasureText(full) <= maxWidth)
+            return full;
 
-        float ellipsisWidth = font.MeasureText("...");
-        if (ellipsisWidth >= maxWidth)
-            return null;
-
-        float available = maxWidth - ellipsisWidth;
-
-        // Binary search for the longest prefix that fits.
-        int lo = 0, hi = label.Length;
+        // 按文本元素截断，避免切开中文、代理对、组合音标或 emoji 序列。
+        int[] starts = System.Globalization.StringInfo.ParseCombiningCharacters(name);
+        int lo = 0, hi = starts.Length - 1;
         while (lo < hi)
         {
             int mid = (lo + hi + 1) / 2;
-            if (font.MeasureText(label.AsSpan(0, mid)) <= available)
+            string candidate = string.Concat(name.AsSpan(0, starts[mid]), "...", suffix);
+            if (font.MeasureText(candidate) <= maxWidth)
                 lo = mid;
             else
                 hi = mid - 1;
         }
 
-        // 不显示只有两三字加省略号的无效标注；完整短名称仍可直接显示。
-        if (lo < Math.Min(6, label.Length))
-            return null;
-
-        return string.Concat(label.AsSpan(0, lo), "...");
+        return lo == 0 ? null : string.Concat(name.AsSpan(0, starts[lo]), "...", suffix);
     }
 
     private static SKColor LightenColor(SKColor color, float factor) => new(
