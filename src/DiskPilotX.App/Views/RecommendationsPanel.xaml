@@ -353,7 +353,7 @@
                             </StackPanel>
 
                             <TextBlock Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3"
-                                       Text="{Binding UnityMetadataText}"
+                                       Text="{Binding MetadataText}"
                                        Margin="0,3,0,0"
                                        FontSize="10.5"
                                        Foreground="{DynamicResource VP.TextTertiaryBrush}"
@@ -362,7 +362,7 @@
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Visible" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding UnityMetadataText}" Value="">
+                                            <DataTrigger Binding="{Binding MetadataText}" Value="">
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                             </DataTrigger>
                                         </Style.Triggers>

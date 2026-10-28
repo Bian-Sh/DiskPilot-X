@@ -4,7 +4,7 @@ namespace DiskPilotX.Core.Services.Skills;
 
 internal static class CleanupSkillSafety
 {
-    internal static readonly string[] ReservedIds = ["app-guide", "disk-management", "path-cleanup-recommendation", "unity-project-cleanup", "skill-creator"];
+    internal static readonly string[] ReservedIds = ["app-guide", "disk-management", "path-cleanup-recommendation", "skill-creator"];
 
     internal static void ValidateId(string id)
     {

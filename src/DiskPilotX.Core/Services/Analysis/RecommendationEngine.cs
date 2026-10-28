@@ -163,14 +163,6 @@ public partial class RecommendationEngine
             AddValidatedRecommendation(result, recommendation, whitelist);
         }
 
-        foreach (var recommendation in BuildUnityLibraryRecommendations(root))
-        {
-            if (entries.ContainsKey(NormalizePath(recommendation.TargetPath)))
-            {
-                AddValidatedRecommendation(result, recommendation, whitelist);
-            }
-        }
-
         for (var i = 0; i < result.Recommendations.Count; i++)
         {
             result.Recommendations[i].Id = (i + 1).ToString();

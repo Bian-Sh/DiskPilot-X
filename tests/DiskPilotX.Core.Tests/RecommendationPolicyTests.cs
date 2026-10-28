@@ -212,24 +212,6 @@ public class RecommendationPolicyTests
         }
     }
 
-    [Fact]
-    public void ValidateCandidates_AppliesFocusAndHardProtectionToUnityFallback()
-    {
-        var root = Directory(@"C:\");
-        var protectedProject = Directory(@"C:\Users\tester\Documents\Game");
-        protectedProject.Children.AddRange([
-            Directory(protectedProject.Path + @"\Assets"),
-            Directory(protectedProject.Path + @"\ProjectSettings"),
-            Directory(protectedProject.Path + @"\Library")]);
-        var focus = Directory(@"C:\work");
-        root.Children.AddRange([protectedProject, focus]);
-        using var document = JsonDocument.Parse("{\"recommendations\":[]}");
-        var session = new ScanSession { RootEntry = root };
-        var engine = new RecommendationEngine();
-        engine.ValidateCandidates(session, document.RootElement).Recommendations.Should().BeEmpty();
-        engine.ValidateCandidates(session, document.RootElement, protectedProject).Recommendations.Should().BeEmpty();
-        engine.ValidateCandidates(session, document.RootElement, focus).Recommendations.Should().BeEmpty();
-    }
 
     [Theory]
     [InlineData(null)]
@@ -256,7 +238,7 @@ public class RecommendationPolicyTests
     }
 
     [Fact]
-    public void UnityFallback_RespectsWhitelistAndModelParentOverlap()
+    public void ValidateCandidates_AcceptsCandidateOverlappingWhitelistedDescendant()
     {
         var temporaryRoot = Path.Combine(Path.GetTempPath(), "diskpilotx-policy-tests", Guid.NewGuid().ToString("N"));
         var libraryPath = Path.Combine(temporaryRoot, "Library");
@@ -275,7 +257,6 @@ public class RecommendationPolicyTests
             var session = new ScanSession { TargetPath = temporaryRoot, RootEntry = root };
             using var empty = JsonDocument.Parse("{\"recommendations\":[]}");
             engine.ValidateCandidates(session, empty.RootElement).Recommendations.Should().BeEmpty();
-            engine.BuildEvidence(session).Should().NotContain(libraryPath).And.NotContain("UNITY LIBRARY EVIDENCE");
 
             settings.CleanupRecommendationWhitelist.Clear();
             var candidates = JsonSerializer.SerializeToElement(new

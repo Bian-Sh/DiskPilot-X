@@ -84,7 +84,6 @@ public partial class App : Application
         services.AddSingleton<IAgentTool, SummarizeSubtreeTool>();
         services.AddSingleton<IAgentTool, FindLargeFilesTool>();
         services.AddSingleton<IAgentTool, ResolvePathTool>();
-        services.AddSingleton<IAgentTool, ReadUnityRegistryContextTool>();
         services.AddSingleton<IAgentTool, ManageDiskSkillsTool>();
         services.AddSingleton(_ => new DiskPilotX.Core.Services.Skills.CleanupSkillStore(AcceptanceAutomationServer.IsEnabled() && DiskPilotX.Core.AppCompatibility.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_SETTINGS") is { Length: > 0 } acceptanceSettings
             ? System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(acceptanceSettings))!,"skills") : null));

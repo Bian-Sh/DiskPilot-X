@@ -60,42 +60,6 @@ public class RecommendationEngineTests
         result.Recommendations.Should().BeEmpty();
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void UnityLibrary_RequiresBothProjectMarkers(bool unityProject)
-    {
-        var root = Directory(@"D:\");
-        var project = Directory(@"D:\Game");
-        var library = Directory(@"D:\Game\Library", 2_147_483_648);
-        AddChild(root, project);
-        AddChild(project, Directory(@"D:\Game\Assets"));
-        if (unityProject)
-        {
-            AddChild(project, Directory(@"D:\Game\ProjectSettings"));
-        }
-        AddChild(project, library);
-        var engine = new RecommendationEngine();
-        var result = engine.ValidateCandidates(Session(root), JsonSerializer.SerializeToElement(new { recommendations = Array.Empty<object>() }));
-        var unity = RecommendationEngine.BuildUnityLibraryRecommendations(root);
-
-        if (!unityProject)
-        {
-            result.Recommendations.Should().BeEmpty();
-            unity.Should().BeEmpty();
-            engine.BuildEvidence(Session(root)).Should().NotContain("UNITY LIBRARY EVIDENCE");
-            return;
-        }
-
-        unity.Should().ContainSingle().Which.Entry.Should().BeSameAs(library);
-        var recommendation = result.Recommendations.Should().ContainSingle().Subject;
-        recommendation.TargetPath.Should().Be(library.Path);
-        recommendation.Category.Should().Be(RecommendationCategory.BuildCache);
-        recommendation.SafetyRating.Should().Be(SafetyRating.ReviewFirst);
-        recommendation.Entry.Should().BeSameAs(library);
-        recommendation.Explanation.Should().Contain("skill/AI risk review");
-        engine.BuildEvidence(Session(root)).Should().Contain("UNITY LIBRARY EVIDENCE").And.Contain("Assets + ProjectSettings");
-    }
 
     [Fact]
     public void BuildEvidence_HandlesDeepLargeTreesWithBoundedMetadata()

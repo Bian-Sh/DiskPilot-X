@@ -109,19 +109,6 @@ public partial class RecommendationEngine
             sb.AppendLine();
         }
 
-        var unityLibraries = FindUnityLibraryDirectories(analysisRoot, null)
-            .Where(library => library.Size > 0 && !IsCleanupExcluded(library.Path, whitelist))
-            .Take(MaxKnownPatternItems)
-            .ToList();
-        if (unityLibraries.Count > 0)
-        {
-            sb.AppendLine("## UNITY LIBRARY EVIDENCE (path|size_bytes|project_markers)");
-            foreach (var library in unityLibraries)
-            {
-                sb.AppendLine($"{EvidencePath(library.Path)}|{library.Size}|Assets + ProjectSettings");
-            }
-        }
-
         return sb.ToString();
     }
 

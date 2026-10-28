@@ -884,7 +884,6 @@
   <data name="CopilotTool_cleanup_recommendations" xml:space="preserve"><value>執行確認的清理</value></data>
   <data name="CopilotTool_ask_user" xml:space="preserve"><value>請求必要輸入</value></data>
   <data name="CopilotTool_manage_disk_skills" xml:space="preserve"><value>管理磁碟技能</value></data>
-  <data name="CopilotTool_read_unity_registry_context" xml:space="preserve"><value>核對 Unity 環境</value></data>
   <data name="CopilotTool_manage_cleanup_skill" xml:space="preserve"><value>管理清理規則</value></data>
   <data name="CopilotTool_show_skill_panel" xml:space="preserve"><value>準備任務面板</value></data>
   <data name="CopilotTool_run_skill_source" xml:space="preserve"><value>執行自定義識別</value></data>

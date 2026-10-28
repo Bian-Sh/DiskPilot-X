@@ -19,7 +19,7 @@ public partial class ChatViewModel
         SkillMentionSuggestions = new(catalog.Select(s => new ChatSkillSuggestion("@" + s.Id, s.DisplayName, s.Description)));
         FilteredSkillMentionSuggestions = new(BuildFilteredSkillMentionSuggestions(InputText));
         CleanupRules = new(catalog.Where(s => s.Id is not ("skill-creator" or "app-guide" or "disk-management" or "path-cleanup-recommendation"))
-            .Select(s => new CleanupRuleShortcut(s.Id, s.Id == "unity-project-cleanup" ? "检查 Unity 项目缓存" : s.DisplayName,
+            .Select(s => new CleanupRuleShortcut(s.Id, s.DisplayName,
                 s.Description, BuildShortcutPrompt(s))));
     }
 

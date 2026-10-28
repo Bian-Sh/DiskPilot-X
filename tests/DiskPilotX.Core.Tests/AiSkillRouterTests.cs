@@ -64,13 +64,13 @@ public class AiSkillRouterTests
     }
 
     [Fact]
-    public void Route_SelectedUnitySkill_InjectsSkillPromptOnly()
+    public void Route_SelectedDiscoverySkill_InjectsSkillPromptOnly()
     {
-        var result = _router.Route("@unity-project-cleanup clean every Unity Library", null, null, hasExistingRecommendations: false);
+        var result = _router.Route("@steam-library-organizer 盘点我的游戏库", null, null, hasExistingRecommendations: false);
 
-        result.SelectedSkillIds.Should().ContainSingle().Which.Should().Be("unity-project-cleanup");
-        result.Skills.Select(skill => skill.Id).Should().ContainSingle().Which.Should().Be("unity-project-cleanup");
-        result.Skills.Single().Prompt.Should().Contain("Unity Project Cleanup Skill");
+        result.SelectedSkillIds.Should().ContainSingle().Which.Should().Be("steam-library-organizer");
+        result.Skills.Select(skill => skill.Id).Should().ContainSingle().Which.Should().Be("steam-library-organizer");
+        result.Skills.Single().Prompt.Should().Contain("Steam 游戏库盘点");
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class AiSkillRouterTests
     {
         var catalog = _router.GetSkillCatalog();
 
-        catalog.Select(skill => skill.Id).Should().Contain(["app-guide", "disk-management", "path-cleanup-recommendation", "unity-project-cleanup"]);
+        catalog.Select(skill => skill.Id).Should().Contain(["app-guide", "disk-management", "path-cleanup-recommendation", "steam-library-organizer"]);
         catalog.Should().OnlyContain(skill => !string.IsNullOrWhiteSpace(skill.Description));
         catalog.Single(skill => skill.Id == "app-guide").DisplayName.Should().Be("DiskPilot-X App Guide Skill");
     }

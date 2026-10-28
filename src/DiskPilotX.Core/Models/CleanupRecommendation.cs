@@ -58,9 +58,8 @@ public class CleanupRecommendation : INotifyPropertyChanged
     /// <summary>分组表头文字：仅同一来源范围的第一条会带值，由宿主在重建列表时写入。</summary>
     public string ScopeHeader { get; set; } = string.Empty;
 
-    public bool? UnityHubListed { get; set; }
-
-    public string UnityMetadataText
+    /// <summary>条目补充元信息（如最后修改时间），没有可展示内容时为空串。</summary>
+    public string MetadataText
     {
         get
         {
@@ -70,15 +69,9 @@ public class CleanupRecommendation : INotifyPropertyChanged
                 parts.Add($"Last modified: {lastModified:yyyy-MM-dd HH:mm}");
             }
 
-            if (UnityHubListed is { } hubListed)
-            {
-                parts.Add("Unity Hub listed: " + (hubListed ? "yes" : "no"));
-            }
-
             return string.Join(" · ", parts);
         }
     }
-
     /// <summary>
     /// Gets or sets a value indicating whether the user has accepted this recommendation.
     /// When set to true, IsDismissed is automatically set to false.

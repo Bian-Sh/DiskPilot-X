@@ -8,7 +8,6 @@ public enum AiActionKind
     None,
     StartScan,
     AnalyzeCleanup,
-    DiscoverUnityLibraries,
     ClearConversation,
     NavigateToScannedPath,
     SelectRecommendation,
