@@ -119,7 +119,8 @@ public sealed class ModelDiscoveryTests
             if (++calls == 1) await Task.Delay(Timeout.Infinite, token);
             return Json("{\"data\":[{\"id\":\"恢复模型\"}]}");
         }));
-        var catalog = new ModelCatalogService(clients, requestTimeout: TimeSpan.FromMilliseconds(30), overallTimeout: TimeSpan.FromSeconds(2));
+        // 此断言测试候选切换，不测试机器调度速度；CI并行Roslyn编译时给予充足总体预算。
+        var catalog = new ModelCatalogService(clients, requestTimeout: TimeSpan.FromMilliseconds(100), overallTimeout: TimeSpan.FromSeconds(30));
         Assert.Equal("恢复模型", Assert.Single(await catalog.FetchAsync(Config(), CancellationToken.None)).Id);
         Assert.Equal(2, calls);
 
