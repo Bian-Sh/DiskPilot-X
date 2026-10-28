@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows;
@@ -103,7 +104,8 @@ public class UpdateService : IUpdateService
                 PublishedAt = release.PublishedAt ?? "",
                 MsiDownloadUrl = msiAsset?.BrowserDownloadUrl,
                 MsiFileName = msiAsset?.Name,
-                MsiFileSize = msiAsset?.Size ?? 0
+                MsiFileSize = msiAsset?.Size ?? 0,
+                InstallerSha256 = ParseSha256(msiAsset?.Digest)
             };
 
             CacheResult(result);
@@ -123,6 +125,11 @@ public class UpdateService : IUpdateService
         if (meta?.LatestVersion != version || meta.MsiFileSize <= 0 || new FileInfo(path).Length != meta.MsiFileSize)
             return null;
 
+        if (meta.InstallerSha256 is { Length: 64 } expected)
+        {
+            using var input = File.OpenRead(path);
+            if (!Convert.ToHexString(SHA256.HashData(input)).Equals(expected, StringComparison.OrdinalIgnoreCase)) return null;
+        }
         return path;
     }
 
@@ -158,6 +165,13 @@ public class UpdateService : IUpdateService
             }
             if (totalRead == 0 || (expectedSize > 0 && totalRead != expectedSize) || (contentLength > 0 && totalRead != contentLength))
                 throw new IOException("更新安装包下载不完整，请重试。");
+            var meta = LoadCacheMeta();
+            if (meta?.LatestVersion == version && meta.InstallerSha256 is { Length: 64 } expected)
+            {
+                await using var input = File.OpenRead(partialPath);
+                var actual = Convert.ToHexString(await SHA256.HashDataAsync(input, ct));
+                if (!actual.Equals(expected, StringComparison.OrdinalIgnoreCase)) throw new IOException("安装包SHA256校验失败，请重新下载。");
+            }
             ct.ThrowIfCancellationRequested();
             File.Move(partialPath, filePath, true);
             return filePath;
@@ -208,6 +222,14 @@ public class UpdateService : IUpdateService
             ?? candidates.FirstOrDefault(a => a.Name?.EndsWith(".msi", StringComparison.OrdinalIgnoreCase) == true);
     }
 
+    private static string? ParseSha256(string? digest)
+    {
+        if (digest is null) return null;
+        if (!digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase) || digest.Length != 71 || !digest[7..].All(Uri.IsHexDigit))
+            throw new IOException("发布资产摘要格式无效。");
+        return digest[7..];
+    }
+
     private static bool IsNewerVersion(string latest, string current)
     {
         if (!Version.TryParse(latest, out var latestVer))
@@ -239,7 +261,8 @@ public class UpdateService : IUpdateService
                 PublishedAt = meta.PublishedAt ?? "",
                 MsiDownloadUrl = meta.MsiDownloadUrl,
                 MsiFileName = meta.MsiFileName,
-                MsiFileSize = meta.MsiFileSize
+                MsiFileSize = meta.MsiFileSize,
+                InstallerSha256 = meta.InstallerSha256
             };
         }
         catch
@@ -263,7 +286,8 @@ public class UpdateService : IUpdateService
                 PublishedAt = result.PublishedAt,
                 MsiDownloadUrl = result.MsiDownloadUrl,
                 MsiFileName = result.MsiFileName,
-                MsiFileSize = result.MsiFileSize
+                MsiFileSize = result.MsiFileSize,
+                InstallerSha256 = result.InstallerSha256
             };
             var json = JsonSerializer.Serialize(meta, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(CacheMetaPath, json);
@@ -318,6 +342,9 @@ public class UpdateService : IUpdateService
         [JsonPropertyName("browser_download_url")]
         public string? BrowserDownloadUrl { get; set; }
 
+        [JsonPropertyName("digest")]
+        public string? Digest { get; set; }
+
         [JsonPropertyName("size")]
         public long Size { get; set; }
     }
@@ -338,6 +365,7 @@ public class UpdateCheckResult
     public string? MsiDownloadUrl { get; set; }
     public string? MsiFileName { get; set; }
     public long MsiFileSize { get; set; }
+    public string? InstallerSha256 { get; set; }
 }
 
 internal class CacheMeta
@@ -368,4 +396,5 @@ internal class CacheMeta
 
     [JsonPropertyName("msiFileSize")]
     public long MsiFileSize { get; set; }
+    public string? InstallerSha256 { get; set; }
 }

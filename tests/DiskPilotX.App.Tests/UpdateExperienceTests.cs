@@ -320,6 +320,21 @@ public class UpdateExperienceTests
         Assert.True(vm.HasError); Assert.True(vm.IsDownloadComplete);
     }
 
+    [Fact]
+    public async Task GitHub摘要不匹配的安装程序不能进入缓存()
+    {
+        var handler = new ResponseHandler("""
+          {"tag_name":"v9.0.0","assets":[{"name":"DiskPilot-X-9.0.0-setup.exe","browser_download_url":"https://example.org/setup.exe","size":3,"digest":"sha256:0000000000000000000000000000000000000000000000000000000000000000"}]}
+          """);
+        using var client = new HttpClient(handler);
+        var dir = Path.Combine(Path.GetTempPath(), "DiskPilotX-update-tests", Guid.NewGuid().ToString("N"));
+        var service = new UpdateService(client, dir);
+        await service.CheckForUpdateAsync(forceRefresh:true);
+        handler.Body="abc";
+        await Assert.ThrowsAsync<IOException>(()=>service.DownloadMsiAsync("https://example.org/setup.exe","9.0.0",3,new Progress<(long,long)>(),default));
+        Assert.Null(service.GetCachedInstallerPath("9.0.0"));
+    }
+
     private static string FindRoot()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)

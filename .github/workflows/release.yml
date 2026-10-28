@@ -1,0 +1,125 @@
+name: DiskPilot-X 构建与发布
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号（仅手动诊断；正式发布仍使用 v* tag）"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: diskpilot-release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: "10.0.x"
+
+jobs:
+  verify:
+    name: 构建与测试
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: 安装 .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: 恢复依赖
+        run: dotnet restore src/DiskPilotX.sln
+      - name: 构建
+        run: dotnet build src/DiskPilotX.sln --configuration Release --no-restore
+      - name: 测试 App
+        run: dotnet test tests/DiskPilotX.App.Tests/DiskPilotX.App.Tests.csproj --configuration Release --no-build --no-restore
+      - name: 测试 Core
+        run: dotnet test tests/DiskPilotX.Core.Tests/DiskPilotX.Core.Tests.csproj --configuration Release --no-build --no-restore
+      - name: 测试发布脚本
+        run: python scripts/test-release.py
+
+  package:
+    name: 生成完整文件夹与安装包
+    needs: verify
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: 安装 .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: 计算版本
+        id: version
+        shell: pwsh
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { $env:INPUT_VERSION }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "正式构建需要 vMAJOR.MINOR.PATCH tag，实际：$version" }
+          "version=$version" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - name: 生成发布说明
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/new-release-notes.ps1 -RepositoryRoot $pwd -Version '${{ steps.version.outputs.version }}' -Ref $env:GITHUB_REF_NAME -OutputPath artifacts/release-notes.md
+      - name: 发布完整文件夹
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/publish-release.ps1 -Configuration Release -Version '${{ steps.version.outputs.version }}' -OutputDirectory (Join-Path $pwd 'artifacts/publish')
+      - name: 安装 Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+      - name: 编译安装器与校验文件
+        shell: pwsh
+        env:
+          DISKPILOT_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw '找不到 ISCC.exe' }
+          New-Item -ItemType Directory -Force artifacts/installer | Out-Null
+          & $iscc "/DAppVersion=$env:DISKPILOT_VERSION" "/DSourceDir=$((Resolve-Path artifacts/publish).Path)" "/DOutputDir=$((Resolve-Path artifacts/installer).Path)" installer/DiskPilotX.iss
+          if ($LASTEXITCODE) { throw "Inno Setup失败：$LASTEXITCODE" }
+          $setup = Get-ChildItem artifacts/installer -Filter '*.exe' -File | Select-Object -First 1
+          if (-not $setup) { throw '没有生成安装器' }
+          $hash = (Get-FileHash $setup.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($setup.Name)" | Set-Content "$($setup.FullName).sha256" -Encoding utf8
+          Copy-Item artifacts/release-notes.md artifacts/installer/release-notes.md
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: diskpilot-${{ github.ref_name }}
+          path: artifacts/installer/*
+          retention-days: 14
+
+  release:
+    name: 创建 GitHub Release
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+      - name: 下载构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: diskpilot-${{ github.ref_name }}
+          path: artifacts/installer
+      - name: 生成 Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(Get-ChildItem artifacts/installer -File | Where-Object { $_.Name -match '\.(exe|sha256)$' } | ForEach-Object FullName)
+          gh release create $env:GITHUB_REF_NAME @assets --repo $env:GITHUB_REPOSITORY --verify-tag --title $env:GITHUB_REF_NAME --notes-file artifacts/installer/release-notes.md
+          if ($LASTEXITCODE) { throw "创建Release失败：$LASTEXITCODE" }

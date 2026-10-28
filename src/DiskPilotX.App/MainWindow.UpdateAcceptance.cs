@@ -16,7 +16,9 @@ public partial class MainWindow
             throw new InvalidOperationException("更新验收入口未启用。");
         var vm = _updateViewModel;
         var button = (Button)TitleBar.FindName("UpdateButton");
-        if (action == "seed")
+        if (action == "check-real") vm.CheckForUpdateCommand.Execute(null);
+        else if (action == "download-real") vm.DownloadCommand.Execute(null);
+        else if (action == "seed")
         {
             vm.LatestVersion = "9.9.9";
             vm.UpdateAvailable = true;
@@ -58,6 +60,9 @@ public partial class MainWindow
         var content = (Border)TitleBar.FindName("UpdatePopupContent");
         var scroll = FindScroll(content);
         return new { _updateViewModel?.StatusText, _updateViewModel?.IsUpdateEntryVisible,
+            _updateViewModel?.CurrentVersion, _updateViewModel?.LatestVersion, _updateViewModel?.IsChecking,
+            _updateViewModel?.IsDownloading, _updateViewModel?.DownloadProgress, _updateViewModel?.IsDownloadComplete,
+            _updateViewModel?.HasError, _updateViewModel?.MsiDownloadUrl,
             PopupOpen=popup.IsOpen, PopupHeight=content.ActualHeight,
             EntryHint=_updateViewModel?.UpdateEntryHint,
             PopupButtons=CountButtons(content),

@@ -183,3 +183,11 @@ This project exists because of the original **SpaceMonger** by [Sean Werkema](ht
 ## License
 
 MIT
+
+## 版本发布与更新测试
+
+- 推送 `v1.0.0` 形式的三段数字版本 tag 后，GitHub Actions 在 Windows 上构建、测试并生成完整自包含文件夹，再用 Inno Setup 生成 `DiskPilot-X-<版本>-setup.exe` 及 `.sha256`，发布到同版本 GitHub Release。不生成 ZIP，不使用单文件发布或裁剪。
+- 正式用户程序请求管理员权限；安装器保留全部运行时 DLL、`DiskPilotX.Core.dll` 和 `skills/`。下载就绪后点击右上角入口启动可见安装向导，不静默安装。
+- 发布说明优先读取 `docs/releases/v<版本>.md`；不存在时自动按上个可达版本 tag 至当前 tag 的真实提交，归类为「🐞 修复问题」「✨ 新增功能」「🚀 优化改进」，并附 Full Changelog。
+- 本地完整文件夹发布：`pwsh -File scripts/publish-release.ps1 -Version 1.0.0 -OutputDirectory <绝对且不存在的发布目录>`。
+- 真实更新测试：同一提交使用 `-Version 0.9.0 -TestPackage` 构建非提权测试包，以真实 Release API 检查并下载已发布的 `1.0.0`，不注入模拟版本。测试包与用户包必须分别核对实际清单。
