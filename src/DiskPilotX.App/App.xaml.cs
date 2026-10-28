@@ -126,14 +126,9 @@ public partial class App : Application
         services.AddTransient<TreeViewModel>();
 
         // Update services
-        services.AddSingleton<IUpdateService>(provider => new UpdateService(() =>
-        {
-            var service = provider.GetRequiredService<ISettingsService>();
-            var settings = service.LoadSettings();
-            return provider.GetRequiredService<DiskPilotX.Core.Services.Llm.ModelHttpClientFactory>().Create(
-                settings.UseProxyForUpdates ? DiskPilotX.Core.Services.Llm.LlmContracts.ParseProxyKind(settings.ProxyMode) : DiskPilotX.Core.Services.Llm.ProxyKind.Direct,
-                settings.ProxyHost, settings.ProxyPort, settings.ProxyUsername, service.GetProxyPassword(settings));
-        }));
+        services.AddSingleton<IUpdateService>(provider => new UpdateService(
+            provider.GetRequiredService<ISettingsService>(),
+            provider.GetRequiredService<DiskPilotX.Core.Services.Llm.ModelHttpClientFactory>()));
         services.AddSingleton<UpdateViewModel>();
 
         Services = services.BuildServiceProvider();

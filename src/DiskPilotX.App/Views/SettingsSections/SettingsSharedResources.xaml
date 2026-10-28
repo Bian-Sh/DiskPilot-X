@@ -21,4 +21,36 @@
         <Setter Property="Margin" Value="0,0,8,0" />
         <Setter Property="Width" Value="150" />
     </Style>
+            <Style x:Key="ApiPasswordBox" TargetType="PasswordBox">
+                <Setter Property="FontFamily" Value="{DynamicResource VP.FontFamily}" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
+                <Setter Property="CaretBrush" Value="{DynamicResource VP.TextPrimaryBrush}" />
+                <Setter Property="Background" Value="{DynamicResource VP.SurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderLightBrush}" />
+                <Setter Property="Padding" Value="10,8" />
+                <Setter Property="SelectionBrush" Value="{DynamicResource VP.AccentBrush}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="PasswordBox">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="0.5"
+                                    CornerRadius="6"
+                                    SnapsToDevicePixels="True">
+                                <ScrollViewer x:Name="PART_ContentHost" Margin="0" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsFocused" Value="True">
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource VP.AccentBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
 </ResourceDictionary>

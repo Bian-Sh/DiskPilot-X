@@ -126,14 +126,10 @@ public partial class MainWindow
         SettingsPage.AnimateOut(null);
     }
 
-    private void SwitchToAboutTab()
-    {
-        AboutTabBtn.IsChecked = true;
-    }
-
     private void VersionDisplay_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        SwitchToAboutTab();
+        ShowSettingsPage();
+        SettingsPage.NavigateToUpdates();
     }
 
     private void OnSettingsChanged()

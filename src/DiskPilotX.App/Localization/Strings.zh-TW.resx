@@ -695,7 +695,7 @@
     <value>GitHub</value>
   </data>
   <data name="VersionDisplayToolTip" xml:space="preserve">
-    <value>關於頁面</value>
+    <value>查看發佈日誌</value>
   </data>
   <data name="ThemeSectionLabel" xml:space="preserve">
     <value>主題</value>
@@ -1134,4 +1134,7 @@
   <data name="UpdateHistoryFailed" xml:space="preserve"><value>版本歷史載入失敗，已載入的內容仍可檢視。</value></data>
   <data name="UpdateRetry" xml:space="preserve"><value>重試</value></data>
   <data name="UpdateAboutHint" xml:space="preserve"><value>更新操作請前往「設定 → 更新」或右上角下載入口。</value></data>
+  <data name="SettingsProxyUsernameLabel" xml:space="preserve"><value>代理使用者名稱（選填）</value></data>
+  <data name="ShowApiKey" xml:space="preserve"><value>顯示 API Key</value></data>
+  <data name="HideApiKey" xml:space="preserve"><value>隱藏 API Key</value></data>
 </root>

@@ -24,9 +24,15 @@ public partial class UpdateViewModel : ObservableObject
         CurrentVersion = _updateService.GetCurrentVersion();
         var settings = settingsService?.LoadSettings();
         AutoCheckUpdates = settings?.AutoCheckUpdates ?? true;
-        UseProxyForUpdates = settings?.UseProxyForUpdates ?? true;
+        LoadProxySettings(settings);
         _initializing = false;
+        CommitProxySettings();
         UpdateStatusText();
+        L.LanguageChanged += () =>
+        {
+            OnPropertyChanged(nameof(ProxyKindOptions));
+            OnPropertyChanged(nameof(SelectedProxyKind));
+        };
     }
 
     [ObservableProperty]
@@ -72,18 +78,17 @@ public partial class UpdateViewModel : ObservableObject
     [ObservableProperty] private bool _hasError;
     [ObservableProperty] private string _errorText = "";
     [ObservableProperty] private bool _autoCheckUpdates = true;
-    [ObservableProperty] private bool _useProxyForUpdates = true;
     [ObservableProperty] private bool _isHistoryLoading;
     [ObservableProperty] private bool _historyHasError;
     [ObservableProperty] private bool _canLoadMoreHistory;
     [ObservableProperty] private bool _historyLoaded;
     [ObservableProperty] private UpdateRelease? _selectedRelease;
     public ObservableCollection<UpdateRelease> Releases { get; } = [];
-    public bool IsUpdateEntryVisible => UpdateAvailable || IsDownloading || IsDownloadComplete;
+    public bool IsUpdateEntryVisible => IsChecking || HasError || UpdateAvailable || IsDownloading || IsDownloadComplete;
     public bool IsHistoryEmpty => HistoryLoaded && !IsHistoryLoading && !HistoryHasError && Releases.Count == 0;
     public string PrimaryActionText => IsDownloadComplete ? L.Text("InstallButton") : IsDownloading ? L.Text("CancelButton") : L.Text("UpdateEntry");
     public bool CanUsePrimaryAction => !IsChecking && (IsDownloadComplete || IsDownloading || !string.IsNullOrWhiteSpace(MsiDownloadUrl));
-    public string UpdateEntryGlyph => HasError ? "\uE7BA" : IsDownloadComplete ? "\uE930" : IsDownloading ? "\uE895" : "\uE896";
+    public string UpdateEntryGlyph => HasError ? "\uE7BA" : IsDownloadComplete ? "\uE930" : IsDownloading || IsChecking ? "\uE895" : "\uE896";
     public string UpdateEntryHint => IsDownloading ? $"{DownloadProgress:F0}%"
         : IsChecking ? L.Text("UpdateChecking")
         : HasError ? L.Text("UpdateRetry")
@@ -92,14 +97,12 @@ public partial class UpdateViewModel : ObservableObject
     private CancellationTokenSource? _downloadCts;
 
     partial void OnAutoCheckUpdatesChanged(bool value) => SavePreferences();
-    partial void OnUseProxyForUpdatesChanged(bool value) => SavePreferences();
     private void SavePreferences()
     {
         if (_initializing || _settingsService is null) return;
         // 总是读取最新设置，避免覆盖其它设置分区刚保存的内容。
         var settings = _settingsService.LoadSettings();
         settings.AutoCheckUpdates = AutoCheckUpdates;
-        settings.UseProxyForUpdates = UseProxyForUpdates;
         _settingsService.SaveSettings(settings);
     }
     partial void OnUpdateAvailableChanged(bool value) => UpdateStatusText();
@@ -133,7 +136,11 @@ public partial class UpdateViewModel : ObservableObject
 
     public async Task CheckAtStartupAsync()
     {
-        if (AutoCheckUpdates) await CheckAsync(false);
+        if (!AutoCheckUpdates) return;
+        await CheckAsync(false);
+        // 自动检查只在发现新版且没有完整缓存时后台下载，不自动启动安装器。
+        if (UpdateAvailable && !HasError && !IsDownloadComplete && !string.IsNullOrWhiteSpace(MsiDownloadUrl))
+            await DownloadCommand.ExecuteAsync(null);
     }
 
     [RelayCommand]
@@ -205,6 +212,11 @@ public partial class UpdateViewModel : ObservableObject
     private async Task ActivateUpdateAsync()
     {
         if (IsChecking || IsDownloading) return;
+        if (!UpdateAvailable && !IsDownloadComplete)
+        {
+            await CheckForUpdateCommand.ExecuteAsync(null);
+            return;
+        }
         if (!IsDownloadComplete) await DownloadCommand.ExecuteAsync(null);
         if (IsDownloadComplete) Install();
     }

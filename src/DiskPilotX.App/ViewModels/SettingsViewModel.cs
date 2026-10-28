@@ -140,6 +140,7 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnSelectedProxyKindChanged(ProxyKind value)
     {
         InvalidateModelDiscovery();
+        EnsureProxyHost();
         PersistAppSettings(settings => settings.ProxyMode = LlmContracts.FormatProxyKind(value));
         OnPropertyChanged(nameof(IsCustomProxyConfigurable));
     }
@@ -179,6 +180,12 @@ public partial class SettingsViewModel : ObservableObject
         InvalidateModelDiscovery();
         if (!_isLoadingSettings) _proxyPasswordEdited = true;
         PersistAppSettings(settings => settings.EncryptedProxyPassword = string.IsNullOrEmpty(value) ? null : _settingsService.EncryptProxyPassword(value));
+    }
+
+    private void EnsureProxyHost()
+    {
+        if (!_isLoadingSettings && SelectedProxyKind == ProxyKind.Custom && string.IsNullOrWhiteSpace(ProxyHost))
+            ProxyHost = LlmContracts.DefaultProxyHost;
     }
 
     public bool IsCustomProxyConfigurable => SelectedProxyKind == ProxyKind.Custom;
@@ -371,6 +378,7 @@ public partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(CliIdentityOptions));
         OnPropertyChanged(nameof(CliIdentitySummary));
         OnPropertyChanged(nameof(ProxyKindOptions));
+        OnPropertyChanged(nameof(SelectedProxyKind));
     }
 
     partial void OnValidationStateChanged(ValidationState value)
@@ -514,6 +522,7 @@ public partial class SettingsViewModel : ObservableObject
     /// <summary>用当前编辑中的字段构建端点配置；代理口令优先取输入框，未改动时解密存量值。</summary>
     private ModelEndpointConfig BuildEndpoint()
     {
+        EnsureProxyHost();
         var settings = _settingsService.LoadSettings();
         if (SelectedProxyKind == ProxyKind.Custom
             && (!int.TryParse(ProxyPortText?.Trim(), out var port) || port is <= 0 or >= 65536))
@@ -993,6 +1002,7 @@ public partial class SettingsViewModel : ObservableObject
         {
             _isLoadingSettings = false;
         }
+        EnsureProxyHost();
     }
 }
 

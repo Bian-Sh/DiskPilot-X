@@ -6,6 +6,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows;
+using DiskPilotX.Core.Services.Settings;
+using DiskPilotX.Core.Services.Llm;
 
 namespace DiskPilotX.App.Services;
 
@@ -26,6 +28,18 @@ public class UpdateService : IUpdateService
     public UpdateService() : this(new HttpClient(), DefaultCacheDir) { }
 
     public UpdateService(HttpClient client, string cacheDirectory) : this(() => client, cacheDirectory) { }
+
+    public UpdateService(ISettingsService settingsService, ModelHttpClientFactory clients, string? cacheDirectory = null)
+        : this(() =>
+        {
+            var settings = settingsService.LoadSettings();
+            if (settings.EnsureIndependentUpdateProxy()) settingsService.SaveSettings(settings);
+            var mode = LlmContracts.ParseProxyKind(settings.UpdateProxyMode);
+            if (mode == ProxyKind.Custom && settings.UpdateProxyPort is not (> 0 and < 65536))
+                throw new InvalidOperationException("自定义更新代理端口必须是 1–65535 的整数。");
+            return clients.Create(mode, settings.UpdateProxyHost,
+                settings.UpdateProxyPort, settings.UpdateProxyUsername, settingsService.GetUpdateProxyPassword(settings));
+        }, cacheDirectory) { }
 
     public UpdateService(Func<HttpClient> client, string? cacheDirectory = null)
     {

@@ -133,7 +133,7 @@ public sealed class ModelConfigurationEventsTests
     {
         var calls = 0;
         using var clients = Clients((_, _) => { calls++; return Task.FromResult(Models("代理模型")); });
-        var vm = Create(clients); vm.SelectedProxyKind = ProxyKind.Custom; vm.ProxyHost = "";
+        var vm = Create(clients); vm.SelectedProxyKind = ProxyKind.Custom; vm.ProxyHost = ""; vm.ProxyPortText = "";
         await vm.CompleteModelConfigurationAsync(); Assert.Equal(0, calls);
         vm.ProxyHost = "127.0.0.1"; vm.ProxyPortText = "not-a-port";
         await vm.CompleteModelConfigurationAsync(); Assert.Equal(0, calls);

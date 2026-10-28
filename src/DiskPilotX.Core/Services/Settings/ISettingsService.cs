@@ -9,5 +9,6 @@ public interface ISettingsService
     string? GetApiKey(AppSettings settings);
     byte[] EncryptApiKey(string apiKey);
     string? GetProxyPassword(AppSettings settings);
+    string? GetUpdateProxyPassword(AppSettings settings);
     byte[] EncryptProxyPassword(string password);
 }

@@ -12,20 +12,25 @@ public partial class ApiSettingsSection : UserControl
     public ApiSettingsSection()
     {
         InitializeComponent();
+        InitializeApiKeyVisibility();
     }
 
     private async void ModelSettings_Loaded(object sender, RoutedEventArgs e)
     {
+        WatchApiKeyViewModel();
+        ResetApiKeyVisibility();
         if (IsVisible && DataContext is SettingsViewModel vm) await vm.EnsureModelCatalogAsync();
     }
 
     private async void ModelSettings_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
+        ResetApiKeyVisibility();
         if (IsLoaded && e.NewValue is true && DataContext is SettingsViewModel vm) await vm.EnsureModelCatalogAsync();
     }
 
     private async void ModelConnectionEdit_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
+        if (_changingApiKeyVisibility || ReferenceEquals(e.NewFocus, ApiKeyVisibilityToggle)) return;
         if (IsLoaded && DataContext is SettingsViewModel vm) await vm.CompleteModelConfigurationAsync();
     }
 

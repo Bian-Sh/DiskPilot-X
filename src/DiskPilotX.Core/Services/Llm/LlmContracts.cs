@@ -41,6 +41,8 @@ public enum ThinkingLevel
 /// <summary>设置字符串与枚举的容错解析；空值回落到兼容历史行为的默认档。</summary>
 public static class LlmContracts
 {
+    public const string DefaultProxyHost = "127.0.0.1";
+
     public static LlmApiFormat ParseApiFormat(string? value) => value switch
     {
         "openai-responses" => LlmApiFormat.OpenAiResponses,

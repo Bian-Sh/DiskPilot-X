@@ -66,10 +66,11 @@ public class UpdateExperienceTests
         var saved = new AppSettings { Language = "zh-TW" };
         settings.LoadSettings().Returns(saved);
         var vm = new UpdateViewModel(Substitute.For<IUpdateService>(), settings);
+        settings.ClearReceivedCalls();
         vm.AutoCheckUpdates = false;
-        vm.UseProxyForUpdates = false;
+        vm.SelectedProxyKind = DiskPilotX.Core.Services.Llm.ProxyKind.Direct;
         Assert.False(saved.AutoCheckUpdates);
-        Assert.False(saved.UseProxyForUpdates);
+        Assert.Equal("direct", saved.UpdateProxyMode);
         Assert.Equal("zh-TW", saved.Language);
         settings.Received(2).SaveSettings(saved);
     }
@@ -348,6 +349,36 @@ public class UpdateExperienceTests
         Assert.True((await service.CheckForUpdateAsync(forceRefresh:true)).Success);
         handler.Body="abc";
         await Assert.ThrowsAsync<IOException>(()=>service.DownloadMsiAsync("https://example.org/setup.exe","9.0.0",3,new Progress<(long,long)>(),default));
+    }
+
+    [Fact]
+    public void 关于页不显示更新状态和更新引导()
+    {
+        var about = XDocument.Load(Path.Combine(FindRoot(), "src/DiskPilotX.App/Views/AboutPage.xaml"));
+        Assert.DoesNotContain(about.Descendants().Attributes(), a =>
+            a.Value.Contains("StatusText") || a.Value.Contains("UpdateAboutHint"));
+        Assert.Contains(about.Descendants().Attributes(), a => a.Value == "{Binding CurrentVersion}");
+    }
+
+    [Fact]
+    public void 右下角版本入口打开设置并定位更新分区()
+    {
+        var source = File.ReadAllText(Path.Combine(FindRoot(), "src/DiskPilotX.App/MainWindow.Shell.cs"));
+        var handler = source.Split("private void VersionDisplay_Click", 2)[1].Split("private void", 2)[0];
+        Assert.Contains("ShowSettingsPage();", handler);
+        Assert.Contains("SettingsPage.NavigateToUpdates();", handler);
+        Assert.DoesNotContain("SwitchToAboutTab", handler);
+    }
+
+    [Theory]
+    [InlineData("Strings.resx", "Check Release Note")]
+    [InlineData("Strings.zh-CN.resx", "查看发布日志")]
+    [InlineData("Strings.zh-TW.resx", "查看發佈日誌")]
+    public void 版本入口悬停提示使用发布日志文案(string resource, string expected)
+    {
+        var strings = XDocument.Load(Path.Combine(FindRoot(), "src/DiskPilotX.App/Localization", resource));
+        Assert.Equal(expected, strings.Root!.Elements("data")
+            .Single(e => (string?)e.Attribute("name") == "VersionDisplayToolTip").Element("value")!.Value);
     }
 
     private static string FindRoot()

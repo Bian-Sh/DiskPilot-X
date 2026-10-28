@@ -17,6 +17,22 @@
             </ResourceDictionary.MergedDictionaries>
             <c:BoolToVisibilityConverter x:Key="BoolVis" />
             <c:NullToVisibilityConverter x:Key="NullVis" />
+            <Style x:Key="ApiKeyEyeButton" TargetType="ToggleButton">
+                <Setter Property="Width" Value="28"/><Setter Property="Height" Value="28"/>
+                <Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{DynamicResource VP.TextSecondaryBrush}"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="EyeSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="4">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="EyeSurface" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}"/></Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="EyeSurface" Property="BorderBrush" Value="{DynamicResource VP.AccentBrush}"/></Trigger>
+                        <Trigger Property="IsChecked" Value="True"><Setter Property="Foreground" Value="{DynamicResource VP.AccentTextBrush}"/></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate></Setter.Value></Setter>
+            </Style>
             <Style x:Key="ModelDragHandle" TargetType="Thumb">
                 <Setter Property="Width" Value="26"/><Setter Property="Height" Value="28"/>
                 <Setter Property="Cursor" Value="SizeAll"/><Setter Property="Focusable" Value="True"/>
@@ -32,38 +48,7 @@
                     </ControlTemplate.Triggers>
                 </ControlTemplate></Setter.Value></Setter>
             </Style>
-            <Style x:Key="ApiPasswordBox" TargetType="PasswordBox">
-                <Setter Property="FontFamily" Value="{DynamicResource VP.FontFamily}" />
-                <Setter Property="FontSize" Value="13" />
-                <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
-                <Setter Property="CaretBrush" Value="{DynamicResource VP.TextPrimaryBrush}" />
-                <Setter Property="Background" Value="{DynamicResource VP.SurfaceBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderLightBrush}" />
-                <Setter Property="Padding" Value="10,8" />
-                <Setter Property="SelectionBrush" Value="{DynamicResource VP.AccentBrush}" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="PasswordBox">
-                            <Border x:Name="Bd"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="0.5"
-                                    CornerRadius="6"
-                                    SnapsToDevicePixels="True">
-                                <ScrollViewer x:Name="PART_ContentHost" Margin="0" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsFocused" Value="True">
-                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource VP.AccentBrush}" />
-                                </Trigger>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
+
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -118,8 +103,20 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
+                            <PasswordBox x:Name="ApiKeyMaskedInput" Style="{StaticResource ApiPasswordBox}" PasswordChar="*" Padding="10,8,42,8"
+                                         PasswordChanged="ApiKeyMaskedInput_PasswordChanged" LostKeyboardFocus="ModelConnectionEdit_LostKeyboardFocus" PreviewKeyDown="ModelConnectionEdit_PreviewKeyDown"
+                                         AutomationProperties.Name="API Key"/>
                             <TextBox x:Name="ApiKeyInput" LostKeyboardFocus="ModelConnectionEdit_LostKeyboardFocus" PreviewKeyDown="ModelConnectionEdit_PreviewKeyDown" Style="{DynamicResource VP.TextBox}"
+                                     Visibility="Collapsed" Padding="10,8,42,8" AutomationProperties.Name="API Key"
                                      Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}" />
+                            <ToggleButton x:Name="ApiKeyVisibilityToggle" Style="{StaticResource ApiKeyEyeButton}" IsChecked="False"
+                                          HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,5,0">
+                                <Grid Width="18" Height="18" IsHitTestVisible="False">
+                                    <Path Data="M 1,9 C 4,3 14,3 17,9 C 14,15 4,15 1,9 Z" Stroke="{Binding Foreground, ElementName=ApiKeyVisibilityToggle}" StrokeThickness="1.4"/>
+                                    <Ellipse Width="5" Height="5" Stroke="{Binding Foreground, ElementName=ApiKeyVisibilityToggle}" StrokeThickness="1.4"/>
+                                    <Path x:Name="ApiKeyEyeSlash" Data="M 2,2 L 16,16" Stroke="{Binding Foreground, ElementName=ApiKeyVisibilityToggle}" StrokeThickness="1.6"/>
+                                </Grid>
+                            </ToggleButton>
                             <Button Grid.Column="1" Content="{loc:Loc ValidateButton}"
                                     Style="{DynamicResource VP.AccentButton}"
                                     HorizontalAlignment="Right"
@@ -228,7 +225,7 @@
                                      Text="{Binding ProxyPortText, UpdateSourceTrigger=PropertyChanged}" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <TextBox x:Name="ProxyUsernameInput" LostKeyboardFocus="ModelConnectionEdit_LostKeyboardFocus" PreviewKeyDown="ModelConnectionEdit_PreviewKeyDown" Style="{DynamicResource VP.TextBox}"
+                            <TextBox x:Name="ProxyUsernameInput" ToolTip="{loc:Loc SettingsProxyUsernameLabel}" AutomationProperties.Name="{loc:Loc SettingsProxyUsernameLabel}" LostKeyboardFocus="ModelConnectionEdit_LostKeyboardFocus" PreviewKeyDown="ModelConnectionEdit_PreviewKeyDown" Style="{DynamicResource VP.TextBox}"
                                      Width="130"
                                      Text="{Binding ProxyUsername, UpdateSourceTrigger=PropertyChanged}" />
                             <PasswordBox x:Name="ProxyPasswordBox" LostKeyboardFocus="ModelConnectionEdit_LostKeyboardFocus" PreviewKeyDown="ModelConnectionEdit_PreviewKeyDown"

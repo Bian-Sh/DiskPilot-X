@@ -18,6 +18,25 @@ public class AppSettings
     public Dictionary<string, string> CliIdentityVersions { get; set; } = [];
     public bool AutoCheckUpdates { get; set; } = true;
     public bool UseProxyForUpdates { get; set; } = true;
+    /// <summary>更新请求的独立代理；空模式仅表示尚未迁移旧配置。</summary>
+    public string? UpdateProxyMode { get; set; }
+    public string? UpdateProxyHost { get; set; }
+    public int? UpdateProxyPort { get; set; }
+    public string? UpdateProxyUsername { get; set; }
+    public byte[]? EncryptedUpdateProxyPassword { get; set; }
+
+    /// <summary>仅首次复制历史实际代理行为，后续更新与 AI 设置互不覆盖。</summary>
+    public bool EnsureIndependentUpdateProxy()
+    {
+        if (!string.IsNullOrWhiteSpace(UpdateProxyMode)) return false;
+        UpdateProxyMode = UseProxyForUpdates ? LlmContracts.FormatProxyKind(LlmContracts.ParseProxyKind(ProxyMode)) : "direct";
+        UpdateProxyHost = UpdateProxyMode == "custom" && string.IsNullOrWhiteSpace(ProxyHost) ? LlmContracts.DefaultProxyHost : ProxyHost;
+        UpdateProxyPort = ProxyPort;
+        UpdateProxyUsername = ProxyUsername;
+        EncryptedUpdateProxyPassword = EncryptedProxyPassword?.ToArray();
+        return true;
+    }
+
     public bool EnableThinking { get; set; } = false;
     public string Language { get; set; } = "zh-CN";
 

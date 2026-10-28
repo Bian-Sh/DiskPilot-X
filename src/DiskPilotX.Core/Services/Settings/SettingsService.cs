@@ -19,17 +19,23 @@ public class SettingsService : ISettingsService
     {
         if (!File.Exists(SettingsFilePath))
         {
-            return new AppSettings();
+            var fresh = new AppSettings();
+            fresh.EnsureIndependentUpdateProxy();
+            return fresh;
         }
 
         try
         {
             var json = File.ReadAllText(SettingsFilePath);
-            return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+            var settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+            if (settings.EnsureIndependentUpdateProxy()) SaveSettings(settings);
+            return settings;
         }
         catch (JsonException)
         {
-            return new AppSettings();
+            var fresh = new AppSettings();
+            fresh.EnsureIndependentUpdateProxy();
+            return fresh;
         }
     }
 
@@ -74,9 +80,13 @@ public class SettingsService : ISettingsService
             DataProtectionScope.CurrentUser);
     }
 
-    public string? GetProxyPassword(AppSettings settings)
+    public string? GetProxyPassword(AppSettings settings) => DecryptProxyPassword(settings.EncryptedProxyPassword);
+
+    public string? GetUpdateProxyPassword(AppSettings settings) => DecryptProxyPassword(settings.EncryptedUpdateProxyPassword);
+
+    private static string? DecryptProxyPassword(byte[]? encrypted)
     {
-        if (settings.EncryptedProxyPassword is null)
+        if (encrypted is null)
         {
             return null;
         }
@@ -84,7 +94,7 @@ public class SettingsService : ISettingsService
         try
         {
             var decryptedBytes = ProtectedData.Unprotect(
-                settings.EncryptedProxyPassword,
+                encrypted,
                 null,
                 DataProtectionScope.CurrentUser);
 

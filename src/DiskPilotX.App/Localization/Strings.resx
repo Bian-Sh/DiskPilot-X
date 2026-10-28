@@ -698,7 +698,7 @@
     <value>GitHub</value>
   </data>
   <data name="VersionDisplayToolTip" xml:space="preserve">
-    <value>AboutPage</value>
+    <value>Check Release Note</value>
   </data>
   <data name="ThemeSectionLabel" xml:space="preserve">
     <value>Theme</value>
@@ -1134,4 +1134,7 @@ This cannot be undone.</value></data>
   <data name="UpdateHistoryFailed" xml:space="preserve"><value>Could not load release history. Previously loaded entries remain available.</value></data>
   <data name="UpdateRetry" xml:space="preserve"><value>Retry</value></data>
   <data name="UpdateAboutHint" xml:space="preserve"><value>Manage updates in Settings → Updates or from the download button in the title bar.</value></data>
+  <data name="SettingsProxyUsernameLabel" xml:space="preserve"><value>Proxy username (optional)</value></data>
+  <data name="ShowApiKey" xml:space="preserve"><value>Show API key</value></data>
+  <data name="HideApiKey" xml:space="preserve"><value>Hide API key</value></data>
 </root>

@@ -3,8 +3,11 @@
  xmlns:loc="clr-namespace:DiskPilotX.App.Localization" xmlns:converters="clr-namespace:DiskPilotX.App.Converters"
  Loaded="Section_Loaded" IsVisibleChanged="Section_IsVisibleChanged" FontFamily="{DynamicResource VP.FontFamily}">
  <UserControl.Resources>
-  <BooleanToVisibilityConverter x:Key="BoolToVis"/>
-  <converters:ReleaseNotesMarkdownConverter x:Key="Markdown"/>
+  <ResourceDictionary>
+   <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="SettingsSharedResources.xaml"/></ResourceDictionary.MergedDictionaries>
+   <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+   <converters:ReleaseNotesMarkdownConverter x:Key="Markdown"/>
+  </ResourceDictionary>
  </UserControl.Resources>
  <StackPanel>
   <TextBlock Text="{loc:Loc UpdateSettingsTitle}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource VP.TextPrimaryBrush}" Margin="0,0,0,14"/>
@@ -12,8 +15,30 @@
    <StackPanel>
     <TextBlock Foreground="{DynamicResource VP.TextPrimaryBrush}" FontWeight="SemiBold"><Run Text="{loc:Loc VersionLabel}"/><Run Text="{Binding CurrentVersion}"/></TextBlock>
     <CheckBox Content="{loc:Loc UpdateAutoCheck}" IsChecked="{Binding AutoCheckUpdates}" Margin="0,14,0,8" Foreground="{DynamicResource VP.TextPrimaryBrush}"/>
-    <CheckBox Content="{loc:Loc UpdateUseProxy}" IsChecked="{Binding UseProxyForUpdates}" Foreground="{DynamicResource VP.TextPrimaryBrush}"/>
-    <TextBlock Text="{loc:Loc UpdateProxyHint}" TextWrapping="Wrap" FontSize="12" Margin="22,5,0,12" Foreground="{DynamicResource VP.TextSecondaryBrush}"/>
+    <Grid Margin="0,0,0,14">
+     <Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+     <TextBlock Text="{loc:Loc SettingsProxyModeLabel}" Style="{StaticResource SettingsLabelStyle}" ToolTip="{loc:Loc SettingsProxyModeHint}"/>
+     <ComboBox x:Name="UpdateProxyModeInput" Grid.Column="1" Style="{DynamicResource VP.ComboBox}" Width="240" HorizontalAlignment="Left"
+               ItemsSource="{Binding ProxyKindOptions}" SelectedValue="{Binding SelectedProxyKind}" SelectedValuePath="Value" DisplayMemberPath="Label"
+               AutomationProperties.Name="{loc:Loc SettingsProxyModeLabel}"/>
+    </Grid>
+    <Grid x:Name="UpdateCustomProxyFields" Margin="0,0,0,14" Visibility="{Binding IsCustomProxyConfigurable, Converter={StaticResource BoolToVis}}"
+          LostKeyboardFocus="ProxyEdit_LostKeyboardFocus" PreviewKeyDown="ProxyEdit_PreviewKeyDown">
+     <Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <TextBlock Text="{loc:Loc SettingsProxyAddressLabel}" Style="{StaticResource SettingsLabelStyle}" ToolTip="{loc:Loc SettingsProxyAddressHint}"/>
+     <StackPanel Grid.Column="1" Orientation="Horizontal">
+      <TextBox x:Name="UpdateProxyHostInput" Style="{DynamicResource VP.TextBox}" Width="170" Text="{Binding ProxyHost, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{loc:Loc SettingsProxyAddressLabel}"/>
+      <TextBlock Text="{loc:Loc SettingsProxyPortLabel}" Margin="10,0,6,0" VerticalAlignment="Center" Foreground="{DynamicResource VP.TextSecondaryBrush}"/>
+      <TextBox x:Name="UpdateProxyPortInput" Style="{DynamicResource VP.TextBox}" Width="60" Text="{Binding ProxyPortText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{loc:Loc SettingsProxyPortLabel}"/>
+     </StackPanel>
+     <TextBlock Grid.Row="1" Text="{loc:Loc SettingsProxyUsernameLabel}" Style="{StaticResource SettingsLabelStyle}" Margin="0,8,0,0"/>
+     <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,0">
+      <TextBox x:Name="UpdateProxyUsernameInput" Style="{DynamicResource VP.TextBox}" Width="130" Text="{Binding ProxyUsername, UpdateSourceTrigger=PropertyChanged}" ToolTip="{loc:Loc SettingsProxyUsernameLabel}" AutomationProperties.Name="{loc:Loc SettingsProxyUsernameLabel}"/>
+      <PasswordBox x:Name="UpdateProxyPasswordBox" Style="{StaticResource ApiPasswordBox}" Width="200" Margin="8,0,0,0" PasswordChanged="UpdateProxyPasswordBox_PasswordChanged"
+                   ToolTip="{loc:Loc SettingsProxyPasswordLabel}" AutomationProperties.Name="{loc:Loc SettingsProxyPasswordLabel}"/>
+     </StackPanel>
+    </Grid>
     <WrapPanel>
      <Button Content="{loc:Loc UpdateCheckNow}" Command="{Binding CheckForUpdateCommand}" IsEnabled="{Binding CanCheck}" Style="{DynamicResource VP.Button}" Margin="0,0,10,6"/>
      <Button Content="{Binding PrimaryActionText}" Command="{Binding PrimaryActionCommand}" IsEnabled="{Binding CanUsePrimaryAction}" Visibility="{Binding IsUpdateEntryVisible, Converter={StaticResource BoolToVis}}" Style="{DynamicResource VP.AccentButton}" Margin="0,0,0,6"/>
@@ -26,10 +51,10 @@
   <Border BorderBrush="{DynamicResource VP.BorderLightBrush}" BorderThickness="1" CornerRadius="10" Background="{DynamicResource VP.SurfaceBrush}" ClipToBounds="True">
    <Grid Height="430">
     <Grid.ColumnDefinitions><ColumnDefinition Width="145"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-    <Border BorderBrush="{DynamicResource VP.BorderLightBrush}" BorderThickness="0,0,1,0">
+    <Border x:Name="ReleaseListPane" BorderBrush="{DynamicResource VP.BorderLightBrush}" BorderThickness="0,0,1,0" Background="Transparent" PreviewMouseWheel="HistoryPane_PreviewMouseWheel">
      <Grid>
       <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-      <ListBox ItemsSource="{Binding Releases}" SelectedItem="{Binding SelectedRelease}" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource VP.TextPrimaryBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="{loc:Loc UpdateHistoryTitle}">
+      <ListBox x:Name="ReleaseList" ItemsSource="{Binding Releases}" SelectedItem="{Binding SelectedRelease}" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource VP.TextPrimaryBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="{loc:Loc UpdateHistoryTitle}">
        <ListBox.ItemTemplate><DataTemplate>
         <StackPanel Margin="6,8">
          <TextBlock Text="{Binding Version}" FontWeight="SemiBold"/>
@@ -44,13 +69,13 @@
       <Button Grid.Row="1" Content="{loc:Loc UpdateLoadMore}" Command="{Binding LoadMoreHistoryCommand}" Style="{DynamicResource VP.Button}" Margin="8" Visibility="{Binding CanLoadMoreHistory, Converter={StaticResource BoolToVis}}"/>
      </Grid>
     </Border>
-    <Grid Grid.Column="1" Margin="12">
+    <Grid x:Name="ReleaseNotesPane" Grid.Column="1" Margin="12" Background="Transparent" PreviewMouseWheel="HistoryPane_PreviewMouseWheel">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <StackPanel>
       <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource VP.AccentTextBrush}" Margin="0,0,0,4"><Hyperlink NavigateUri="{Binding SelectedRelease.HtmlUrl}" RequestNavigate="Release_RequestNavigate"><Run Text="{Binding SelectedRelease.Version}"/></Hyperlink></TextBlock>
       <TextBlock Text="{Binding SelectedRelease.PublishedAt}" Foreground="{DynamicResource VP.TextSecondaryBrush}" FontSize="12" Margin="0,0,0,8"/>
      </StackPanel>
-     <FlowDocumentScrollViewer Grid.Row="1" Document="{Binding SelectedRelease.ReleaseNotes, Converter={StaticResource Markdown}}" IsToolBarVisible="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" BorderThickness="0" Background="Transparent" Padding="0"/>
+     <FlowDocumentScrollViewer x:Name="ReleaseNotesViewer" Grid.Row="1" Document="{Binding SelectedRelease.ReleaseNotes, Converter={StaticResource Markdown}}" IsToolBarVisible="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" BorderThickness="0" Background="Transparent" Padding="0"/>
      <TextBlock Grid.Row="1" Text="{loc:Loc UpdateHistoryEmpty}" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource VP.TextSecondaryBrush}" Visibility="{Binding IsHistoryEmpty, Converter={StaticResource BoolToVis}}"/>
      <StackPanel Grid.Row="2">
       <StackPanel Margin="0,8,0,0" Visibility="{Binding IsHistoryLoading, Converter={StaticResource BoolToVis}}"><ProgressBar IsIndeterminate="True" Height="3"/><TextBlock Text="{loc:Loc UpdateHistoryLoading}" Foreground="{DynamicResource VP.TextSecondaryBrush}" Margin="0,4,0,0"/></StackPanel>

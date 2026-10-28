@@ -30,6 +30,17 @@ public partial class SettingsPage : UserControl
 
     public void SetUpdateViewModel(DiskPilotX.App.ViewModels.UpdateViewModel vm) => UpdateSectionControl.DataContext = vm;
 
+    public void NavigateToUpdates()
+    {
+        // 等设置页完成布局后再定位，确保首次打开也能准确落到更新分区。
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            UpdateBottomScrollSpacer();
+            SnapToSection(UpdateSectionControl);
+            SetActiveNavButton(UpdateSectionControl.Name);
+        }), DispatcherPriority.Loaded);
+    }
+
     private IReadOnlyList<Button> NavButtons => _navButtons ??= [GeneralNavButton, ThemeNavButton, ApiNavButton, WhitelistNavButton, UpdateNavButton, DisclaimerNavButton];
 
     private void SettingsNavButton_Click(object sender, RoutedEventArgs e)

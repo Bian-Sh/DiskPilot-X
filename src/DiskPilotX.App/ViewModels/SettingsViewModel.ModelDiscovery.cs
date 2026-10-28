@@ -38,7 +38,11 @@ public partial class SettingsViewModel
         ? CompleteModelConfigurationAsync() : Task.CompletedTask;
 
     /// <summary>失焦、Enter、离散选择及验证按钮共用入口，合并同配置请求。</summary>
-    public Task CompleteModelConfigurationAsync(bool force = false) => RequestModelCatalog(force, automatic: true);
+    public Task CompleteModelConfigurationAsync(bool force = false)
+    {
+        EnsureProxyHost();
+        return RequestModelCatalog(force, automatic: true);
+    }
 
     private Task RequestModelCatalog(bool force, bool automatic)
     {

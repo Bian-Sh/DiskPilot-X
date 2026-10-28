@@ -524,9 +524,6 @@
                         <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
                             <Setter Property="Foreground" Value="{DynamicResource VP.TextSecondaryBrush}" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding UpdateVM.UpdateAvailable}" Value="True">
-                                    <Setter Property="Foreground" Value="{DynamicResource VP.SuccessTextBrush}" />
-                                </DataTrigger>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter Property="Foreground" Value="{DynamicResource VP.AccentTextBrush}" />
                                     <Setter Property="TextDecorations" Value="Underline" />
@@ -534,7 +531,7 @@
                             </Style.Triggers>
                         </Style>
                     </TextBlock.Style>
-                    <Run Text="{Binding UpdateVM.StatusText, Mode=OneWay}" />
+                    <Run Text="v" /><Run Text="{Binding UpdateVM.CurrentVersion, Mode=OneWay}" />
                 </TextBlock>
             </Grid>
         </Grid>
