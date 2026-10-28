@@ -148,6 +148,7 @@ public partial class MainWindow
 
         ChatPanel.OpenSettingsRequested += () => OpenSettingsDialog();
         TreemapView.AskAiRequested += AskAiAboutEntry;
+        TreemapView.MultiSelectionReferenced += ReferenceMultiSelectionToChat;
         TreeViewControl.AskAiRequested += AskAiAboutEntry;
         TreeViewControl.EntrySelected += OnTreeViewEntrySelected;
 
@@ -173,6 +174,22 @@ public partial class MainWindow
         _chatViewModel.InputText = entry.IsDirectory
             ? $"深入分析这个目录的空间占用：{entry.Path}"
             : $"分析这个文件的空间占用和清理风险：{entry.Path}";
+        ChatPanel.FocusInput();
+    }
+
+    private void ReferenceMultiSelectionToChat(IReadOnlyList<FileEntry> entries)
+    {
+        if (_chatViewModel is null || entries.Count == 0)
+            return;
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("以下是我在磁盘地图上多选的文件/文件夹，请帮我分析：");
+        foreach (var e in entries.OrderByDescending(e => e.Size))
+        {
+            string type = e.IsDirectory ? "文件夹" : "文件";
+            sb.AppendLine($"- [{type}] {e.Path}（{FileSizeConverter.FormatSize(e.Size)}）");
+        }
+        _chatViewModel.InputText = sb.ToString();
         ChatPanel.FocusInput();
     }
     private void TreemapViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)

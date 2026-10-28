@@ -35,6 +35,8 @@
     <Description>Disk space management Copilot</Description>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- 沿用main的正式/测试清单，兼容此前树状图测试包参数；不向依赖项目传全局清单。 -->
+    <DiskPilotTestPackage Condition="'$(DiskPilotTestPackage)' == '' and '$(DiskPilotRequestElevation)' == 'false'">true</DiskPilotTestPackage>
     <ApplicationManifest Condition="'$(DiskPilotTestPackage)' != 'true'">app.manifest</ApplicationManifest>
     <ApplicationManifest Condition="'$(DiskPilotTestPackage)' == 'true'">app.test.manifest</ApplicationManifest>
     <Version>1.0.0</Version>

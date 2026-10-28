@@ -132,6 +132,7 @@ internal sealed class AcceptanceAutomationServer : IDisposable
             "csharp_skill_probe" => _window.AcceptanceCSharpSkill(request.Text),
             "csharp_skill_probe_state" => _window.AcceptanceCSharpSkillState(),
             "treemap_pointer" => _window.AcceptanceTreemapPointer(request.X, request.Y, request.Text),
+            "treemap_wheel" => _window.AcceptanceTreemapWheel(request.X, request.Y, request.Delta),
             "ask_user" => _window.AcceptanceAskUser(request.Text),
             "show_skill" => _window.AcceptanceShowSkill(request.Text),
             "capture" => _window.AcceptanceCapture(request.Path,request.Text),
@@ -145,6 +146,7 @@ internal sealed class AcceptanceAutomationServer : IDisposable
             "edit" => ExecuteEditMode(),
             "blur" => ExecuteBlur(),
             "click_coord" => ExecuteClickCoord(request),
+            "drag_coord" => ExecuteDragCoord(request),
             "cursor_pos" => ExecuteCursorPos(),
             "type_text" => ExecuteTypeText(request),
             _ => throw new InvalidOperationException("Unknown acceptance command: " + request.Command),
@@ -229,6 +231,34 @@ internal sealed class AcceptanceAutomationServer : IDisposable
         return new { before = new { X = before.X, Y = before.Y }, target = new { X = screenX, Y = screenY }, after = new { X = after.X, Y = after.Y }, moved = (after.X == screenX && after.Y == screenY) };
     }
 
+    private object ExecuteDragCoord(AcceptanceRequest request)
+    {
+        if (!request.X.HasValue || !request.Y.HasValue || !request.X2.HasValue || !request.Y2.HasValue)
+            throw new InvalidOperationException("drag_coord requires x, y, x2, y2");
+
+        var button = request.Button ?? "left";
+        uint downFlag = button is "middle" or "m" ? MOUSEEVENTF_MIDDLEDOWN
+            : button is "right" or "r" ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_LEFTDOWN;
+        uint upFlag = button is "middle" or "m" ? MOUSEEVENTF_MIDDLEUP
+            : button is "right" or "r" ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_LEFTUP;
+
+        SetCursorPos(request.X.Value, request.Y.Value);
+        Thread.Sleep(30);
+        mouse_event(downFlag, 0, 0, 0, UIntPtr.Zero);
+        Thread.Sleep(30);
+        const int steps = 8;
+        for (int i = 1; i <= steps; i++)
+        {
+            int ix = request.X.Value + (request.X2.Value - request.X.Value) * i / steps;
+            int iy = request.Y.Value + (request.Y2.Value - request.Y.Value) * i / steps;
+            SetCursorPos(ix, iy);
+            Thread.Sleep(25);
+        }
+        mouse_event(upFlag, 0, 0, 0, UIntPtr.Zero);
+        Thread.Sleep(50);
+        return new { from = new { request.X, request.Y }, to = new { request.X2, request.Y2 }, button };
+    }
+
     private object ExecuteTypeText(AcceptanceRequest request)
     {
         if (string.IsNullOrEmpty(request.Text))
@@ -297,12 +327,14 @@ internal sealed class AcceptanceAutomationServer : IDisposable
     private const uint MOUSEEVENTF_LEFTUP = 0x0004;
     private const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
     private const uint MOUSEEVENTF_RIGHTUP = 0x0010;
+    private const uint MOUSEEVENTF_MIDDLEDOWN = 0x0020;
+    private const uint MOUSEEVENTF_MIDDLEUP = 0x0040;
     private const uint KEYEVENTF_UNICODE = 0x0004;
     private const uint KEYEVENTF_KEYUP = 0x0002;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    private sealed record AcceptanceRequest(string Command, string? Path, string? Text, string? Button, int? X, int? Y);
+    private sealed record AcceptanceRequest(string Command, string? Path, string? Text, string? Button, int? X, int? Y, int? Delta, int? X2, int? Y2);
 
     private sealed record AcceptanceResponse(bool Ok, string? Error, object? Data);
 }

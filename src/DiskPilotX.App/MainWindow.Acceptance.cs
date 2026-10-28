@@ -24,16 +24,31 @@ namespace DiskPilotX.App;
 
 public partial class MainWindow
 {
+    /// <summary>验收注入滚轮缩放（程序化事件拿不到指定坐标，走与 OnMouseWheel 等价的内部路径）。</summary>
+    internal object AcceptanceTreemapWheel(int? x, int? y, int? delta)
+    {
+        var control = (Controls.TreemapControl)TreemapView.FindName("Treemap");
+        control.RaiseWheelAt(x ?? 0, y ?? 0, delta ?? 0);
+        return GetAcceptanceState();
+    }
+
     internal object AcceptanceTreemapPointer(int? x, int? y, string? action)
     {
         var control = (Controls.TreemapControl)TreemapView.FindName("Treemap");
         var position = new Point(x ?? -1, y ?? -1);
         switch (action)
         {
-            case "move": control.HandleHover(position); break;
+            case "move": control.HandlePointerMove(position); break;
+            case "left_down": control.HandleLeftPress(position, 1, false); break;
+            case "left_up": control.HandleLeftRelease(position); break;
+            case "middle_click":
+                control.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Middle)
+                    { RoutedEvent = Mouse.MouseDownEvent });
+                break;
             case "leave": control.HandleHover(new Point(-1, -1)); break;
-            case "click": control.HandleClick(position, 1); break;
-            case "double_click": control.HandleClick(position, 2); break;
+            case "click": control.HandleClick(position, 1, false); break;
+            case "ctrl_click": control.HandleClick(position, 1, true); break;
+            case "double_click": control.HandleClick(position, 2, false); break;
             case "nodes": break;
             default: throw new InvalidOperationException("不支持的树状图验收动作。");
         }
@@ -42,13 +57,20 @@ public partial class MainWindow
             ProcessId = Environment.ProcessId,
             CurrentRootPath = _treemapViewModel?.CurrentRoot?.Path,
             SelectedPath = _treemapViewModel?.SelectedNode?.Entry.Path,
+            MultiSelectedPaths = control.MultiSelection.Select(node => node.Entry.Path).ToArray(),
             HoveredPath = _treemapViewModel?.HoveredNode?.Entry.Path,
             Width = control.ActualWidth,
             Height = control.ActualHeight,
+            Viewport = new { control.Viewport.Zoom, PanX = control.Viewport.X, PanY = control.Viewport.Y },
+            TypeColors = _treemapViewModel?.TypeColors,
+            RenderStats = new { control.RenderedNodeCount, control.TitleClipNodeCount, control.RenderedLabelCount },
             Nodes = action == "nodes" ? control.Nodes?.Select(n => new
             {
                 n.Entry.Name, n.Entry.Path, n.Entry.IsDirectory,
-                n.X, n.Y, n.Width, n.Height, n.Depth, n.Label
+                n.X, n.Y, n.Width, n.Height, n.Depth, n.Label, n.SizeLabel, n.ColorHex, n.ContentColorHex, n.AggregatedCount, n.AggregatedSize,
+                ScreenX = n.X * control.Viewport.Zoom + control.Viewport.X,
+                ScreenY = n.Y * control.Viewport.Zoom + control.Viewport.Y,
+                ScreenWidth = n.Width * control.Viewport.Zoom, ScreenHeight = n.Height * control.Viewport.Zoom
             }).ToArray() : null,
         };
     }

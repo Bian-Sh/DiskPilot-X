@@ -15,6 +15,8 @@ public partial class TreemapViewModel : ObservableObject
     private readonly Stack<FileEntry> _navigationStack = new();
     private readonly Stack<FileEntry> _forwardStack = new();
     private FileEntry? _scanRoot;
+    private TreemapColorContext? _colorContext;
+    internal IReadOnlyList<TreemapTypeColor> TypeColors => _colorContext?.FileTypes ?? Array.Empty<TreemapTypeColor>();
 
     public FileEntry? ScanRoot => _scanRoot;
     private ScanSession? _session;
@@ -27,6 +29,9 @@ public partial class TreemapViewModel : ObservableObject
 
     [ObservableProperty]
     private TreemapNode? _hoveredNode;
+
+    [ObservableProperty]
+    private IReadOnlyList<TreemapNode> _multiSelection = Array.Empty<TreemapNode>();
 
     [ObservableProperty]
     private List<TreemapNode>? _nodes;
@@ -52,14 +57,25 @@ public partial class TreemapViewModel : ObservableObject
     [ObservableProperty]
     private float _viewHeight;
 
+    /// <summary>缩放级别（1x 起）。驱动 LOD：越大，布局展开的层级越深（更多子节点生长）。</summary>
+    [ObservableProperty]
+    private float _zoom = 1f;
+
     public TreemapViewModel(ITreemapLayoutEngine layoutEngine)
     {
         _layoutEngine = layoutEngine;
     }
 
+    partial void OnCurrentRootChanged(FileEntry? value)
+    {
+        // 每次进入新层级从完整视图起步，控制器负责恢复滚轮返回时的父级视口。
+        Zoom = 1f;
+    }
+
     public void SetRoot(FileEntry root, ScanSession? session = null)
     {
         _scanRoot = root;
+        _colorContext = TreemapColorContext.Create(root);
         _session = session;
         _navigationStack.Clear();
         _forwardStack.Clear();
@@ -315,6 +331,37 @@ public partial class TreemapViewModel : ObservableObject
         RecomputeLayout();
     }
 
+    /// <summary>同步多选集合（由 TreemapControl 交互驱动）。</summary>
+    public void SetMultiSelection(IReadOnlyList<TreemapNode> selection)
+    {
+        MultiSelection = selection;
+    }
+
+    /// <summary>
+    /// 定位到指定节点（目录或文件）并返回对应节点，供 focus_path 调用。
+    /// 目录直接钻取；文件则定位到其父目录并高亮该文件节点。
+    /// </summary>
+    public TreemapNode? FocusPath(string path, bool highlight)
+    {
+        if (string.IsNullOrWhiteSpace(path) || _scanRoot is null) return null;
+        var entry = FindEntryByPath(_scanRoot, path.Trim());
+        if (entry is null) return null;
+
+        var viewRoot = entry.IsDirectory ? entry : entry.Parent;
+        if (viewRoot is null) return null;
+
+        if (viewRoot != CurrentRoot)
+        {
+            NavigateToEntry(viewRoot);
+        }
+
+        // 在重算后的布局里定位目标节点。
+        var target = Nodes?.FirstOrDefault(n => n.Entry.Path.Equals(entry.Path, StringComparison.OrdinalIgnoreCase));
+        if (target is not null && highlight)
+            SelectedNode = target;
+        return target;
+    }
+
     public void ApplyCleanupResults(List<CleanupAction> results, ScanSession session)
     {
         var query = new FileTreeQueryService();
@@ -368,6 +415,8 @@ public partial class TreemapViewModel : ObservableObject
         if (removed.Count == 0)
             return;
 
+        _colorContext = _scanRoot is null ? null : _colorContext?.Refresh(_scanRoot);
+
         if (SelectedNode is not null && removed.Contains(SelectedNode.Entry))
             SelectedNode = null;
         if (HoveredNode is not null && removed.Contains(HoveredNode.Entry))
@@ -412,7 +461,20 @@ public partial class TreemapViewModel : ObservableObject
             return;
         }
 
-        Nodes = _layoutEngine.ComputeLayout(CurrentRoot, ViewWidth, ViewHeight, maxDepth: 8);
+        var nodes = _layoutEngine.ComputeLayout(CurrentRoot, ViewWidth, ViewHeight, maxDepth: 64, zoom: Zoom);
+        _colorContext?.Apply(nodes);
+        Nodes = nodes;
+        // 导航/钻取后清空多选集合。
+        MultiSelection = Array.Empty<TreemapNode>();
+    }
+
+    /// <summary>更新缩放级别并触发 LOD 重布局（zoom 增大展开更多层级）。</summary>
+    public void SetZoom(float zoom)
+    {
+        var clamped = Math.Clamp(zoom, 1f, 8f);
+        if (Math.Abs(clamped - Zoom) < 1e-4f) return;
+        Zoom = clamped;
+        RecomputeLayoutForCurrentRoot();
     }
 
     private static string FormatSize(long bytes)

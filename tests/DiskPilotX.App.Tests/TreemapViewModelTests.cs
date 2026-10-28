@@ -78,6 +78,6 @@ public class TreemapViewModelTests
 
     private sealed class StubTreemapLayoutEngine : ITreemapLayoutEngine
     {
-        public List<TreemapNode> ComputeLayout(FileEntry root, float width, float height, int maxDepth) => [];
+        public List<TreemapNode> ComputeLayout(FileEntry root, float width, float height, int maxDepth, float zoom = 1f) => [];
     }
 }

@@ -4,11 +4,11 @@ namespace DiskPilotX.Core.Services.Treemap;
 
 public class SquarifiedTreemapLayout : ITreemapLayoutEngine
 {
-    private const float HeaderBaseHeight = 18f;
-    private const float HeaderMinHeight = 14f;
-    private const float BorderBasePadding = 1f;
-    private const float BorderMinPadding = 1f;
-    private const float MinNodeDimension = 14f;
+    private const float MinNodeDimension = 1.25f;
+
+    // 逻辑坐标 = 屏幕像素 / zoom：cell 规格（标题栏、边框、最小尺寸）按屏幕像素恒定，
+    // 缩放只改变内容区大小与 LOD 细节，title 区域在屏幕上始终不变。
+    private static float Spec(float screenPx, float zoom) => screenPx / Math.Max(zoom, 1e-6f);
 
     // A directory only expands its children if the content area (after header
     // and border) meets this minimum.  Below this threshold the directory is
@@ -17,44 +17,40 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
     private const float MinContentArea = 800f;  // ~28×28 px equivalent
 
     // Maximum children to render per directory.
-    private const int MaxChildrenPerDir = 20;
+    internal const int MaxChildrenPerDir = 128;
 
-    // Keep whole-drive scans responsive even when several large directories
-    // each have many visible descendants.
-    private const int MaxVisibleNodes = 2000;
+    // 不按全图节点总数截断：深度优先遍历耗尽预算会丢失后续同级区域。
+    // 布局规模由屏幕像素 LOD、目录长尾聚合与深度上限约束；视口外节点由绘制层剔除。
 
+    // LOD 生长：zoom 越大，展开子节点所需的面积阈值越小（按 zoom² 缩放），
+    // 于是更多目录跨过阈值、向下展开更多层级 —— 等价于地图加载更细瓦片。
+    // zoom=1 时用基础阈值；zoom=2 时阈值降为 1/4，更多目录展开。
+    private static float LodContentArea(float zoom) =>
+        MinContentArea / Math.Max(zoom * zoom, 1f);
+
+
+    // 目录（含标题栏区域）使用中性深灰，不做彩色编码；仅文件 cell 按类型上色。
     private const string DirectoryColor = "#303030";
 
-    private static readonly string[] FilePalette =
-    [
-        "#7137A0", "#B2762B", "#87912F", "#246EAA",
-        "#26834B", "#A53A3A", "#258D8B", "#66666D",
-    ];
+    // 布局引擎的独立调用使用稳定回退色；App随后用整次扫描的缓存映射赋予完整语义。
+    private static string GetFileColor(FileEntry entry) => TreemapColorContext.GetFallbackFileColor(entry);
 
-    private static string GetFileColor(FileEntry entry)
+    private sealed record LayoutItem(FileEntry Entry, long Size, int AggregatedCount = 0);
+
+    // 折叠目录用最大占用后代的类型色表示内容；层级很深或无读取权限时用稳定的路径色。
+    private static string GetDirectoryContentColor(FileEntry directory)
     {
-        string extension = (entry.Extension ?? System.IO.Path.GetExtension(entry.Name)).ToLowerInvariant();
-        return extension switch
+        var current = directory;
+        for (int depth = 0; depth < 64; depth++)
         {
-            ".nvph" or ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif" => FilePalette[0],
-            ".dll" or ".node" or ".lib" => FilePalette[1],
-            ".exe" or ".pak" or ".pack" => FilePalette[2],
-            ".js" or ".ts" or ".cs" or ".py" or ".css" or ".html" => FilePalette[3],
-            ".asar" or ".vpk" or ".msi" => FilePalette[4],
-            ".sys" or ".pdf" => FilePalette[5],
-            ".zip" or ".7z" or ".rar" or ".mp4" or ".mp3" or ".wav" => FilePalette[6],
-            "" or ".json" or ".log" or ".txt" or ".vhdx" or ".bin" => FilePalette[7],
-            _ => FilePalette[GetExtensionColorIndex(extension)],
-        };
-    }
-
-    private static int GetExtensionColorIndex(string extension)
-    {
-        // 使用固定散列，未知扩展名在不同进程、目录和扫描中保持同色。
-        uint hash = 2166136261;
-        foreach (char character in extension)
-            hash = unchecked((hash ^ character) * 16777619);
-        return (int)(hash % (uint)FilePalette.Length);
+            if (!current.IsDirectory) return GetFileColor(current);
+            FileEntry? largest = null;
+            foreach (var child in current.Children)
+                if (child.Size > 0 && (largest is null || child.Size > largest.Size)) largest = child;
+            if (largest is null) break;
+            current = largest;
+        }
+        return "#858C96";
     }
 
     private struct Rect
@@ -70,28 +66,32 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         public float ShorterSide => Math.Min(Width, Height);
     }
 
-    public List<TreemapNode> ComputeLayout(FileEntry root, float width, float height, int maxDepth)
+    public List<TreemapNode> ComputeLayout(FileEntry root, float width, float height, int maxDepth, float zoom = 1f)
     {
         var result = new List<TreemapNode>();
 
         if (root.Size <= 0 || width <= 4 || height <= 4)
             return result;
 
-        // 固定预留外描边空间，选中时无需缩小或重排任何 cell。
-        var rootRect = new Rect(2, 2, width - 4, height - 4);
-        EmitDirectoryNode(root, rootRect, 0, maxDepth, result);
+        // 深度只作为安全上限；真实 LOD 由屏幕面积决定，避免大目录被硬性截成灰块。
+        int effectiveMaxDepth = Math.Clamp(maxDepth, 0, 64);
+
+        // 固定预留外描边空间（屏幕像素恒定），选中时无需缩小或重排任何 cell。
+        float rootPad = Spec(2f, zoom);
+        var rootRect = new Rect(rootPad, rootPad, width - rootPad * 2, height - rootPad * 2);
+        EmitDirectoryNode(root, rootRect, 0, effectiveMaxDepth, zoom, result);
 
         return result;
     }
 
     private void EmitDirectoryNode(
-        FileEntry dir, Rect rect, int depth, int maxDepth,
+        FileEntry dir, Rect rect, int depth, int maxDepth, float zoom,
         List<TreemapNode> result)
     {
-        float headerHeight = GetHeaderHeight(depth, rect.Height);
+        float headerHeight = TreemapLabelPolicy.DirectoryHeaderHeight(rect.Width, rect.Height, depth, zoom);
 
-        string? label = rect.Width >= 20 && headerHeight >= HeaderMinHeight
-            ? $"{dir.Name} ({FormatSize(dir.Size)})"
+        string? label = headerHeight > 0
+            ? dir.Name
             : null;
 
         string color = DirectoryColor;
@@ -104,25 +104,27 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
             Width = rect.Width,
             Height = rect.Height,
             ColorHex = color,
+            ContentColorHex = GetDirectoryContentColor(dir),
             Depth = depth,
-            IsVisible = rect.Width >= MinNodeDimension && rect.Height >= MinNodeDimension,
-            Label = label
+            IsVisible = rect.Width >= Spec(MinNodeDimension, zoom) && rect.Height >= Spec(MinNodeDimension, zoom),
+            Label = label,
+            SizeLabel = FormatSize(dir.Size)
         };
         result.Add(node);
 
-        if (depth >= maxDepth || result.Count >= MaxVisibleNodes)
+        if (depth >= maxDepth)
             return;
 
-        float borderPad = GetBorderPadding(depth, rect.Width, rect.Height);
+        float borderPad = GetBorderPadding(rect.Width, rect.Height, zoom);
         float contentX = rect.X + borderPad;
-        float contentY = rect.Y + headerHeight;
+        float contentY = rect.Y + Math.Max(headerHeight, borderPad);
         float contentW = rect.Width - borderPad * 2;
-        float contentH = rect.Height - headerHeight - borderPad;
+        float contentH = rect.Height - Math.Max(headerHeight, borderPad) - borderPad;
 
-        // Area-based pruning: if the content area is too small to show
-        // meaningful children, treat this directory as a leaf (solid block).
-        if (contentW < MinNodeDimension || contentH < MinNodeDimension
-            || contentW * contentH < MinContentArea)
+        // LOD 面积阈值随 zoom 缩放：放大后更多目录跨过阈值、展开子节点。
+        float lodArea = LodContentArea(zoom);
+        if (contentW < Spec(MinNodeDimension, zoom) || contentH < Spec(MinNodeDimension, zoom)
+            || contentW * contentH < lodArea)
             return;
 
         var allChildren = dir.Children
@@ -133,27 +135,31 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         if (allChildren.Count == 0)
             return;
 
-        var children = allChildren.Count > MaxChildrenPerDir
-            ? allChildren.Take(MaxChildrenPerDir).ToList()
-            : allChildren;
+        var children = allChildren.Take(MaxChildrenPerDir)
+            .Select(c => new LayoutItem(c, c.Size)).ToList();
+        if (allChildren.Count > MaxChildrenPerDir)
+        {
+            long tailSize = allChildren.Skip(MaxChildrenPerDir).Sum(c => c.Size);
+            children.Add(new LayoutItem(dir, tailSize, allChildren.Count - MaxChildrenPerDir));
+        }
 
         var contentRect = new Rect(contentX, contentY, contentW, contentH);
-        SquarifyChildren(children, contentRect, depth + 1, maxDepth, result);
+        SquarifyChildren(children, contentRect, depth + 1, maxDepth, zoom, result);
     }
 
     private void SquarifyChildren(
-        List<FileEntry> items, Rect rect, int depth, int maxDepth,
+        List<LayoutItem> items, Rect rect, int depth, int maxDepth, float zoom,
         List<TreemapNode> result)
     {
-        if (depth > maxDepth || items.Count == 0 || rect.Area <= 0 || result.Count >= MaxVisibleNodes)
+        if (depth > maxDepth || items.Count == 0 || rect.Area <= 0)
             return;
 
-        if (rect.Width < MinNodeDimension || rect.Height < MinNodeDimension)
+        if (rect.Width < Spec(MinNodeDimension, zoom) || rect.Height < Spec(MinNodeDimension, zoom))
             return;
 
         if (items.Count == 1)
         {
-            EmitNode(items[0], rect, depth, maxDepth, result);
+            EmitNode(items[0], rect, depth, maxDepth, zoom, result);
             return;
         }
 
@@ -162,18 +168,18 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
             .Select(i => (float)((double)i.Size / totalSize * rect.Area))
             .ToList();
 
-        LayoutItems(items, normalizedAreas, rect, depth, maxDepth, result);
+        LayoutItems(items, normalizedAreas, rect, depth, maxDepth, zoom, result);
     }
 
     private void LayoutItems(
-        List<FileEntry> items, List<float> areas, Rect rect,
-        int depth, int maxDepth,
+        List<LayoutItem> items, List<float> areas, Rect rect,
+        int depth, int maxDepth, float zoom,
         List<TreemapNode> result)
     {
         var remaining = new Rect(rect.X, rect.Y, rect.Width, rect.Height);
         int start = 0;
 
-        while (start < items.Count && result.Count < MaxVisibleNodes)
+        while (start < items.Count)
         {
             float shorterSide = remaining.ShorterSide;
             if (shorterSide <= 0)
@@ -198,15 +204,15 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
 
             int rowCount = end - start;
             remaining = LayoutRow(items, areas, start, rowCount, remaining,
-                depth, maxDepth, result);
+                depth, maxDepth, zoom, result);
             start = end;
         }
     }
 
     private Rect LayoutRow(
-        List<FileEntry> items, List<float> areas,
+        List<LayoutItem> items, List<float> areas,
         int startIndex, int count, Rect rect,
-        int depth, int maxDepth,
+        int depth, int maxDepth, float zoom,
         List<TreemapNode> result)
     {
         float rowTotal = 0;
@@ -243,10 +249,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
                 h = stripThickness;
             }
 
-            if (result.Count >= MaxVisibleNodes)
-                break;
-
-            EmitNode(items[i], new Rect(x, y, w, h), depth, maxDepth, result);
+            EmitNode(items[i], new Rect(x, y, w, h), depth, maxDepth, zoom, result);
             offset += itemLength;
         }
 
@@ -257,15 +260,26 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
     }
 
     private void EmitNode(
-        FileEntry entry, Rect rect, int depth, int maxDepth,
+        LayoutItem item, Rect rect, int depth, int maxDepth, float zoom,
         List<TreemapNode> result)
     {
-        if (result.Count >= MaxVisibleNodes || rect.Width < MinNodeDimension || rect.Height < MinNodeDimension)
+        if (rect.Width < Spec(MinNodeDimension, zoom) || rect.Height < Spec(MinNodeDimension, zoom))
             return;
 
-        if (entry.IsDirectory)
+        var entry = item.Entry;
+        if (item.AggregatedCount > 0)
         {
-            EmitDirectoryNode(entry, rect, depth, maxDepth, result);
+            result.Add(new TreemapNode
+            {
+                Entry = entry, X = rect.X, Y = rect.Y, Width = rect.Width, Height = rect.Height,
+                Depth = depth, ColorHex = GetDirectoryContentColor(entry),
+                AggregatedCount = item.AggregatedCount, AggregatedSize = item.Size,
+                Label = $"+{item.AggregatedCount} 项 ({FormatSize(item.Size)})",
+            });
+        }
+        else if (entry.IsDirectory)
+        {
+            EmitDirectoryNode(entry, rect, depth, maxDepth, zoom, result);
         }
         else
         {
@@ -273,8 +287,8 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
 
             // Always provide a label if the rectangle has any visible area.
             // The renderer handles truncation and fitting.
-            string? label = rect.Width >= 20 && rect.Height >= 10
-                ? $"{entry.Name} ({FormatSize(entry.Size)})"
+            string? label = TreemapLabelPolicy.ShowFileLabel(rect.Width, rect.Height, zoom)
+                ? entry.Name
                 : null;
 
             result.Add(new TreemapNode
@@ -292,18 +306,9 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         }
     }
 
-    private static float GetHeaderHeight(int depth, float availableHeight)
+    private static float GetBorderPadding(float width, float height, float zoom)
     {
-        float h = HeaderBaseHeight - depth * 1.5f;
-        h = Math.Max(h, HeaderMinHeight);
-        h = Math.Min(h, availableHeight * 0.4f);
-        return h;
-    }
-
-    private static float GetBorderPadding(int depth, float width, float height)
-    {
-        float p = BorderBasePadding - depth * 0.5f;
-        p = Math.Max(p, BorderMinPadding);
+        float p = Spec(1f, zoom);
         // Don't let padding eat too much of small nodes.
         p = Math.Min(p, width * 0.08f);
         p = Math.Min(p, height * 0.08f);

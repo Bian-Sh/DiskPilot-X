@@ -165,5 +165,5 @@ public class CleanupProjectionTests
         vm.SetRoot(root, session);
         return (vm, session, cache, nested, file);
     }
-    private sealed class Layout:ITreemapLayoutEngine{public List<TreemapNode> ComputeLayout(FileEntry root,float width,float height,int maxDepth)=>[];}
+    private sealed class Layout:ITreemapLayoutEngine{public List<TreemapNode> ComputeLayout(FileEntry root,float width,float height,int maxDepth,float zoom = 1f)=>[];}
 }
