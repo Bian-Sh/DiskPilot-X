@@ -1,3 +1,4 @@
+using System.Globalization;
 using DiskPilotX.Core.Models;
 using DiskPilotX.Core.Services.Skills;
 
@@ -13,9 +14,15 @@ public sealed class SteamLaunchDetectionTests : IDisposable
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), "steam-launch-" + Guid.NewGuid().ToString("N"));
 
-    [Fact]
-    public async Task LaunchStateFollowsManifestAndNeverFabricatesFromDirectoryMtime()
+    [Theory]
+    [InlineData("zh-CN")]
+    [InlineData("en-US")]
+    public async Task LaunchStateFollowsManifestAndNeverFabricatesFromDirectoryMtime(string hostCulture)
     {
+        var original = CultureInfo.CurrentUICulture;
+        CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(hostCulture);
+        try
+        {
         var solutionRoot = FindSolutionRoot();
         Assert.True(solutionRoot is not null, "未定位到解决方案根目录");
         if (solutionRoot is null) return;
@@ -67,6 +74,9 @@ public sealed class SteamLaunchDetectionTests : IDisposable
         var table = result.View!.Sections.Single(section => section.Kind == SkillUiSectionKind.Table);
         var row200 = table.Items.Single(item => item.AppId == "200");
         Assert.Equal("从未启动",new SkillTextCatalog(result.View.Localizations).Resolve(row200.Cells![2],"zh-CN"));
+        }
+
+        finally { CultureInfo.CurrentUICulture = original; }
     }
 
     private static Dictionary<string, string> PosterBadges(SkillUiSpec? view)
@@ -185,6 +195,8 @@ public sealed class SteamLaunchDetectionTests : IDisposable
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
         public string SkillId => "steam-library-organizer";
+        // 断言中文展示时显式固定技能语言，不能依赖CI机器默认语言。
+        public SkillLocalizationState GetLocalizationState() => new("zh-CN", "zh-CN", "zh-CN");
         public IReadOnlyDictionary<string, string> Parameters { get; } = new Dictionary<string, string>(StringComparer.Ordinal);
         public void Log(string message) { }
 
