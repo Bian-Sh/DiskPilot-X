@@ -22,9 +22,10 @@ public partial class MainWindow
         return ModalHost.ShowMessageAsync(message, title, buttons, image);
     }
 
-    private Task<int> ShowAppModalAsync(string title, string content, ModalMessageType messageType, ModalButtonFlags buttonFlags)
+    private Task<int> ShowAppModalAsync(string title, string content, ModalMessageType messageType, ModalButtonFlags buttonFlags,
+        TextAlignment contentTextAlignment = TextAlignment.Left, ModalMessageType? contentIconType = null)
     {
-        return ModalHost.ShowAsync(title, content, messageType, buttonFlags);
+        return ModalHost.ShowAsync(title, content, messageType, buttonFlags, contentTextAlignment, contentIconType);
     }
 
     private Task<bool?> ShowAppContentAsync(FrameworkElement content, double maxWidth = 620, double maxHeight = 700)

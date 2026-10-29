@@ -126,12 +126,15 @@ public partial class MainWindow
         var header = root.Children.OfType<Border>().FirstOrDefault();
         var title = header?.Child as TextBlock;
         var scroll = root.Children.OfType<ScrollViewer>().FirstOrDefault();
-        var body = (scroll?.Content as Grid)?.Children.OfType<TextBlock>().FirstOrDefault();
+        var bodyContent = (scroll?.Content as Grid)?.Children.OfType<FrameworkElement>().FirstOrDefault();
+        var bodyGroup = bodyContent as Grid;
+        var body = bodyContent as TextBlock ?? bodyGroup?.Children.OfType<TextBlock>().FirstOrDefault();
+        var icon = bodyGroup?.Children.OfType<Grid>().FirstOrDefault(element => element.Name == "ModalBodyIcon");
         var footer = root.Children.OfType<StackPanel>().FirstOrDefault();
         var viewport = scroll?.Template?.FindName("PART_ScrollContentPresenter", scroll) as FrameworkElement;
         if (header is null || title is null || scroll is null || body is null || footer is null
             || viewport is null || !body.IsArrangeValid || viewport.ActualHeight <= 0) return null;
-        var textOrigin = body.TranslatePoint(new Point(), viewport);
+        var textOrigin = bodyContent!.TranslatePoint(new Point(), viewport);
         var footerOrigin = footer.TranslatePoint(new Point(), card);
         return new
         {
@@ -139,8 +142,12 @@ public partial class MainWindow
             WindowWidth = ActualWidth, WindowHeight = ActualHeight,
             TitleFontSize = title.FontSize, TitleColor = (title.Foreground as SolidColorBrush)?.Color.ToString(),
             HeaderColor = (header.Background as SolidColorBrush)?.Color.ToString(),
-            BodyHeight = body.ActualHeight, ViewportHeight = viewport.ActualHeight,
-            GapAbove = textOrigin.Y, GapBelow = viewport.ActualHeight - textOrigin.Y - body.ActualHeight,
+            BodyHeight = bodyContent.ActualHeight, ViewportHeight = viewport.ActualHeight,
+            BodyTextAlignment = body.TextAlignment.ToString(), BodyIconType = icon?.Tag?.ToString(),
+            BodyIconTop = icon?.TranslatePoint(new Point(), viewport).Y,
+            BodyText = new System.Windows.Documents.TextRange(body.ContentStart, body.ContentEnd).Text,
+            GapAbove = textOrigin.Y, GapBelow = viewport.ActualHeight - textOrigin.Y - bodyContent.ActualHeight,
+            GapLeft = textOrigin.X, GapRight = viewport.ActualWidth - textOrigin.X - bodyContent.ActualWidth,
             Overflow = scroll.ExtentHeight > scroll.ViewportHeight,
             ButtonBottomGap = card.ActualHeight - footerOrigin.Y - footer.ActualHeight
         };
