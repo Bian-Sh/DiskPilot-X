@@ -1,0 +1,291 @@
+schema: comet.native.v4
+name: scan-scope-progress-20261029
+language: zh-CN
+phase: verify
+status: await-user
+state_version: 6
+brief: brief.md
+document_constraints_version: 3
+shape_confirmation_hash: e5c2aa7477b1f5b8cb47e1c0c5f5c4cc1b46acd5d574aa646249e62be6ceef02
+spec_changes:
+  - capability: scan-scope-progress
+    operation: create
+    source: specs/scan-scope-progress/spec.md
+workspace:
+  isolation: current
+  change_branch: codex/scan-scope-progress-20261029
+  target_branch: codex/scan-scope-progress-20261029
+  finish: null
+loop:
+  stage: await-user
+  goal_cycle: 1
+  iteration: 1
+  attempt: 1
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: confirm-skill-coordinated-pass
+acceptance:
+  - id: A1
+    source: brief.md
+    text: A1 子目录首次扫描（包括带尾分隔符）只进入目录遍历，不尝试 MFT、不产生虚假 MFT 失败原因；实际数量及大小一致。
+    result: passed
+    reason:
+      text: 独立审阅 IncrementalFileScanner 的 useMft 卷根门控与 Fallback
+        条件，子目录和尾分隔符回归实际断言路线/无假回退/数量/大小；复用 scan-core-regression。原目录日志只有
+        FileScanner、无 Attempting MFT scan；后台 CaptureWatermark 仅建立目标树 FRN
+        索引，不枚举整盘 MFT。
+      truncated: false
+  - id: A2
+    source: brief.md
+    text: A2 卷根识别正确，整盘 MFT 和同路径 USN 增量分支保持可用；支持权限不足时真实回退及取消。
+    result: passed
+    reason:
+      text: 卷根 D:\、D:/、路径归一化和子目录判定测试通过；MFT 路线与同路径水位 USN 优先分支、取消回归通过。独立核对权限失败返回
+        null、上层真实回退及取消先于完成的代码链，原 USN 实现未改。未执行真实整盘 MFT/USN 扫描，不将分支测试声称为提权实盘验收。
+      truncated: false
+  - id: A3
+    source: brief.md
+    text: A3 整盘索引进度明确标注卷与索引记录数，不作为目标目录计数；构树/大小统计使用目标子树计数；简体、繁体、英文与无头入口一致。
+    result: passed
+    reason:
+      text: MftEnumerator 以卷根和 IsVolumeIndex=true
+        报告索引记录；构树/链接不沿用整盘总数，ParallelSizeCollector 仅计算目标树。普通与无头入口均调用
+        ScanProgressFormatter，简/繁/英资源及相关断言吻合；复用 scan-progress-localization。
+      truncated: false
+  - id: A4
+    source: brief.md
+    text: A4 单元回归通过，并使用非提权测试包 UI 扫描原始目标，得到 447 个文件、15 个文件夹（含根目录）、282794037 字节；不读取整盘
+      MFT。
+    result: passed
+    reason:
+      text: 复用三项有效 Runtime passed 记录，并独立解析全量
+        TRX：核心690通过/0失败，界面518通过/0失败/1既有跳过。PID49296路径和非提权令牌当前核实；只读 state
+        为447文件、15目录（含根）、282794037字节，后台UIA计数一致，结合原UI交互记录/WPF截图/日志确认无MFT；未重跑全量或另扫目标。
+      truncated: false
+  - id: A5
+    source: brief.md
+    text: A5 测试与管理员包均完整文件夹发布、包含运行时 DLL 和 skills；实际清单分别
+      asInvoker/requireAdministrator；真实发布目录中验证源码规则编译、授权的只读执行及失败诊断。记录真实源码来源，不宣称未做的提权后
+      UI 验收。
+    result: passed
+    reason:
+      text: 两个真实发布目录各453文件，运行时DLL与skills保留；直接读取EXE
+        RT_MANIFEST分别asInvoker/requireAdministrator，哈希匹配原记录。Portable
+        PDB校验和绑定当前源码/测试；实际3个业务DLL的全部8252方法IL/局部签名/异常区间、归一化MVID元数据、托管资源等价且进程未提权。只读读取发布进程源码探针确认编译/授权夹具执行及CS1519行列诊断；源码基线45fb5ba及未提交状态如实记录。未启动用户包或验收UAC/提权UI。
+      truncated: false
+builder_handoff:
+  candidate_id: b796189d-dc42-405c-a5e5-d48036dadcea
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:da629b11-2e58-4033-8c0d-9ba38dd85633
+  iteration: 1
+  summary:
+    text: 完成子目录直接遍历、卷根 MFT/USN 路线保留、索引进度显式标记、两种入口三语言文案，以及回归/发布环境/UI/清单验证。
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+    - A4
+    - A5
+  acceptance_review:
+    - id: A1
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.Core/Services/Scanning/IncrementalFileScanner.cs
+        - tests/DiskPilotX.Core.Tests/ScanScopeRegressionTests.cs
+        - work/scan-scope-progress-20261029/验收/原目录扫描日志.log
+      note: 直接遍历目标范围且不虚报 MFT 回退；尾分隔符及准确计数通过。
+    - id: A2
+      status: implemented-with-evidence
+      evidence:
+        - tests/DiskPilotX.Core.Tests/ScanScopeRegressionTests.cs
+        - src/DiskPilotX.Core/Services/Scanning/IncrementalFileScanner.State.cs
+        - src/DiskPilotX.Core/Services/Scanning/IncrementalFileScanner.Changes.cs
+      note: 卷根识别/MFT 路线取消/USN 水位优先级测试通过；原生增量实现未改变。
+    - id: A3
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.App/Localization/ScanProgressFormatter.cs
+        - tests/DiskPilotX.App.Tests/ScanProgressLocalizationTests.cs
+        - src/DiskPilotX.Core/Services/Scanning/ParallelSizeCollector.cs
+      note: MFT 枚举显式标记整盘索引，后续计数来自目标树，普通与无头入口共用三语言格式化。
+    - id: A4
+      status: implemented-with-evidence
+      evidence:
+        - work/scan-scope-progress-20261029/test-results/核心全量.trx
+        - work/scan-scope-progress-20261029/test-results/界面全量.trx
+        - work/scan-scope-progress-20261029/验收/原目录扫描结果.json
+        - work/scan-scope-progress-20261029/验收/原目录扫描完成-WPF.png
+      note: 核心690通过，App518通过/1既有跳过；真实非提权UI扫描447/15/282794037，仅FileScanner。
+    - id: A5
+      status: implemented-with-evidence
+      evidence:
+        - work/scan-scope-progress-20261029/发布路径.json
+        - work/scan-scope-progress-20261029/验收/发布环境源码与失败诊断.json
+        - work/scan-scope-progress-20261029/验收/Steam源码规则只读执行.json
+        - work/scan-scope-progress-20261029/验收/程序集与进程权限核验.json
+        - work/scan-scope-progress-20261029/验收记录.md
+      note: 实际清单分别asInvoker/requireAdministrator；完整文件夹及源码规则真实运行与失败诊断通过；业务程序集IL/资源一致，未声称管理员UI验收。
+  checks:
+    - name:
+        text: 核心全量
+        truncated: false
+      result: passed
+      note:
+        text: 690通过，0失败，0跳过，TRX已保存
+        truncated: false
+    - name:
+        text: 界面全量
+        truncated: false
+      result: passed
+      note:
+        text: 518通过，0失败，1既有跳过，TRX已保存
+        truncated: false
+    - name:
+        text: 真实发布环境与UI
+        truncated: false
+      result: passed
+      note:
+        text: 目标447/15/282794037，Steam只读规则与失败诊断、实际清单和令牌已核验
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: 未运行管理员包的UAC交互或提权后UI；已实际读取其EXE清单并比较业务程序集。
+      truncated: false
+    - text: 非提权测试进程不能读取真实USN；USN保留由匹配水位的分支测试、原实现未改及回归证实，未额外扫描整盘。
+      truncated: false
+    - text: 已有国家旗帜彩色像素测试跳过，NU1701与无关可空警告未修改。
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-10-29T01:02:05.980Z
+blockers:
+  - owner: user
+    reason:
+      text: The generic Skill bridge cannot prove an independent Verifier execution;
+        user confirmation is required before Archive.
+      truncated: false
+    acceptance_ids: []
+    resolution_action: await-user
+verification:
+  candidate_id: b796189d-dc42-405c-a5e5-d48036dadcea
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:6cb32496-1038-43a0-8b52-f51d9bcacc63
+  iteration: 1
+  attempt: 1
+  assurance: skill-coordinated
+  verdict: pass
+  checks:
+    - id: scan-core-regression
+      name:
+        text: 扫描范围与路线回归
+        truncated: false
+      argv_display:
+        - text: test
+          truncated: false
+        - text: tests/DiskPilotX.Core.Tests/DiskPilotX.Core.Tests.csproj
+          truncated: false
+        - text: --no-build
+          truncated: false
+        - text: --nologo
+          truncated: false
+        - text: --filter
+          truncated: false
+        - text: FullyQualifiedName~ScanScopeRegressionTests|FullyQualifiedName~ScannerExecutionTests
+          truncated: false
+        - text: --verbosity
+          truncated: false
+        - text: normal
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1739
+    - id: scan-progress-localization
+      name:
+        text: 三语言进度与共享格式化回归
+        truncated: false
+      argv_display:
+        - text: test
+          truncated: false
+        - text: tests/DiskPilotX.App.Tests/DiskPilotX.App.Tests.csproj
+          truncated: false
+        - text: --no-build
+          truncated: false
+        - text: --nologo
+          truncated: false
+        - text: --filter
+          truncated: false
+        - text: FullyQualifiedName~ScanProgressLocalizationTests
+          truncated: false
+        - text: --verbosity
+          truncated: false
+        - text: normal
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1727
+    - id: scan-release-evidence
+      name:
+        text: 真实发布、UI与源码规则证据核验
+        truncated: false
+      argv_display:
+        - text: -NoProfile
+          truncated: false
+        - text: -File
+          truncated: false
+        - text: work/scan-scope-progress-20261029/核验发布证据.ps1
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 652
+  summary:
+    text: 独立只读复核当前候选完成，A1-A5 全部通过，无必须修复问题或证据阻塞。复用三项有效 Runtime
+      检查，并独立核对差异、测试/发布PDB源码校验和、全量TRX、当前非提权进程状态/UIA、实际EXE清单、业务程序集等价性和发布源码探针。未启动管理员包、未执行真实Steam扫描或清理；未修改实现/规格/验收条件。
+    truncated: false
+  risks:
+    - text: 管理员用户交付包未启动；结论仅涵盖其实际 requireAdministrator 清单和发布内容一致性，不涵盖 UAC 交互或提权后 UI。
+      truncated: false
+    - text: 真实整盘 MFT 和真实 USN
+        增量未执行；保留能力的结论来自当前源码分支、未改的底层实现、匹配水位/取消回归及权限失败语义核对；非提权原目录日志明确 USN 不可用。
+      truncated: false
+    - text: cua-driver PrintWindow 本次仍返回纯色，不作为视觉成功证据；复用已查看的应用内 WPF 截图，并以当前后台完整
+        UIA、只读状态与日志交叉验证。
+      truncated: false
+    - text: App 全量中的既有国家旗帜彩色像素测试为 NotExecuted，不计通过；已有 NU1701/无关可空警告未修改。
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-10-29T01:15:40.406Z
+history:
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 独立只读复核当前候选完成，A1-A5 全部通过，无必须修复问题或证据阻塞。复用三项有效 Runtime
+        检查，并独立核对差异、测试/发布PDB源码校验和、全量TRX、当前非提权进程状态/UIA、实际EXE清单、业务程序集等价性和发布源码探针。未启动管理员包、未执行真实Steam扫描或清理；未修改实现/规格/验收条件。
+      truncated: false
+    completed_at: 2026-10-29T01:15:40.406Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pass
+verification_report: verification.md
+archived: false
+created_at: 2026-10-29T00:35:48.209Z

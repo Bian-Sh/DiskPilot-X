@@ -364,6 +364,9 @@
   <data name="ScanningStatus" xml:space="preserve">
     <value>正在扫描...</value>
   </data>
+  <data name="ScanVolumeIndexProgressStatus" xml:space="preserve">
+    <value>正在读取 {0} 整盘索引 — 已处理 {1:N0} 条文件记录、{2:N0} 条目录记录（非目标目录数量）</value>
+  </data>
   <data name="ScanProgressStatus" xml:space="preserve">
     <value>{0} — {1:N0} 个文件，{2:N0} 个文件夹</value>
   </data>

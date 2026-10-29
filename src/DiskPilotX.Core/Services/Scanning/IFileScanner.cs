@@ -5,6 +5,9 @@ namespace DiskPilotX.Core.Services.Scanning;
 public record ScanProgress(string CurrentPath, int FileCount, int FolderCount)
 {
     public ScanExecutionInfo? Execution { get; init; }
+
+    /// <summary>此阶段计数是整盘索引记录处理量，不是目标目录文件数量。</summary>
+    public bool IsVolumeIndex { get; init; }
 }
 
 public interface IFileScanner

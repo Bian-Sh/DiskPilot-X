@@ -13,6 +13,7 @@ using DiskPilotX.Core.Services.Assistant;
 using DiskPilotX.Core.Services.Cleanup;
 using DiskPilotX.Core.Services.FileTree;
 using DiskPilotX.Core.Services.Scanning;
+using DiskPilotX.App.Localization;
 using DiskPilotX.Core.Services.Settings;
 using DiskPilotX.Core.Services.Whitelist;
 
@@ -261,8 +262,7 @@ public partial class MainWindow
             var resolved=ScanPathResolver.Resolve(path);
             try
             {
-                var progress=new Progress<ScanProgress>(p=>main.ScanProgressText=
-                    $"正在无头扫描 {p.CurrentPath}（{p.FileCount} 个文件 / {p.FolderCount} 个文件夹）");
+                var progress=new Progress<ScanProgress>(p=>main.ScanProgressText=ScanProgressFormatter.Format(p));
                 var session=await main.ScanHeadlessAsync(resolved,ct,progress);
                 batch.Scopes.Add(new AssistantAnalysisScope { Path=resolved, Label=ScopeLabel(resolved), Session=session });
             }

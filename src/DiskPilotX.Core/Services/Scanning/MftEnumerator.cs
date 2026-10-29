@@ -140,8 +140,8 @@ internal static class MftEnumerator
                         if (scannedCount % ProgressInterval == 0)
                         {
                             progress.Report(new ScanProgress(
-                                "Reading file system",
-                                fileCount, folderCount));
+                                volumeRoot,
+                                fileCount, folderCount) { IsVolumeIndex = true });
                         }
 
                         offset += recordLength;

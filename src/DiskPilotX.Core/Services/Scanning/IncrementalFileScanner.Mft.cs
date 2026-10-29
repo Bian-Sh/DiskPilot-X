@@ -31,15 +31,8 @@ public partial class IncrementalFileScanner
 
             _logger.LogInformation("MFT enumeration complete: {RecordCount} records in {ElapsedMs}ms", mftRecords.Count, sw.ElapsedMilliseconds);
 
-            // Phase 2: Build tree from flat records
-            // Count files/folders from MFT for progress reporting during tree build
-            int mftFiles = 0, mftFolders = 0;
-            foreach (var rec in mftRecords.Values)
-            {
-                if (rec.IsDirectory) mftFolders++;
-                else mftFiles++;
-            }
-            progress.Report(new ScanProgress("Building directory tree", mftFiles, mftFolders));
+            // 构树尚未确定目标计数，不沿用整盘索引的处理数量。
+            progress.Report(new ScanProgress("Building directory tree", 0, 0));
 
             var isWholeVolume = string.Equals(
                 Path.GetFullPath(fullPath).TrimEnd('\\'),
@@ -138,7 +131,7 @@ public partial class IncrementalFileScanner
             }
 
             _logger.LogDebug("MFT entry map count: {Count}", frnToEntry.Count);
-            progress.Report(new ScanProgress("Linking directory tree", mftFiles, mftFolders));
+            progress.Report(new ScanProgress("Linking directory tree", 0, 0));
 
             // Link parent/children
             foreach (var (frn, entry) in frnToEntry)
@@ -193,7 +186,7 @@ public partial class IncrementalFileScanner
 
             // Phase 3: Collect sizes via parallel directory enumeration
             var (fileCount, folderCount) = ParallelSizeCollector.CollectSizes(
-                rootEntry, mftFiles, mftFolders, progress, ct);
+                rootEntry, progress, ct);
 
             if (ct.IsCancellationRequested)
                 return null;

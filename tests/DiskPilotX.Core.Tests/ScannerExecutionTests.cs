@@ -18,8 +18,8 @@ public class ScannerExecutionTests
             direct.Execution.Status.Should().Be(ScanExecutionStatus.Completed);
             var scanner = new IncrementalFileScanner(new FileScanner());
             var first = await scanner.ScanAsync(path, new Progress<ScanProgress>(), CancellationToken.None);
-            first.Execution!.Method.Should().BeOneOf(ScanMethod.Mft, ScanMethod.DirectoryTraversal);
-            if (first.Execution.Method == ScanMethod.DirectoryTraversal) first.Execution.FallbackReasons.Should().Contain(reason => reason.Contains("MFT"));
+            first.Execution!.Method.Should().Be(ScanMethod.DirectoryTraversal);
+            (first.Execution.FallbackReasons ?? []).Should().BeEmpty();
             var previousMethod = first.Execution.Method;
             var second = await scanner.ScanAsync(path, new Progress<ScanProgress>(), CancellationToken.None);
             second.Execution!.Method.Should().BeOneOf(ScanMethod.Mft, ScanMethod.DirectoryTraversal, ScanMethod.UsnIncremental);
