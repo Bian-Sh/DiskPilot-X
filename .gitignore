@@ -97,9 +97,9 @@ desktop.ini
 
 # 验收产物中的应用设置转储含加密密钥材料，不入库
 /.planning/**/*settings*.json
+/.planning
 # >>> Comet managed project state >>>
 !/.comet/
 /.comet/*
 !/.comet/config.yaml
 # <<< Comet managed project state <<<
-/.planning

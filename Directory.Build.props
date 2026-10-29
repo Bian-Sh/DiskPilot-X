@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- 仅保留简体中文、繁体中文、英语的 satellite assemblies，剔除 Roslyn 等包自带的多语言资源文件夹 -->
+    <SatelliteResourceLanguages>zh-Hans;zh-Hant;en</SatelliteResourceLanguages>
+  </PropertyGroup>
+</Project>
