@@ -321,10 +321,10 @@
     <value>删除模式</value>
   </data>
   <data name="MoveToRecycleBinOption" xml:space="preserve">
-    <value>Move to Recycle Bin</value>
+    <value>移入回收站</value>
   </data>
   <data name="PermanentlyDeleteOption" xml:space="preserve">
-    <value>Permanently Delete</value>
+    <value>永久删除</value>
   </data>
   <data name="PermanentDeleteWarning" xml:space="preserve">
     <value>Warning: Files cannot be recovered!</value>
@@ -533,10 +533,11 @@
     <value>Auto detect</value>
   </data>
   <data name="SettingsDefaultCleanupModeLabel" xml:space="preserve">
-    <value>默认清理方式</value>
+    <value>清理方式</value>
   </data>
   <data name="SettingsDefaultCleanupModeHint" xml:space="preserve">
-    <value>选择清理文件时使用的移除方式</value>
+    <value>移入回收站：可从回收站恢复，通常需要清空回收站才会释放磁盘空间。
+永久删除：不经过回收站，直接释放磁盘空间，无法通过回收站恢复。</value>
   </data>
   <data name="SettingsDisclaimerNav" xml:space="preserve">
     <value>免责声明</value>

@@ -13,6 +13,7 @@ namespace DiskPilotX.App.Services;
 
 public class UpdateService : IUpdateService
 {
+    internal const int DefaultProxyPort = 7897;
     private const string RepoOwner = "Bian-Sh";
     private const string RepoName = "DiskPilot-X";
     private const int CheckTimeoutSeconds = 10;
@@ -35,6 +36,11 @@ public class UpdateService : IUpdateService
             var settings = settingsService.LoadSettings();
             if (settings.EnsureIndependentUpdateProxy()) settingsService.SaveSettings(settings);
             var mode = LlmContracts.ParseProxyKind(settings.UpdateProxyMode);
+            if (mode == ProxyKind.Custom && settings.UpdateProxyPort is null)
+            {
+                settings.UpdateProxyPort = DefaultProxyPort;
+                settingsService.SaveSettings(settings);
+            }
             if (mode == ProxyKind.Custom && settings.UpdateProxyPort is not (> 0 and < 65536))
                 throw new InvalidOperationException("自定义更新代理端口必须是 1–65535 的整数。");
             return clients.Create(mode, settings.UpdateProxyHost,

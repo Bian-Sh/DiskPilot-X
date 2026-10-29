@@ -536,10 +536,11 @@
     <value>Auto detect</value>
   </data>
   <data name="SettingsDefaultCleanupModeLabel" xml:space="preserve">
-    <value>Default cleanup mode</value>
+    <value>Cleanup mode</value>
   </data>
   <data name="SettingsDefaultCleanupModeHint" xml:space="preserve">
-    <value>Choose how files are removed during cleanup</value>
+    <value>Move to Recycle Bin: files can be restored from the Recycle Bin; disk space is usually freed only after emptying it.
+Permanently Delete: bypasses the Recycle Bin and frees disk space directly; files cannot be restored from the Recycle Bin.</value>
   </data>
   <data name="SettingsDisclaimerNav" xml:space="preserve">
     <value>Disclaimer</value>

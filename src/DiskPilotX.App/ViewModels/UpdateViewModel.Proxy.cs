@@ -31,15 +31,22 @@ public partial class UpdateViewModel
         OnPropertyChanged(nameof(IsCustomProxyConfigurable));
     }
     partial void OnProxyHostChanged(string? value) => PersistProxySettings(settings => settings.UpdateProxyHost = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
-    partial void OnProxyPortTextChanged(string? value) => PersistProxySettings(settings => settings.UpdateProxyPort = int.TryParse(value?.Trim(), out var port) && port is > 0 and < 65536 ? port : null);
+    partial void OnProxyPortTextChanged(string? value) => PersistProxySettings(settings =>
+    {
+        // 空输入使用默认端口；非空非法输入保存为无效值，避免实际请求悄悄改用默认端口。
+        settings.UpdateProxyPort = string.IsNullOrWhiteSpace(value)
+            ? SelectedProxyKind == ProxyKind.Custom ? Services.UpdateService.DefaultProxyPort : null
+            : int.TryParse(value.Trim(), out var port) && port is > 0 and < 65536 ? port : 0;
+    });
     partial void OnProxyUsernameChanged(string? value) => PersistProxySettings(settings => settings.UpdateProxyUsername = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
     partial void OnProxyPasswordChanged(string? value) => PersistProxySettings(settings => settings.EncryptedUpdateProxyPassword = string.IsNullOrEmpty(value) ? null : _settingsService!.EncryptProxyPassword(value));
 
     public void CommitProxySettings()
     {
         // 只在切换、加载或提交时补齐，不能让默认值打断用户清空后重新输入。
-        if (!_initializing && SelectedProxyKind == ProxyKind.Custom && string.IsNullOrWhiteSpace(ProxyHost))
-            ProxyHost = LlmContracts.DefaultProxyHost;
+        if (_initializing || SelectedProxyKind != ProxyKind.Custom) return;
+        if (string.IsNullOrWhiteSpace(ProxyHost)) ProxyHost = LlmContracts.DefaultProxyHost;
+        if (string.IsNullOrWhiteSpace(ProxyPortText)) ProxyPortText = Services.UpdateService.DefaultProxyPort.ToString();
     }
 
     private void PersistProxySettings(Action<AppSettings> update)

@@ -50,7 +50,6 @@ public sealed class UpdateProxyRoutingTests
     }
 
     [Theory]
-    [InlineData(null)]
     [InlineData(0)]
     [InlineData(65536)]
     public async Task 自定义更新代理端口无效时明确失败不擅自改用默认端口(int? port)
@@ -60,6 +59,18 @@ public sealed class UpdateProxyRoutingTests
         using var clients = new ModelHttpClientFactory(() => new BytesHandler());
         var update = new UpdateService(settings, clients, Path.Combine(folder, "cache"));
         await Assert.ThrowsAsync<InvalidOperationException>(() => update.DownloadMsiAsync("http://installer.invalid/test.exe", "9.4.0", 3, new Progress<(long, long)>(), default));
+    }
+
+    [Fact]
+    public async Task 更新请求空端口使用7897并保存默认值()
+    {
+        var folder = Folder(); var settings = new SettingsService(Path.Combine(folder, "settings.json"));
+        settings.SaveSettings(new AppSettings { UpdateProxyMode = "custom", UpdateProxyHost = "127.0.0.1" });
+        using var clients = new ModelHttpClientFactory(() => new BytesHandler());
+        var update = new UpdateService(settings, clients, Path.Combine(folder, "cache"));
+        var path = await update.DownloadMsiAsync("http://installer.invalid/test.exe", "9.5.0", 3, new Progress<(long, long)>(), default);
+        Assert.Equal("abc", await File.ReadAllTextAsync(path));
+        Assert.Equal(7897, settings.LoadSettings().UpdateProxyPort);
     }
 
     private static async Task<string> Serve(TcpListener listener, CancellationToken ct)

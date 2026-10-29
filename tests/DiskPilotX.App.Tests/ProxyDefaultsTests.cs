@@ -87,14 +87,14 @@ public sealed class ProxyDefaultsTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void 更新加载已有独立自定义空地址会补齐且不填端口(string? host)
+    public void 更新加载已有独立自定义空地址和端口会补齐(string? host)
     {
         var saved = new AppSettings { UpdateProxyMode = "custom", UpdateProxyHost = host, ProxyHost = "ai.example" };
         var settings = Substitute.For<ISettingsService>(); settings.LoadSettings().Returns(saved);
         var vm = new UpdateViewModel(Substitute.For<IUpdateService>(), settings);
         Assert.Equal("127.0.0.1", vm.ProxyHost);
         Assert.Equal("127.0.0.1", saved.UpdateProxyHost);
-        Assert.Null(vm.ProxyPortText); Assert.Null(saved.UpdateProxyPort);
+        Assert.Equal("7897", vm.ProxyPortText); Assert.Equal(7897, saved.UpdateProxyPort);
         Assert.Equal("ai.example", saved.ProxyHost);
     }
 
@@ -137,6 +137,40 @@ public sealed class ProxyDefaultsTests
         }
         finally { DiskPilotX.App.Localization.L.SetLanguage(original); }
     });
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void 更新自定义代理空端口提交后补齐但输入时不打断(string? port)
+    {
+        var saved = new AppSettings { UpdateProxyMode = "system", ProxyPort = 7001 };
+        var settings = Substitute.For<ISettingsService>(); settings.LoadSettings().Returns(saved);
+        var vm = new UpdateViewModel(Substitute.For<IUpdateService>(), settings);
+        Assert.Null(vm.ProxyPortText); Assert.Null(saved.UpdateProxyPort);
+        vm.SelectedProxyKind = ProxyKind.Custom;
+        Assert.Equal("7897", vm.ProxyPortText); Assert.Equal(7897, saved.UpdateProxyPort);
+        vm.ProxyPortText = port;
+        Assert.Equal(port, vm.ProxyPortText);
+        Assert.Equal(7897, saved.UpdateProxyPort);
+        vm.CommitProxySettings();
+        Assert.Equal("7897", vm.ProxyPortText); Assert.Equal(7897, saved.UpdateProxyPort);
+        vm.ProxyPortText = "8123";
+        vm.SelectedProxyKind = ProxyKind.System; vm.SelectedProxyKind = ProxyKind.Custom;
+        Assert.Equal("8123", vm.ProxyPortText); Assert.Equal(8123, saved.UpdateProxyPort);
+        Assert.Equal(7001, saved.ProxyPort);
+    }
+
+    [Fact]
+    public void 更新自定义代理非法非空端口不退回默认值()
+    {
+        var saved = new AppSettings { UpdateProxyMode = "custom", UpdateProxyPort = 8123 };
+        var settings = Substitute.For<ISettingsService>(); settings.LoadSettings().Returns(saved);
+        var vm = new UpdateViewModel(Substitute.For<IUpdateService>(), settings);
+        vm.ProxyPortText = "不是端口"; vm.CommitProxySettings();
+        Assert.Equal("不是端口", vm.ProxyPortText);
+        Assert.Equal(0, saved.UpdateProxyPort);
+    }
 
     private static (SettingsViewModel Vm, ISettingsService Settings) CreateAi(AppSettings saved)
     {

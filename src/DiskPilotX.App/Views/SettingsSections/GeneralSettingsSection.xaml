@@ -47,16 +47,25 @@
                         <ColumnDefinition Width="170" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="{loc:Loc SettingsDefaultCleanupModeLabel}"
-                               Style="{StaticResource SettingsLabelStyle}"
-                               ToolTip="{loc:Loc SettingsDefaultCleanupModeHint}" />
-                    <ComboBox Grid.Column="1"
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{loc:Loc SettingsDefaultCleanupModeLabel}" Style="{StaticResource SettingsLabelStyle}" />
+                        <TextBlock x:Name="CleanupModeHelp" Text="?" Cursor="Help" Margin="6,0,0,0" Width="16" TextAlignment="Center"
+                                   FontWeight="SemiBold" Foreground="{DynamicResource VP.TextTertiaryBrush}"
+                                   ToolTipService.InitialShowDelay="150" ToolTipService.ShowDuration="12000"
+                                   AutomationProperties.Name="{loc:Loc SettingsDefaultCleanupModeHint}">
+                            <TextBlock.ToolTip>
+                                <ToolTip MaxWidth="1000" HorizontalContentAlignment="Left">
+                                    <TextBlock Text="{loc:Loc SettingsDefaultCleanupModeHint}" TextAlignment="Left" TextWrapping="Wrap" />
+                                </ToolTip>
+                            </TextBlock.ToolTip>
+                        </TextBlock>
+                    </StackPanel>
+                    <ComboBox x:Name="CleanupModeInput" Grid.Column="1"
                               Style="{DynamicResource VP.ComboBox}"
-                              SelectedItem="{Binding SelectedDeletionMode}">
-                        <ComboBox.Items>
-                            <enums:DeletionMode>MoveToRecycleBin</enums:DeletionMode>
-                            <enums:DeletionMode>PermanentDelete</enums:DeletionMode>
-                        </ComboBox.Items>
+                              AutomationProperties.Name="{loc:Loc SettingsDefaultCleanupModeLabel}"
+                              SelectedValuePath="Tag" SelectedValue="{Binding SelectedDeletionMode}">
+                        <ComboBoxItem Tag="{x:Static enums:DeletionMode.MoveToRecycleBin}" Content="{loc:Loc MoveToRecycleBinOption}" />
+                        <ComboBoxItem Tag="{x:Static enums:DeletionMode.PermanentDelete}" Content="{loc:Loc PermanentlyDeleteOption}" />
                     </ComboBox>
                 </Grid>
             </StackPanel>
