@@ -26,6 +26,38 @@ public sealed class SkillViewBubbleRenderingTests
     /// 海报网格和表格仍不内联渲染。
     /// </summary>
     [Fact]
+    public void 独立视图表格显示勾选框并回传真实选择() => StaHost.Run(() =>
+    {
+        var item = new SkillUiItem { Title = "测试项目", Cells = ["测试项目", "4 KB"], Path = @"D:\验收项目", SizeBytes = 4096, Selectable = true };
+        var spec = new SkillUiSpec
+        {
+            Title = "表格勾选验收",
+            Sections = [new SkillUiSection { Kind = SkillUiSectionKind.Table, Headers = ["项目", "大小"], Items = [item] }],
+            Actions = [new SkillUiAction { Kind = "continue", Label = "回传" }]
+        };
+        var window = new SkillWindow(spec);
+        using var source = new HwndSource(new HwndSourceParameters("表格勾选测试") { Width = 1000, Height = 780 }) { RootVisual = (System.Windows.Media.Visual)window.Content };
+        try
+        {
+            var content = (FrameworkElement)window.Content;
+            content.Measure(new Size(1000, 780));
+            content.Arrange(new Rect(0, 0, 1000, 780));
+            content.UpdateLayout();
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            var check = Assert.Single(Visuals<CheckBox>(content).Where(c => c.IsVisible && ReferenceEquals(c.DataContext, item)));
+            check.IsChecked = true;
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.DataBind);
+            Assert.Same(item, Assert.Single(window.SelectedItems));
+            Assert.Contains(item.Path!, window.BuildSelectionPayload());
+            IReadOnlyList<SkillUiItem>? returned = null;
+            window.ContinueRequested += (_, items) => returned = items;
+            var vm = (SkillWindowViewModel)window.DataContext;
+            vm.ActionCommand.Execute(spec.Actions[0]);
+            Assert.Same(item, Assert.Single(returned!));
+        }
+        finally { source.RootVisual = null; window.Close(); }
+    });
+    [Fact]
     public void 气泡保留入口并只内联条形图区块() => StaHost.Run(() =>
     {
         using var host = CreateHost(out var panel, out var vm);

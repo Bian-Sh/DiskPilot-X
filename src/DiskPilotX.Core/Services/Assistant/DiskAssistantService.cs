@@ -380,6 +380,14 @@ public sealed partial class DiskAssistantService
         });
         Add("publish_recommendations", "校验并发布清理建议，大小和安全限制由本地核验。scan_id 取自 get_copilot_context 或 analyze_paths 的返回；一次调用即可发布多个范围的候选。mode 取 replace（默认，用本轮结果替换面板）/ merge（追加到现有清单，保留已勾选状态）。", """{"type":"object","properties":{"scan_id":{"type":"string"},"mode":{"type":"string","enum":["replace","merge"]},"recommendations":{"type":"array","maxItems":100,"items":{"type":"object","properties":{"path":{"type":"string"},"category":{"type":"string"},"safety_rating":{"type":"string"},"explanation":{"type":"string"}},"required":["path","category","safety_rating","explanation"]}}},"required":["scan_id","recommendations"]}""", async (a, ct) =>
         {
+            // 技能视图的无头批次不替换 Treemap。仅宿主登记的批次可交回宿主按各自范围校验，
+            // 不能把跨盘候选塞进单盘 focus，也不能信任模型传入的 batch 标志。
+            if (!options.IsAnalysis && Guid.TryParse(a?["scan_id"]?.GetValue<string>(), out var batchId) && workspace.IsAnalysisBatch(batchId))
+            {
+                var batchPayload = (JsonObject)a!.DeepClone();
+                batchPayload["analysis_mode"] = false;
+                return await workspace.Execute("publish_recommendations", batchPayload, ct).ConfigureAwait(false);
+            }
             var c = await GetVisibleContext(ct, options.IsAnalysis).ConfigureAwait(false);
             if (c.Session?.RootEntry is null || a?["scan_id"]?.GetValue<string>() != c.Session.Id.ToString()) return Error("扫描结果已改变，请重新读取上下文。");
             if (evidenceScanId != c.Session.Id) return Error("请先读取本次扫描的分析证据。");

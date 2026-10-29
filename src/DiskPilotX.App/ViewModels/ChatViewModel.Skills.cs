@@ -22,15 +22,10 @@ public partial class ChatViewModel
             .Select(s => new CleanupRuleShortcut(s.Id, s.DisplayName,
                 s.Description, BuildShortcutPrompt(s))));
     }
-
-    /// <summary>
-    /// 快捷入口的提示词按契约分流：发现类技能自带定位能力，若仍提示"先选扫描范围"，
-    /// 会把本应由源码自动完成的发现推回给用户（小白根本不知道该选哪个盘）。
-    /// </summary>
+    /// <summary>入口只表达运行意图；范围、参数、视图和回传方式由技能自己的契约决定。</summary>
     private static string BuildShortcutPrompt(AiSkillCatalogItem skill) => skill.Kind == "provider"
-        ? "@" + skill.Id + " 请直接运行这个应用数据发现规则：它自己会找到客户端安装位置和所有库目录，不需要我选扫描范围，也不用先扫描磁盘。"
-          + "规则会自己把结果做成视图（海报/统计/明细）交给我看，我直接在卡片上操作（比如卸载）就行；"
-          + "你不要再调 render_view 重复渲染一份，也不要加「回传继续分析」类按钮——这一屏就是终点。"
+        ? "@" + skill.Id + " 请先读取并按这份应用数据发现规则运行。需要参数时打开规则自带的任务面板，或让我选择；不要擅自扩大范围。"
+          + "源码返回视图后不要再调用 render_view 重复渲染；是否勾选回传或在面板中操作，由规则和我的需求决定。只读发现，不直接清理。"
         : "@" + skill.Id + " 请按这条清理规则检查，先让我选择范围并预览，保留用户资料，清理前再确认。";
     [RelayCommand] private async Task ExplorePromptAsync(string? prompt)
     {

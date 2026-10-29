@@ -83,7 +83,7 @@ internal static class UserDecisionRequestParser
             OptionalNullableValue<decimal>(field, "step"),
             OptionalString(field, "default_text"),
             OptionalValue(field, "is_multiline", false),
-            OptionalValue(field, "allow_custom_input", false),
+            OptionalValue(field, "allow_custom_input", type is UserDecisionFieldType.SingleSelect or UserDecisionFieldType.MultiSelect),
             OptionalString(field, "custom_input_placeholder"),
             OptionalNullableValue<int>(field, "max_length"), purpose == "credential_name");
     }
@@ -364,7 +364,7 @@ internal static class UserDecisionRequestParser
             "allow_cancel": { "type": "boolean", "default": true },
             "fields": {
               "type": "array",
-              "description": "字段列表；每个字段独立分页。若要在单选或多选的选项下方同一页显示自由输入框，应在同一个选择字段设置 allow_custom_input=true，不要新增 text 字段。",
+              "description": "字段列表；每个字段独立分页。单选或多选字段默认在选项下方同一页附带自由输入框（allow_custom_input 默认 true），不要新增 text 字段。",
               "minItems": 1,
               "items": {
                 "type": "object",
@@ -399,7 +399,7 @@ internal static class UserDecisionRequestParser
                   "step": { "type": "number", "exclusiveMinimum": 0 },
                   "default_text": { "type": "string" },
                   "is_multiline": { "type": "boolean", "default": false },
-                  "allow_custom_input": { "type": "boolean", "default": false, "description": "仅用于 single_select 或 multi_select；为 true 时在选项下方同一页显示自由输入框。适用于其他选项、都不符合或我有其他想法等回答；不要新增 text 字段。" },
+                  "allow_custom_input": { "type": "boolean", "default": true, "description": "仅用于 single_select 或 multi_select；默认 true：选项下方同页显示自由输入框，避免选项扭曲用户意图。适用于其他选项、都不符合或我有其他想法等回答；不要新增 text 字段。仅当确实不接纳自由回答时才显式设为 false。" },
                   "custom_input_placeholder": { "type": "string", "maxLength": 200, "description": "选择题同页自由输入框的 Watermark；仅在 allow_custom_input=true 时使用。" },
                   "max_length": { "type": "integer", "minimum": 1, "maximum": 4000, "description": "text 字段或已启用 allow_custom_input 的选择字段之自由输入最大字符数；用户说输入框80字时应设置为80。" }
                 },

@@ -198,6 +198,7 @@ public sealed record SkillUiSection
     public bool IsPosterGrid => Kind == SkillUiSectionKind.PosterGrid;
     public bool IsStatRow => Kind == SkillUiSectionKind.StatRow;
     public bool IsTable => Kind == SkillUiSectionKind.Table;
+    public bool HasSelectableItems => Items.Any(item => item.Selectable);
     public bool IsBarChart => Kind == SkillUiSectionKind.BarChart;
     public bool IsChart => Kind is SkillUiSectionKind.BarChart or SkillUiSectionKind.PieChart or SkillUiSectionKind.DonutChart;
     public bool IsText => Kind == SkillUiSectionKind.Text;

@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using FluentAssertions;
 using DiskPilotX.Core.Services.Agent;
 using DiskPilotX.Core.Services.Copilot;
@@ -7,6 +7,28 @@ namespace DiskPilotX.Core.Tests;
 
 public class ManageDiskSkillsToolTests
 {
+    [Theory]
+    [InlineData("references/bridge-api.md", true)]
+    [InlineData("references/../SKILL.md", false)]
+    [InlineData("../secret.md", false)]
+    [InlineData("C:/secret.md", false)]
+    [InlineData("references/missing.md", false)]
+    public async Task ExecuteAsync_ReadReference_OnlyReadsBoundedSkillDocumentation(string referencePath, bool expected)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "diskpilotx-reference-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var directory = Path.Combine(root, "sample-skill");
+            Directory.CreateDirectory(Path.Combine(directory, "references"));
+            File.WriteAllText(Path.Combine(directory, "SKILL.md"), "# 示例规则\n\n规则正文");
+            File.WriteAllText(Path.Combine(directory, "references", "bridge-api.md"), "# 真实桥契约\n只读方法签名");
+            var tool = new ManageDiskSkillsTool(new FileSkillPromptProvider([root]));
+            var result = await tool.ExecuteAsync(EmptyContext(), Args(new { operation = "read", id = "sample-skill", reference_path = referencePath }), CancellationToken.None);
+            result.GetProperty("ok").GetBoolean().Should().Be(expected);
+            if (expected) result.GetProperty("content").GetString().Should().Contain("真实桥契约").And.NotContain("规则正文");
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+    }
     [Fact]
     public async Task ExecuteAsync_CanCreateReadListAndDeleteDiskSkill()
     {

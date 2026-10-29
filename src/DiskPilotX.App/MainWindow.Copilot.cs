@@ -26,6 +26,7 @@ public partial class MainWindow
         var workspace = App.Services!.GetRequiredService<AssistantWorkspace>();
         App.Services!.GetRequiredService<DiskAssistantService>().AnalysisStateChanged += task =>
             _ = Dispatcher.InvokeAsync(() => _recommendationsViewModel?.SetAnalysisTask(task));
+        workspace.IsAnalysisBatch = id => _analysisBatch is { Scopes.Count: > 0 } batch && batch.Id == id;
         workspace.ReadContext = ct => Dispatcher.InvokeAsync(() =>
         {
             ct.ThrowIfCancellationRequested();
@@ -192,8 +193,22 @@ public partial class MainWindow
             {
                 if(_chatViewModel is null)return AssistantError("无法显示技能变更确认。");
                 var package=args?["package"];
-                var description=package is null ? $"操作：{args?["operation"]}；技能：{args?["id"]}\n\n{args?["body_markdown"]}" : $"规则：{package["title"]}\n说明：{package["description"]}\n\n规则明细：\n{package["rules"]?.ToJsonString(new(){WriteIndented=true})}\n\n{package["skill_markdown"]}";
-                var confirmed=await _chatViewModel.ConfirmAsync("保存这份清理规则？",description,"保存后可从对话空态和 @ 菜单使用。保存不会清理文件；自定义源码执行还需单独授权。",ct);
+                var skillOperation=args?["operation"]?.GetValue<string>()??"save";
+                var skillId=args?["id"]?.GetValue<string>()??package?["id"]?.GetValue<string>()??"";
+                var description=skillOperation=="delete"
+                    ? $"将从技能库删除规则「{skillId}」。"
+                    : package is null ? $"操作：{skillOperation}；技能：{skillId}\n\n{args?["body_markdown"]}" : $"规则：{package["title"]}\n说明：{package["description"]}\n\n规则明细：\n{package["rules"]?.ToJsonString(new(){WriteIndented=true})}\n\n{package["skill_markdown"]}";
+                var title=skillOperation switch
+                {
+                    "delete"=>$"删除规则「{skillId}」？",
+                    "update"=>$"更新规则「{skillId}」？",
+                    "create"=>$"新建规则「{skillId}」？",
+                    _=>$"保存规则「{skillId}」？"
+                };
+                var impact=skillOperation=="delete"
+                    ? "只删除规则文件，不动磁盘上的任何数据；删除后它从对话空态和 @ 菜单消失。内置规则不可删除。"
+                    : "保存后可从对话空态和 @ 菜单使用。保存不会清理文件；自定义源码执行还需单独授权。";
+                var confirmed=await _chatViewModel.ConfirmAsync(title,description,impact,ct);
                 return new JsonObject{["ok"]=confirmed,["cancelled"]=!confirmed};
             }
             case "confirm_analysis_memory":

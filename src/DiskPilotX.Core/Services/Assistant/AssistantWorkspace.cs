@@ -17,6 +17,8 @@ public sealed record AssistantRunResult(string Text, AgentSessionState State,
 /// <summary>宿主的实时工作区连接；工具调用每次读取当前扫描，避免捕获过期视图。</summary>
 public sealed class AssistantWorkspace
 {
+    /// <summary>由宿主确认当前已完成的无头扫描批次；模型不能自行声明批次有效。</summary>
+    public Func<Guid, bool> IsAnalysisBatch { get; set; } = _ => false;
     public Func<JsonNode?, bool> ValidateAnalysisCommit { get; set; } = _ => true;
     public Func<CancellationToken, Task<AgentContext>> ReadContext { get; set; } =
         _ => Task.FromResult(new AgentContext(null, null, null, null));

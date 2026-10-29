@@ -14,6 +14,19 @@ namespace DiskPilotX.App.Tests;
 [Collection("CLI 指纹状态")]
 public sealed class ChatDiscoveryTests
 {
+    [Fact]
+    public void 发现类快捷入口不替技能决定范围与回传方式()
+    {
+        var (vm, router) = Create();
+        router.GetSkillCatalog().Returns(new[] { new AiSkillCatalogItem("project-inventory", "项目盘点", "按用户选择的根目录盘点并回传") { Kind = "provider" } });
+        vm.RefreshSkills();
+        var prompt = Assert.Single(vm.CleanupRules).Prompt;
+        Assert.Contains("读取", prompt);
+        Assert.Contains("参数", prompt);
+        Assert.DoesNotContain("不需要我选扫描范围", prompt);
+        Assert.DoesNotContain("不要加「回传继续分析」", prompt);
+        Assert.DoesNotContain("这一屏就是终点", prompt);
+    }
     [Fact] public void DiscoveryReflectsLiveCatalogAndExcludesCreator() { var (vm,router)=Create(); Assert.False(vm.HasMessages); Assert.Single(vm.CleanupRules); router.GetSkillCatalog().Returns(new[] {new AiSkillCatalogItem("qq-cache","QQ 缓存","检查日志")}); vm.RefreshSkills(); Assert.Equal("QQ 缓存",Assert.Single(vm.CleanupRules).Title); }
     [Fact] public async Task PromptStartsConversationInOneAction() { var(vm,_)=Create(); await vm.ExplorePromptCommand.ExecuteAsync("查看我已经创建的清理规则"); Assert.True(vm.HasMessages); Assert.Contains(vm.Messages,m=>m.Text=="查看我已经创建的清理规则"); }
     [Fact] public void TaskCardRemainsAfterFollowingMessages() { var(vm,_)=Create(); var card=new SkillTaskCard("task1","qq-cache","QQ 缓存","待预览"); vm.AddSkillTask(card); vm.Messages.Add(new(){Text="继续"}); Assert.Same(card,vm.Messages.First().SkillTasks.Single()); }

@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using DiskPilotX.Core.Services.Copilot;
 
 namespace DiskPilotX.Core.Services.Agent;
@@ -10,7 +10,7 @@ public sealed class ManageDiskSkillsTool(ISkillPromptProvider skillPromptProvide
         "app-guide",
         "skill-creator",
         "disk-management",
-        "path-cleanup-recommendation"
+        "path-cleanup-recommendation",
     };
 
     private static readonly HashSet<string> AllowedHostTools = new(StringComparer.OrdinalIgnoreCase)
@@ -35,7 +35,7 @@ public sealed class ManageDiskSkillsTool(ISkillPromptProvider skillPromptProvide
     public override ToolRiskLevel RiskLevel => ToolRiskLevel.Medium;
 
     public override JsonElement Schema { get; } = SchemaJson("""
-        {"type":"object","properties":{"operation":{"type":"string","enum":["list","read","create","update","delete"]},"id":{"type":"string","description":"Lowercase skill id using letters, digits, and hyphens."},"domain":{"type":"string","enum":["disk_management"]},"host_tools":{"type":"array","items":{"type":"string","enum":["get_copilot_context","resolve_path","scan_path","navigate_path","get_analysis_evidence","publish_recommendations","find_by_name","find_by_path","list_children","summarize_subtree","find_large_files"]}},"title":{"type":"string"},"description":{"type":"string"},"body_markdown":{"type":"string","description":"Concise SKILL.md body sections after Purpose. Use imperative instructions; put risk rules here, not in app code."},"overwrite":{"type":"boolean"}},"required":["operation"]}
+        {"type":"object","properties":{"operation":{"type":"string","enum":["list","read","create","update","delete"]},"id":{"type":"string","description":"Lowercase skill id using letters, digits, and hyphens."},"reference_path":{"type":"string","description":"read 时可选：references/<文件名>.md，按需读取随技能发布的离线契约；省略则读取 SKILL.md。"},"domain":{"type":"string","enum":["disk_management"]},"host_tools":{"type":"array","items":{"type":"string","enum":["get_copilot_context","resolve_path","scan_path","navigate_path","get_analysis_evidence","publish_recommendations","find_by_name","find_by_path","list_children","summarize_subtree","find_large_files"]}},"title":{"type":"string"},"description":{"type":"string"},"body_markdown":{"type":"string","description":"Concise SKILL.md body sections after Purpose. Use imperative instructions; put risk rules here, not in app code."},"overwrite":{"type":"boolean"}},"required":["operation"]}
         """);
 
     public override Task<JsonElement> ExecuteAsync(AgentContext context, JsonElement arguments, CancellationToken cancellationToken)
@@ -46,7 +46,7 @@ public sealed class ManageDiskSkillsTool(ISkillPromptProvider skillPromptProvide
         return Task.FromResult(operation switch
         {
             "list" => Json(new { ok = true, skills = skillPromptProvider.GetSkillCatalog() }),
-            "read" => ReadSkill(id),
+            "read" => ReadSkill(id, GetString(arguments, "reference_path")),
             "create" => CreateOrUpdate(arguments, id, overwrite: false),
             "update" => CreateOrUpdate(arguments, id, overwrite: GetBool(arguments, "overwrite") ?? true),
             "delete" => DeleteSkill(id),
@@ -54,14 +54,14 @@ public sealed class ManageDiskSkillsTool(ISkillPromptProvider skillPromptProvide
         });
     }
 
-    private JsonElement ReadSkill(string? id)
+    private JsonElement ReadSkill(string? id, string? referencePath)
     {
         if (string.IsNullOrWhiteSpace(id))
         {
             return JsonError("missing_id", "id is required for read.");
         }
 
-        var content = skillPromptProvider.GetRawContent(id);
+        var content = referencePath is null ? skillPromptProvider.GetRawContent(id) : skillPromptProvider.GetReference(id, referencePath);
         return content is null
             ? JsonError("not_found", "Skill does not exist.")
             : Json(new { ok = true, id, content });

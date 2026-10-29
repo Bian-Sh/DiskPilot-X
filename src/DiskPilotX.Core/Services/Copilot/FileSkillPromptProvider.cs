@@ -54,6 +54,24 @@ public sealed class FileSkillPromptProvider : ISkillPromptProvider
         return LoadSkills().Prompts.TryGetValue(skillId, out var value) ? value : null;
     }
 
+    /// <summary>按需披露随技能发布的离线契约；不允许任意本地文件读取。</summary>
+    public string? GetReference(string skillId, string relativePath)
+    {
+        if (!IsValidSkillId(skillId) || relativePath.Length > 200 ||
+            !Regex.IsMatch(relativePath, @"^references/[a-zA-Z0-9_-]+\.md$")) return null;
+        foreach (var root in _builtInRoots.Concat(GetSkillDirectories(_skillDirectories)).Append(_userRoot).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var directory = Path.Combine(root, skillId);
+            if (!File.Exists(Path.Combine(directory, "SKILL.md"))) continue;
+            try
+            {
+                var file = CleanupSkillSafety.SafePath(directory, relativePath);
+                return File.Exists(file) && new FileInfo(file).Length <= 64 * 1024 ? File.ReadAllText(file, Encoding.UTF8) : null;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+        }
+        return null;
+    }
     public AiSkillStoreResult CreateOrUpdateSkill(string skillId, string title, string description, string bodyMarkdown, bool overwrite)
     {
         skillId = skillId.Trim();

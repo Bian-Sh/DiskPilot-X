@@ -54,6 +54,22 @@ public class AiSkillRouterTests
         result.Skills.Single().Prompt.Should().Contain("Path Cleanup Recommendation Skill");
     }
 
+    [Theory]
+    [InlineData("帮我做一个快捷入口，定期检查缓存")]
+    [InlineData("加个快捷入口") ]
+    [InlineData("创建一个快捷方式") ]
+    [InlineData("修改这个规则") ]
+    [InlineData("更新一个 skill") ]
+    [InlineData("edit this rule") ]
+    [InlineData("创建一个规则检查 npm 缓存")]
+    [InlineData("添加一个 skill 盘点游戏库")]
+    [InlineData("add a shortcut for temp files")]
+    public void Route_SkillSynonymCreationRequest_SelectsCreator(string message)
+    {
+        var result = _router.Route(message, null, null, hasExistingRecommendations: false);
+
+        result.SelectedSkillIds.Should().Contain("skill-creator");
+    }
     [Fact]
     public void Route_GeneralChat_DoesNotInjectUnrelatedSkills()
     {

@@ -6,8 +6,8 @@ namespace DiskPilotX.Core.Services.Copilot;
 public sealed class AiSkillRouter : IAiSkillRouter
 {
     private static readonly Regex SkillMentionRegex = new(@"(?<!\S)@([A-Za-z0-9][A-Za-z0-9._-]*)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    // 只识别明确的清理规则创作请求；普通清理请求由助手主动读取技能目录。
-    private static readonly Regex CreatorIntent = new(@"(?:创建|新建|编写|生成|修改|更新|编辑|调整)[^。！？\r\n]{0,80}(?:清理|清除)[^。！？\r\n]{0,40}(?:规则|技能|skill)|\b(?:create|build|write|update|edit|modify)\b[^.!?\r\n]{0,80}\bcleanup\b[^.!?\r\n]{0,40}\b(?:skill|rules?)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(100));
+    // 只在明确创作或修订意图下识别技能同义词；普通运行、扫描与清理不注入创建助手。
+    private static readonly Regex CreatorIntent = new(@"(?:创建|新建|编写|生成|制作|添加|修改|更新|编辑|调整|做|弄|加个|加一个)[^。！？\r\n]{0,120}(?:规则|技能|skill|快捷入口|快捷方式)|\b(?:create|build|write|update|edit|modify|add|make)\b[^.!?\r\n]{0,120}\b(?:skills?|rules?|shortcut|quick\s*entry)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(100));
     private readonly ISkillPromptProvider _skillPromptProvider;
 
     public AiSkillRouter() : this(new FileSkillPromptProvider()) { }

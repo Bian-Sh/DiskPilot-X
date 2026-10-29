@@ -93,11 +93,13 @@ public sealed class CleanupSkillStore
             SkillMarkdown = markdown,
             Rules = [],
             References = [],
+            UiXaml = ReadOptional(directory, "ui.xaml"),
             Source = ReadBuiltInSource(directory),
             Localizations = ReadBuiltInLocalizations(directory)
         };
         // 内置包不套用用户包的字段校验：纯规则技能没有源码也合法。
         if (package.Source is not null && Utf8.GetByteCount(package.Source) > 256 * 1024) throw new InvalidDataException("内置技能源码超过 256 KiB 限制。");
+        if (package.UiXaml is not null) _ = DiskPilotX.Core.Models.SkillUiDocument.Parse(package.UiXaml);
         return package with { Digest = HashPackage(package) };
     }
 

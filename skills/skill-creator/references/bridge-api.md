@@ -18,6 +18,7 @@
 | `FileExists` | `bool FileExists(string path)` | 文件是否存在 |
 | `ReadTextFile` | `string? ReadTextFile(string path)` | 读文本文件内容 |
 | `GetDirectorySize` | `long GetDirectorySize(string path)` | 递归统计目录占用字节数 |
+| `GetDirectoryLastWriteTimeUtc` | `DateTime? GetDirectoryLastWriteTimeUtc(string path)` | 目录修改时间，不等同于最近打开时间 |
 | `QueryScan` | `IReadOnlyList<SkillHostEntry> QueryScan(string? rootPath = null, int maxCount = 20000)` | 查询宿主已扫描快照 |
 
 ## 关键语义

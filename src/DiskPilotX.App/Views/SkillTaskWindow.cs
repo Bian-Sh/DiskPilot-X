@@ -91,7 +91,7 @@ public sealed class SkillTaskWindow : Window
         frame.SetResourceReference(Border.BorderBrushProperty, "VP.BorderLightBrush");
         frame.SetResourceReference(Border.CornerRadiusProperty, "VP.WindowCornerRadius");
         Content = frame;
-        HostWindowChrome.Apply(this, frame, titleBar);
+        HostWindowChrome.Apply(this, frame, titleBar); // 外壳与宿主同构：圆角裁切 + 磨砂材质跟随主题实时刷新
         IsVisibleChanged += (_, _) =>
         {
             // 后台窗口在最大化状态下不能直接 Show；收起时还原以保证可重开。
@@ -163,7 +163,6 @@ public sealed class SkillTaskWindow : Window
                 table.SetResourceReference(StyleProperty,"VP.DataGrid");
                 table.AutoGeneratingColumn += (_, args) =>
                 {
-                    args.Column.Width = args.PropertyName == "Size" ? new DataGridLength(90) : new DataGridLength(args.PropertyName == "Path" ? 2 : 1, DataGridLengthUnitType.Star);
                     args.Column.Header = args.PropertyName switch { "Path" => L.Text("SkillPanelColPath"), "Size" => L.Text("SkillPanelColSize"), _ => L.Text("SkillPanelColNote") };
                     if (args.Column is DataGridTextColumn column) column.ElementStyle = (Style)table.FindResource("VP.DataGridText");
                 };
