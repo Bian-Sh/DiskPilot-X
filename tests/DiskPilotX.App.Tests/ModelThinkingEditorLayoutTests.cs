@@ -19,6 +19,10 @@ public class ModelThinkingEditorLayoutTests
         var hover = elements.Where(item => item.Name.LocalName == "Trigger" && (string?)item.Attribute("SourceName") == "ModelRow" && (string?)item.Attribute("Property") == "IsMouseOver");
         Assert.Contains(hover.SelectMany(item => item.Elements()), item => (string?)item.Attribute("TargetName") == "EditModelThinkingButton" && (string?)item.Attribute("Property") == "Opacity" && (string?)item.Attribute("Value") == "1");
         var popup = Assert.Single(elements.Where(item => (string?)item.Attribute(x + "Name") == "ModelThinkingPopup"));
+        Assert.DoesNotContain(popup.Descendants(), item => (string?)item.Attribute("Text") == "{Binding ThinkingConfigurationModel}");
+        var heading = popup.Descendants().First(item => item.Name.LocalName == "TextBlock");
+        Assert.Equal("{loc:Loc SettingsThinkingLevelLabel}", (string?)heading.Attribute("Text"));
+        Assert.Null(heading.Attribute("Margin"));
         Assert.Equal("Bottom", (string?)popup.Attribute("Placement"));
         Assert.Equal("{DynamicResource VP.BackgroundAltBrush}", (string?)popup.Elements().Single().Attribute("Background"));
         Assert.Equal("False", (string?)popup.Attribute("StaysOpen"));
