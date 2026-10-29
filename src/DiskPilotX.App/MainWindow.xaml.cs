@@ -107,7 +107,9 @@ public partial class MainWindow : Window
                 L.Text("CloseAppTitle"),
                 L.Text("CloseAppMessage"),
                 ModalMessageType.Warning,
-                ModalButtonFlags.Positive | ModalButtonFlags.Negative);
+                ModalButtonFlags.Positive | ModalButtonFlags.Negative,
+                contentTextAlignment: TextAlignment.Center,
+                contentIconType: ModalMessageType.Warning);
 
             Log.Information("Close confirmation result: {Result}", result);
             if (result == ModalResult.Positive)

@@ -27,23 +27,28 @@ public partial class AppModalHost : UserControl
         SizeChanged += (_, _) => UpdateCardBounds();
     }
 
-    public Task<int> ShowAsync(string title, string content, ModalMessageType messageType, ModalButtonFlags buttonFlags)
+    public Task<int> ShowAsync(string title, string content, ModalMessageType messageType, ModalButtonFlags buttonFlags,
+        TextAlignment contentTextAlignment = TextAlignment.Left, ModalMessageType? contentIconType = null)
     {
-        var view = CreateMessageView(title, content, messageType, buttonFlags);
+        var view = CreateMessageView(title, content, messageType, buttonFlags,
+            contentTextAlignment: contentTextAlignment, contentIconType: contentIconType);
         return ShowAsync<int>(view, ModalResult.Negative, 460, 700, isMessage: true);
     }
 
     /// <summary>复用关闭确认的模态外观；破坏性操作默认取消，必须显式点击确认。</summary>
-    public Task<int> ShowConfirmationAsync(string title, string content, string positiveText)
+    public Task<int> ShowConfirmationAsync(string title, string content, string positiveText,
+        TextAlignment contentTextAlignment = TextAlignment.Left, ModalMessageType? contentIconType = null)
     {
         var view = CreateMessageView(title, content, ModalMessageType.Warning,
-            ModalButtonFlags.Positive | ModalButtonFlags.Negative, positiveText, defaultToNegative: true);
+            ModalButtonFlags.Positive | ModalButtonFlags.Negative, positiveText, defaultToNegative: true,
+            contentTextAlignment: contentTextAlignment, contentIconType: contentIconType);
         return ShowAsync<int>(view, ModalResult.Negative, 460, 700, isMessage: true);
     }
 
     /// <summary>使用字面量 Inline 展示清理摘要，不把用户文件名作为 Markdown 或 XAML 解析。</summary>
     public Task<int> ShowCleanupConfirmationAsync(string title, IReadOnlyList<CleanupRecommendation> items,
-        DeletionMode mode, string positiveText)
+        DeletionMode mode, string positiveText,
+        TextAlignment contentTextAlignment = TextAlignment.Left, ModalMessageType? contentIconType = null)
     {
         if (items.Count == 0) throw new ArgumentException("清理确认至少需要一个项目。", nameof(items));
         var inlines = new List<Inline> { new Run(items.Count == 1 ? "将把 " : "将把所选的 ") };
@@ -62,15 +67,18 @@ public partial class AppModalHost : UserControl
             ? "。此操作无法恢复，请确认这些项目不再需要。"
             : "，之后可从回收站恢复。"));
         var view = CreateMessageView(title, "", mode == DeletionMode.PermanentDelete ? ModalMessageType.Error : ModalMessageType.Warning,
-            ModalButtonFlags.Positive | ModalButtonFlags.Negative, positiveText, defaultToNegative: true, inlines);
+            ModalButtonFlags.Positive | ModalButtonFlags.Negative, positiveText, defaultToNegative: true, inlines,
+            contentTextAlignment, contentIconType);
         return ShowAsync<int>(view, ModalResult.Negative, 460, 700, isMessage: true);
 
         static Run Emphasis(string text) => new(text) { FontWeight = FontWeights.SemiBold };
     }
 
-    public async Task<MessageBoxResult> ShowMessageAsync(string message, string title, MessageBoxButton buttons, MessageBoxImage image)
+    public async Task<MessageBoxResult> ShowMessageAsync(string message, string title, MessageBoxButton buttons, MessageBoxImage image,
+        TextAlignment contentTextAlignment = TextAlignment.Left, ModalMessageType? contentIconType = null)
     {
-        var result = await ShowAsync(title, message, ToModalMessageType(image), ToModalButtonFlags(buttons));
+        var result = await ShowAsync(title, message, ToModalMessageType(image), ToModalButtonFlags(buttons),
+            contentTextAlignment, contentIconType);
         return ToMessageBoxResult(result, buttons);
     }
 
@@ -234,7 +242,8 @@ public partial class AppModalHost : UserControl
     }
 
     private FrameworkElement CreateMessageView(string title, string content, ModalMessageType messageType, ModalButtonFlags buttonFlags,
-        string? positiveText = null, bool defaultToNegative = false, IEnumerable<Inline>? contentInlines = null)
+        string? positiveText = null, bool defaultToNegative = false, IEnumerable<Inline>? contentInlines = null,
+        TextAlignment contentTextAlignment = TextAlignment.Left, ModalMessageType? contentIconType = null)
     {
         var root = new Grid { MaxWidth = 480 };
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -265,11 +274,11 @@ public partial class AppModalHost : UserControl
 
         var bodyText = new TextBlock
         {
-            Text = content, FontSize = 14,
+            Name = "ModalBodyText", Text = content, FontSize = 14,
             Foreground = (Brush)FindResource("VP.TextSecondaryBrush"),
             TextWrapping = TextWrapping.Wrap, LineHeight = 24,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center, TextAlignment = contentTextAlignment,
             Margin = new Thickness(28, 16, 28, 16)
         };
         if (contentInlines is not null)
@@ -278,7 +287,29 @@ public partial class AppModalHost : UserControl
             bodyText.Inlines.AddRange(contentInlines);
         }
         var bodyPanel = new Grid();
-        bodyPanel.Children.Add(bodyText);
+        if (contentIconType is { } iconType)
+        {
+            // 图标和正文按整体对齐，居中时不让固定图标列把文案挤向右侧。
+            var bodyGroup = new Grid
+            {
+                Name = "ModalBodyContent",
+                Margin = bodyText.Margin,
+                HorizontalAlignment = contentTextAlignment == TextAlignment.Center
+                    ? HorizontalAlignment.Center : HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            bodyGroup.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            bodyGroup.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            bodyText.Margin = new Thickness(0);
+            Grid.SetColumn(bodyText, 1);
+            bodyGroup.Children.Add(CreateContentIcon(iconType));
+            bodyGroup.Children.Add(bodyText);
+            bodyPanel.Children.Add(bodyGroup);
+        }
+        else
+        {
+            bodyPanel.Children.Add(bodyText);
+        }
         var scroll = new ScrollViewer
         {
             CanContentScroll = false,
@@ -322,6 +353,36 @@ public partial class AppModalHost : UserControl
 
         return root;
     }
+    // null 表示不显示图标；指定类型时复用原始关闭确认的圆环样式，与标题级别独立。
+    private Grid CreateContentIcon(ModalMessageType iconType)
+    {
+        var (glyph, brushKey) = iconType switch
+        {
+            ModalMessageType.Warning => ("!", "VP.WarningTextBrush"),
+            ModalMessageType.Error => ("✕", "VP.DangerTextBrush"),
+            _ => ("i", "VP.AccentTextBrush")
+        };
+        var brush = (Brush)FindResource(brushKey);
+        var icon = new Grid
+        {
+            Name = "ModalBodyIcon", Tag = iconType,
+            Width = 34, Height = 34, Margin = new Thickness(0, 0, 12, 0),
+            // 长正文从首段开始显示图标，避免图标落在滚动内容中部而首屏不可见。
+            VerticalAlignment = VerticalAlignment.Top
+        };
+        icon.Children.Add(new System.Windows.Shapes.Ellipse
+        {
+            Stroke = brush, StrokeThickness = 1.6, Fill = Brushes.Transparent
+        });
+        icon.Children.Add(new TextBlock
+        {
+            Text = glyph, FontSize = 15.5, FontWeight = FontWeights.SemiBold,
+            Foreground = brush, HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center
+        });
+        return icon;
+    }
+
     private IEnumerable<(string Label, int Result, bool IsPrimary)> GetButtons(ModalButtonFlags buttonFlags)
     {
         if (buttonFlags.HasFlag(ModalButtonFlags.Negative))

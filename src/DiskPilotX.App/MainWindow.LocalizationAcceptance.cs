@@ -27,6 +27,22 @@ public partial class MainWindow
     internal object AcceptanceLocalizationFixture(string? kind)
     {
         if (!AcceptanceAutomationServer.IsEnabled() || _chatViewModel is null) throw new InvalidOperationException("验收入口未启用。");
+        if (kind is "modal-center" or "modal-icon-info" or "modal-icon-warning" or "modal-icon-error" or "modal-icon-long")
+        {
+            var iconType = kind switch
+            {
+                "modal-icon-info" => Controls.ModalMessageType.Info,
+                "modal-icon-warning" or "modal-icon-long" => Controls.ModalMessageType.Warning,
+                "modal-icon-error" => Controls.ModalMessageType.Error,
+                _ => (Controls.ModalMessageType?)null
+            };
+            var text = kind == "modal-icon-long"
+                ? string.Join("\n", Enumerable.Repeat("这是一段带图标的长正文，只允许在中间区域滚动。", 100))
+                : "这是一条简短提示。";
+            _ = ModalHost.ShowAsync("常规提示", text, Controls.ModalMessageType.Info, Controls.ModalButtonFlags.Positive,
+                contentTextAlignment: TextAlignment.Center, contentIconType: iconType);
+            return new { ok = true, kind };
+        }
         if (kind == "modal-info")
         {
             _ = ModalHost.ShowAsync("常规提示", "这是一条常规提示，正文保持左对齐。", Controls.ModalMessageType.Info, Controls.ModalButtonFlags.Positive);
