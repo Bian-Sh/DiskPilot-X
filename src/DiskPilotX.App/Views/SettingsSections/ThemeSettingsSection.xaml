@@ -98,7 +98,16 @@
                               Content="{loc:Loc ThemeGlassOption}" />
                 </Grid>
 
-                <!-- 统一磨砂材质仅开放背景透明度调节。 -->
+                <!-- 只控制材质外观，不改变窗口的真实输入焦点。 -->
+                <Separator Margin="14,0" />
+                <Grid Margin="14,12" IsEnabled="{Binding GlassEnabled}">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="170"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:Loc ThemeKeepGlassInactiveLabel}" Style="{StaticResource SettingsLabelStyle}" ToolTip="{loc:Loc ThemeKeepGlassInactiveHint}"/>
+                    <CheckBox x:Name="KeepBackgroundGlassToggle" Grid.Column="1" Style="{DynamicResource VP.CheckBox}"
+                              IsChecked="{Binding KeepGlassWhenInactive}" Content="{loc:Loc ThemeKeepGlassInactiveOption}"
+                              AutomationProperties.Name="{loc:Loc ThemeKeepGlassInactiveLabel}" ToolTip="{loc:Loc ThemeKeepGlassInactiveHint}"/>
+                </Grid>
+                <!-- 统一磨砂材质的背景透明度调节。 -->
                 <Separator Margin="14,0" />
                 <Grid Margin="14,12" IsEnabled="{Binding GlassEnabled}">
                     <Grid.ColumnDefinitions>

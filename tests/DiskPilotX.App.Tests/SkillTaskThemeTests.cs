@@ -32,7 +32,8 @@ public sealed class SkillTaskThemeTests
         content.UpdateLayout();
         Assert.Equal(WindowStyle.None, window.WindowStyle);
         var titleBar = Assert.Single(Visuals<WindowTitleBar>(content));
-        Assert.Contains(Visuals<TextBlock>(titleBar), t => t.Text == "缓存检查");
+        Assert.Equal(Visibility.Collapsed,titleBar.BrandingVisibility);
+        Assert.Equal(Visibility.Collapsed, ((Button)titleBar.FindName("UpdateButton")).Visibility);
         Assert.Equal(Visibility.Collapsed, ((Button)titleBar.FindName("SettingsButton")).Visibility);
         Assert.Equal(Visibility.Collapsed, ((Button)titleBar.FindName("CollapseChatButton")).Visibility);
         var scope = Visuals<TextBox>(content).Single(t => t.Text == "测试目录");
@@ -50,10 +51,11 @@ public sealed class SkillTaskThemeTests
         Assert.All(headers, h => Assert.Same(Brushes.DarkBlue, h.Foreground));
         var inputBorder = (Border)scope.Template.FindName("Bd", scope);
         Assert.Equal(new CornerRadius(12), inputBorder.CornerRadius);
-        Assert.Equal(new CornerRadius(10), ((Border)window.Content).CornerRadius);
+        Assert.Equal(new CornerRadius(0), ((Border)window.Content).CornerRadius);
         window.Resources["VP.WindowCornerRadius"] = new CornerRadius(16);
         Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.DataBind);
-        Assert.Equal(16, Assert.IsType<RectangleGeometry>(content.Clip).RadiusX);
+        Assert.Null(content.Clip);
+        Assert.Equal(new CornerRadius(0), ((Border)window.Content).CornerRadius);
         window.Close();
     });
 

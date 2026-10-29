@@ -527,6 +527,17 @@ public sealed class Provider : IAppDataProvider
             })]
         };
 
+        var chart = new SkillUiSection
+        {
+            Kind = SkillUiSectionKind.BarChart,
+            Title = SkillTextCatalog.Bind("chart.title"),
+            Subtitle = SkillTextCatalog.Bind("chart.subtitle"),
+            Items = [.. rows.Take(8).Select(row => new SkillUiItem
+            {
+                Title = row.Entry.Name, Value = FormatSize(row.Entry.SizeBytes),
+                Metric = row.Entry.SizeBytes, Path = row.Entry.Path
+            })]
+        };
         return new SkillUiSpec
         {
             Title = SkillTextCatalog.Bind("view.title"),
@@ -536,7 +547,7 @@ public sealed class Provider : IAppDataProvider
             Surface = SkillUiSurface.Auto,
             EntryTitle = SkillTextCatalog.Bind("view.title"),
             EntrySummary = SkillTextCatalog.Bind("entry.summary", rows.Count, FormatSize(total)),
-            Sections = [stats, posters, table],
+            Sections = [stats, posters, table, chart],
             // 这一屏就是终点：盘点 + 卸载，不再有「回传继续分析」。
             Actions = [new SkillUiAction { Kind = "close", Label = SkillTextCatalog.Bind("action.close") }]
         };

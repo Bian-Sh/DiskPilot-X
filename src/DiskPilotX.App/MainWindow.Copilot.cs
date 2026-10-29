@@ -374,7 +374,7 @@ public partial class MainWindow
 
     /// <summary>
     /// 解析并渲染模型按需构建的视图契约。
-    /// 气泡里一律只放一张入口卡；surface=auto 时额外立即弹出完整视图窗口，
+    /// 泡泡里一律只放一张入口卡；surface=auto 时额外立即弹出完整视图窗口，
     /// surface=entry（默认）时只放入口卡，等用户点击再开窗。
     /// </summary>
     private JsonNode RenderView(JsonNode? args)
@@ -385,7 +385,7 @@ public partial class MainWindow
         {
             var spec = SkillUiSpecContract.Parse(JsonSerializer.SerializeToElement(args));
             if (spec.Sections.Count == 0 && spec.Surface != SkillUiSurface.Window)
-                return new JsonObject { ["ok"] = false, ["error"] = "视图契约无效或为空。kind 必须是 poster_grid/stat_row/table/bar_chart/text。" };
+                return new JsonObject { ["ok"] = false, ["error"] = "视图契约无效或为空。kind 必须是 poster_grid/stat_row/table/bar_chart/pie_chart/donut_chart/text。" };
             _chatViewModel.AddView(spec);
             if (spec.AutoOpensWindow) _chatViewModel.OpenSkillWindow(spec);
             return new JsonObject { ["ok"] = true, ["surface"] = spec.Surface.ToString().ToLowerInvariant(), ["sections"] = spec.Sections.Count };

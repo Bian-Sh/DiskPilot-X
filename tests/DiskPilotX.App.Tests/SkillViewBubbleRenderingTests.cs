@@ -22,11 +22,11 @@ namespace DiskPilotX.App.Tests;
 public sealed class SkillViewBubbleRenderingTests
 {
     /// <summary>
-    /// 气泡里只应该有入口卡：标题、摘要、规模统计，
-    /// 数据区块（海报网格 / 表格 / 条形图）一律不内联渲染。
+    /// 气泡保留入口卡与明确声明的条形图：标题、摘要、规模统计，
+    /// 海报网格和表格仍不内联渲染。
     /// </summary>
     [Fact]
-    public void 气泡只渲染入口卡不内联数据区块() => StaHost.Run(() =>
+    public void 气泡保留入口并只内联条形图区块() => StaHost.Run(() =>
     {
         using var host = CreateHost(out var panel, out var vm);
         var message = new ChatMessage
@@ -46,10 +46,10 @@ public sealed class SkillViewBubbleRenderingTests
         // 5 个区块；条目按 path/标题去重后 11 条（海报 10 + 条形图 1）
         Assert.Contains(texts, text => text.Contains("5 个区块") && text.Contains("11 项"));
         Assert.Contains(texts, text => text.Contains("可勾选 10 项"));
-        // 区块数据不该出现在气泡里
-        Assert.DoesNotContain("赛博朋克 2077", texts);
+        // 表格和海报不内联；明确的条形图可以直接在聊天中绘制。
+        Assert.Contains("赛博朋克 2077", texts);
         Assert.DoesNotContain("D:\\Steam", texts);
-        Assert.DoesNotContain("118.5 GB", texts);
+        Assert.Contains("118.5 GB", texts);
         Assert.DoesNotContain("说明段落", texts);
     });
 
@@ -120,6 +120,61 @@ public sealed class SkillViewBubbleRenderingTests
         var texts = Visuals<TextBlock>(panel).Where(t => t.IsVisible).Select(t => t.Text).ToList();
         Assert.Contains("查看游戏入口标题", texts);
         Assert.DoesNotContain("在窗口中查看 Steam 库", texts);
+    });
+
+    [Fact]
+    public void 入口卡前景文字不参与阴影离屏合成() => StaHost.Run(() =>
+    {
+        using var host=CreateHost(out var panel,out var vm);
+        var message=new ChatMessage { Sender=Core.Enums.ChatSender.Assistant };
+        message.Views.Add(BuildSpec());vm.Messages.Add(message);Layout(panel);
+        var title=Visuals<TextBlock>(panel).Single(t=>t.Text=="查看游戏入口标题");
+        Assert.True(title.IsHitTestVisible);
+        for(DependencyObject? node=title;node is not null;node=System.Windows.Media.VisualTreeHelper.GetParent(node))
+            if(node is UIElement element) Assert.Null(element.Effect);
+    });
+
+    [Fact]
+    public void 聊天内联条形图但不内联表格和海报() => StaHost.Run(() =>
+    {
+        using var host=CreateHost(out var panel,out var vm);
+        var message=new ChatMessage { Sender=Core.Enums.ChatSender.Assistant };
+        message.Views.Add(BuildSpec());vm.Messages.Add(message);Layout(panel);
+        Assert.NotEmpty(Visuals<Border>(panel).Where(b=>Equals(b.Tag,"SkillBarFill") && b.ActualWidth>0));
+        var texts=Visuals<TextBlock>(panel).Select(t=>t.Text).ToArray();
+        Assert.Contains("Top 占用",texts);
+        Assert.DoesNotContain("D:\\Steam",texts);
+        Assert.Empty(Visuals<DataGrid>(panel));
+    });
+
+    [Fact]
+    public void 内联图表继承技能词典并随语言切换() => StaHost.Run(() =>
+    {
+        var previous=DiskPilotX.App.Localization.L.GetState().LanguagePreference;
+        try
+        {
+            DiskPilotX.App.Localization.L.SetLanguage("zh-CN");
+            using var host=CreateHost(out var panel,out var vm);
+            var spec=new SkillUiSpec { Title="盘点",Localizations=new()
+                { ["zh-CN"]=new() { ["chart"]="空间占用",["item"]="项目甲" },["en-US"]=new() { ["chart"]="Space usage",["item"]="Project A" } },
+                Sections=[new SkillUiSection { Kind=SkillUiSectionKind.BarChart,Title="{loc chart}",Items=[new SkillUiItem { Title="{loc item}",Metric=8,Value="8 GB" }] }] };
+            var message=new ChatMessage { Sender=Core.Enums.ChatSender.Assistant };message.Views.Add(spec);vm.Messages.Add(message);Layout(panel);
+            Assert.Contains(Visuals<TextBlock>(panel),t=>t.Text=="空间占用");
+            Assert.Contains(Visuals<TextBlock>(panel),t=>t.Text=="项目甲");
+            DiskPilotX.App.Localization.L.SetLanguage("en-US");Layout(panel);
+            Assert.Contains(Visuals<TextBlock>(panel),t=>t.Text=="Space usage");
+            Assert.Contains(Visuals<TextBlock>(panel),t=>t.Text=="Project A");
+        }
+        finally { DiskPilotX.App.Localization.L.SetLanguage(previous); }
+    });
+    [Fact]
+    public void 聊天复用三类图表控件而不展开其他区块() => StaHost.Run(()=>
+    {
+        using var host=CreateHost(out var panel,out var vm);
+        var spec=new SkillUiSpec { Title="共享图表",Sections=[..new[] {SkillUiSectionKind.BarChart,SkillUiSectionKind.PieChart,SkillUiSectionKind.DonutChart}.Select(kind=>new SkillUiSection { Kind=kind,Items=[new() {Title="甲",Metric=8},new() {Title="乙",Metric=4}] }),new() {Kind=SkillUiSectionKind.Table,Headers=["不应内联的表头"],Items=[new() {Cells=["表格内容"]}]}] };
+        var message=new ChatMessage { Sender=Core.Enums.ChatSender.Assistant };message.Views.Add(spec);vm.Messages.Add(message);Layout(panel);
+        Assert.Equal(3,Visuals<DiskPilotX.App.Controls.SkillChartControl>(panel).Count(c=>c.IsVisible));
+        Assert.Empty(Visuals<DataGrid>(panel));Assert.DoesNotContain(Visuals<TextBlock>(panel),t=>t.Text=="不应内联的表头");
     });
 
     private static IDisposable CreateHost(out ChatPanel panel, out ChatViewModel vm)

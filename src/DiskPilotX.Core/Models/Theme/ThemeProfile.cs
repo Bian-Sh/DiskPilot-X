@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace DiskPilotX.Core.Models.Theme;
 
@@ -46,6 +46,9 @@ public class ThemeProfile
 
     /// <summary>Enable frosted-glass (acrylic/mica) on the window backdrop.</summary>
     public bool GlassEnabled { get; set; } = false;
+
+    /// <summary>仅保持后台玻璃材质的活跃外观，不改变真实窗口焦点；默认遵循系统行为。</summary>
+    public bool KeepGlassWhenInactive { get; set; }
 
     private double _glassOpacity = 0.6;
 

@@ -177,6 +177,25 @@ public partial class ThemeManager
         else ApplyBackdropCore(window, trackMain: false);
     }
 
+    /// <summary>动态窗口只在一个背景层叠主题色，按本窗口材质结果决定透明或实色回退。</summary>
+    public bool ApplySkillWindowTheme(Window window, System.Windows.Controls.Border surface)
+    {
+        ApplyGlassBackdrop(window);
+        var active=IsWindowGlassActive(window);
+        var color=ParseColor(_currentProfile.BackgroundAltColor);
+        color.A=255;
+        window.Background=active ? Brushes.Transparent : new SolidColorBrush(color);
+        var tint=color;
+        tint.A=active ? (byte)Math.Round(255*(MinimumGlassTintOpacity+(1-MinimumGlassTintOpacity)*_currentProfile.GlassOpacity)) : (byte)0;
+        surface.Background=new SolidColorBrush(tint);
+        var table=color;
+        table.A=active ? (byte)18 : (byte)255;
+        window.Resources["VP.SkillWindowSurfaceBrush"]=new SolidColorBrush(table);
+        return active;
+    }
+
+    /// <summary>每窗独立状态，不能用主窗口的材质启用结果代替。</summary>
+    public static bool IsWindowGlassActive(Window window) => (bool)window.GetValue(WindowGlassActiveProperty);
     private void ApplyBackdropCore(Window? window, bool trackMain)
     {
         if (window == null)
@@ -198,6 +217,7 @@ public partial class ThemeManager
             // 调整滑杆只更新画刷，不反复重建原生材质，避免拖动时闪烁。
             active = alreadyActive || Helpers.AcrylicHelper.TryEnableAcrylic(window);
         }
+        Helpers.AcrylicHelper.SetKeepGlassWhenInactive(window,active && _currentProfile.KeepGlassWhenInactive);
         if (!active) Helpers.AcrylicHelper.DisableBackdrop(window);
 
         if (trackMain) _glassBackdropActive = active;

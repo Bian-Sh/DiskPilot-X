@@ -1150,4 +1150,14 @@
   <data name="ThinkingLevelXHighLabel" xml:space="preserve"><value>超高</value></data>
   <data name="ThinkingLevelMaxLabel" xml:space="preserve"><value>最高</value></data>
   <data name="SettingsModelThinkingEditHint" xml:space="preserve"><value>編輯思考等級</value></data>
+  <data name="SkillTableAccessibleName" xml:space="preserve"><value>技能結果表格</value></data>
+  <data name="SkillTableSelectAll" xml:space="preserve"><value>全選或取消本表可選列</value></data>
+  <data name="SkillTableInvert" xml:space="preserve"><value>反選</value></data>
+  <data name="SkillTableEmpty" xml:space="preserve"><value>暫無可顯示的項目</value></data>
+  <data name="SkillTableSelectionFormat" xml:space="preserve"><value>已選 {0} / {1} 項</value></data>
+  <data name="ThemeKeepGlassInactiveHint" xml:space="preserve"><value>僅在磨砂開啟時生效，不改變視窗焦點；關閉後遵循系統的失焦回退。</value></data>
+  <data name="ThemeKeepGlassInactiveLabel" xml:space="preserve"><value>背景保持通透</value></data>
+  <data name="ThemeKeepGlassInactiveOption" xml:space="preserve"><value>視窗在背景時仍保持玻璃效果</value></data>
+  <data name="SkillChartEmpty" xml:space="preserve"><value>暫無可顯示的正數資料</value></data>
+  <data name="SkillChartTotal" xml:space="preserve"><value>合計</value></data>
 </root>

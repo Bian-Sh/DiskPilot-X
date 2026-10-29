@@ -31,6 +31,7 @@ public sealed class SkillWindowChromeTests
             Assert.NotNull(titleBar);
             // 任务窗隐藏设置/收起入口，但最小化、最大化、关闭沿用宿主实现
             Assert.Equal(Visibility.Collapsed, titleBar!.ApplicationToolsVisibility);
+            Assert.Equal(Visibility.Collapsed, ((Button)titleBar.FindName("UpdateButton")).Visibility);
         }
         finally
         {
@@ -59,6 +60,23 @@ public sealed class SkillWindowChromeTests
         });
     }
 
+    [Fact]
+    public void 主窗口更新入口仍响应状态且技能模式不留空位() => StaHost.Run(() =>
+    {
+        var service=NSubstitute.Substitute.For<DiskPilotX.App.Services.IUpdateService>();
+        NSubstitute.SubstituteExtensions.Returns(service.GetCurrentVersion(),"1.0.0");
+        var vm=new DiskPilotX.App.ViewModels.UpdateViewModel(service) { UpdateAvailable=true,LatestVersion="2.0.0" };
+        var bar=new WindowTitleBar { UpdateVM=vm };
+        using var host=new System.Windows.Interop.HwndSource(new System.Windows.Interop.HwndSourceParameters("更新入口显隐") { Width=600,Height=50 }) { RootVisual=bar };
+        void Layout() { bar.Measure(new Size(600,50));bar.Arrange(new Rect(0,0,600,50));bar.UpdateLayout();System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle); }
+        Layout();var update=(Button)bar.FindName("UpdateButton");
+        Assert.Equal(Visibility.Visible,update.Visibility);
+        bar.ApplicationToolsVisibility=Visibility.Collapsed;Layout();
+        Assert.Equal(Visibility.Collapsed,update.Visibility);Assert.Equal(0,update.ActualWidth);
+        bar.ApplicationToolsVisibility=Visibility.Visible;bar.UpdateVM=null;Layout();
+        Assert.Equal(Visibility.Collapsed,update.Visibility);Assert.Equal(0,update.ActualWidth);
+        bar.UpdateVM=vm;Layout();Assert.Equal(Visibility.Visible,update.Visibility);
+    });
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
         foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())

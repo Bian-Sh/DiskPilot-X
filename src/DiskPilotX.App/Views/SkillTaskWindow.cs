@@ -48,11 +48,11 @@ public sealed class SkillTaskWindow : Window
         Localize(() => Title = Resolve(title)); Width = 780; Height = 700; MinWidth = 560; MinHeight = 430; ShowActivated = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         SetResourceReference(BackgroundProperty,"VP.BackgroundAltBrush"); SetResourceReference(ForegroundProperty,"VP.TextPrimaryBrush");
-        var body = new StackPanel { Margin = new(22) };
+        var body = new StackPanel { Margin = new(22,14,22,22) };
         var heading = new TextBlock { FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new(0,0,0,8) };
-        Localize(() => heading.Text = Resolve(title)); body.Children.Add(heading);
+        Localize(() => heading.Text = Resolve(title));
         var hint = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new(0,0,0,18) };
-        Localize(() => hint.Text = L.Text("SkillPanelHint")); body.Children.Add(hint);
+        Localize(() => hint.Text = L.Text("SkillPanelHint"));
         var values = data ?? new JsonObject();
         var document = string.IsNullOrWhiteSpace(xaml) ? null : SkillUiDocument.Parse(xaml);
         bool HasScope(SkillUiDocument node) => node.Properties.GetValueOrDefault("Name")=="scope_path" || node.Children.Any(HasScope);
@@ -74,11 +74,15 @@ public sealed class SkillTaskWindow : Window
         }
         body.Children.Add(buttons); body.Children.Add(status); body.Children.Add(result);
         var scroll = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        var titleBar = new WindowTitleBar { ApplicationToolsVisibility = Visibility.Collapsed };
+        var titleBar = new WindowTitleBar { ApplicationToolsVisibility = Visibility.Collapsed, BrandingVisibility = Visibility.Collapsed, VerticalAlignment=VerticalAlignment.Top };
         titleBar.CloseRequested += (_, _) => Close();
         var layout = new Grid();
-        layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(36) });
+        layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         layout.RowDefinitions.Add(new RowDefinition());
+        var header=new StackPanel { Margin=new Thickness(22,14,156,0) };
+        header.Children.Add(heading);header.Children.Add(hint);
+        layout.Children.Add(header);
+        Panel.SetZIndex(titleBar,1);
         layout.Children.Add(titleBar);
         Grid.SetRow(scroll, 1);
         layout.Children.Add(scroll);
@@ -87,7 +91,7 @@ public sealed class SkillTaskWindow : Window
         frame.SetResourceReference(Border.BorderBrushProperty, "VP.BorderLightBrush");
         frame.SetResourceReference(Border.CornerRadiusProperty, "VP.WindowCornerRadius");
         Content = frame;
-        WindowChromeHelper.Apply(this, frame, titleBar);
+        HostWindowChrome.Apply(this, frame, titleBar);
         IsVisibleChanged += (_, _) =>
         {
             // 后台窗口在最大化状态下不能直接 Show；收起时还原以保证可重开。

@@ -47,7 +47,7 @@ public partial class ChatViewModel
     public void OpenSkillTask(SkillTaskCard card) => SkillTaskRequested?.Invoke(card);
 
     /// <summary>
-    /// 把模型按需构建的视图追加到当前助手气泡。气泡里只放入口卡，因此同一条消息里
+    /// 把模型按需构建的视图追加到当前助手泡泡。泡泡里只放入口卡，因此同一条消息里
     /// 讲同一件事的视图只留第一份（技能源码先返回的那份数据最全），
     /// 后面模型补发的 render_view 不再叠一张卡。
     /// </summary>

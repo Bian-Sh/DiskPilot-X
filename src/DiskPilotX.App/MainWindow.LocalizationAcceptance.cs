@@ -135,6 +135,7 @@ public partial class MainWindow
                     using System.Threading;
                     using System.Threading.Tasks;
                     using DiskPilotX.Core.Services.Skills;
+                    using DiskPilotX.Core.Models;
                     public sealed class Inventory : IAppDataProvider
                     {
                         public Task<AppDataDiscoveryResult> DiscoverAsync(AppDataDiscoveryContext context, CancellationToken token)
@@ -144,7 +145,15 @@ public partial class MainWindow
                             using var subscription = context.Host.SubscribeLocalizationChanged(next => context.Host.Log(next.CultureName));
                             var entries = context.Host.EnumerateDirectories(context.Parameters!["root"])
                                 .Select(path => new AppDataEntry(path, state.CultureName, path, 0)).ToArray();
-                            return Task.FromResult(new AppDataDiscoveryResult(entries));
+                            return Task.FromResult(new AppDataDiscoveryResult(entries)
+                            {
+                                View=new SkillUiSpec { Title="发布环境内置表格", Sections=new[]
+                                {
+                                    new SkillUiSection { Kind=SkillUiSectionKind.Table,
+                                        TableColumns=new[] { new SkillUiTableColumn { Header="目录", Width="2*" }, new SkillUiTableColumn { Header="容量", Width="100", Align="right" } },
+                                        Items=entries.Select(entry=>new SkillUiItem { Title=entry.Name, Cells=new[] { entry.Path, "0 B" }, Selectable=true }).ToArray() }
+                                } }
+                            });
                         }
                     }
                     """
@@ -157,8 +166,8 @@ public partial class MainWindow
                 var errors = await service.ValidateSourceAsync(invalid.Id);
                 localizationProbe = new JsonObject
                 {
-                    ["running"]=false, ["ok"]=valid.Success && output.Entries.Count==2 && !errors.Success && errors.Diagnostics.Any(d=>d.Line.HasValue && d.Column.HasValue),
-                    ["validated"]=valid.Success, ["contract"]=valid.Contract, ["count"]=output.Entries.Count,
+                    ["running"]=false, ["ok"]=valid.Success && output.Entries.Count==2 && output.View?.Sections.FirstOrDefault()?.TableColumns.Count==2 && !errors.Success && errors.Diagnostics.Any(d=>d.Line.HasValue && d.Column.HasValue),
+                    ["table_columns"]=output.View?.Sections.FirstOrDefault()?.TableColumns.Count, ["validated"]=valid.Success, ["contract"]=valid.Contract, ["count"]=output.Entries.Count,
                     ["culture"]=output.Entries.FirstOrDefault()?.Name, ["diagnostic_count"]=errors.Diagnostics.Count,
                     ["diagnostics"]=System.Text.Json.JsonSerializer.SerializeToNode(errors.Diagnostics), ["base_directory"]=AppContext.BaseDirectory
                 };

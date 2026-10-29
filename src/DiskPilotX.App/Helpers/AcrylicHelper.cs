@@ -28,6 +28,75 @@ public static class AcrylicHelper
             TrySetAttribute(window, DWMWA_SYSTEMBACKDROP_TYPE, DWMSBT_NONE);
     }
 
+    private static readonly DependencyProperty BackgroundGlassStateProperty = DependencyProperty.RegisterAttached(
+        "BackgroundGlassState",typeof(BackgroundGlassState),typeof(AcrylicHelper),new PropertyMetadata(null));
+
+    /// <summary>保持非客户区材质的活跃绘制，不发送 WM_ACTIVATE、不改变输入焦点。</summary>
+    public static bool SetKeepGlassWhenInactive(Window window,bool enabled)
+    {
+        var state=(BackgroundGlassState?)window.GetValue(BackgroundGlassStateProperty);
+        if(!enabled)
+        {
+            window.ClearValue(BackgroundGlassStateProperty);
+            state?.Detach(restore:true);
+            return false;
+        }
+        if(state is null)
+        {
+            var source=HwndSource.FromHwnd(new WindowInteropHelper(window).EnsureHandle());
+            if(source is null) return false;
+            state=new BackgroundGlassState(window,source);
+            window.SetValue(BackgroundGlassStateProperty,state);
+        }
+        state.Refresh();
+        return true;
+    }
+
+    public static bool IsKeepingGlassWhenInactive(Window window) => window.GetValue(BackgroundGlassStateProperty) is BackgroundGlassState;
+
+    private sealed class BackgroundGlassState
+    {
+        private readonly Window window;
+        private readonly HwndSource source;
+        private bool detached;
+        public BackgroundGlassState(Window window,HwndSource source)
+        {
+            this.window=window;this.source=source;
+            source.AddHook(OnMessage);
+            window.Deactivated+=OnDeactivated;
+            window.Closed+=OnClosed;
+        }
+        public void Refresh()
+        {
+            if(!detached && !source.IsDisposed)
+                _=DefWindowProc(source.Handle,0x0086,new IntPtr(1),new IntPtr(-1));
+        }
+        private IntPtr OnMessage(IntPtr hwnd,int message,IntPtr wParam,IntPtr lParam,ref bool handled)
+        {
+            if(detached || message!=0x0086) return IntPtr.Zero;
+            handled=true;
+            return DefWindowProc(hwnd,message,new IntPtr(1),new IntPtr(-1));
+        }
+        private void OnDeactivated(object? sender,EventArgs args) => Refresh();
+        private void OnClosed(object? sender,EventArgs args)
+        {
+            window.ClearValue(BackgroundGlassStateProperty);
+            Detach(restore:false);
+        }
+        public void Detach(bool restore)
+        {
+            if(detached) return;
+            detached=true;
+            window.Deactivated-=OnDeactivated;
+            window.Closed-=OnClosed;
+            if(!source.IsDisposed)
+            {
+                source.RemoveHook(OnMessage);
+                if(restore) _=DefWindowProc(source.Handle,0x0086,window.IsActive ? new IntPtr(1) : IntPtr.Zero,new IntPtr(-1));
+            }
+        }
+    }
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)] private static extern IntPtr DefWindowProc(IntPtr hwnd,int message,IntPtr wParam,IntPtr lParam);
     private static bool TrySetAttribute(Window window, int attribute, int value)
     {
         try

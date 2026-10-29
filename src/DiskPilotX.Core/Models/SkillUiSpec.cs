@@ -5,12 +5,12 @@ using System.Text.Json;
 namespace DiskPilotX.Core.Models;
 
 /// <summary>
-/// 视图呈现面。气泡里永远只放一张入口卡（不内联渲染数据区块），
+/// 视图呈现面。气泡保留一张入口卡，可内联明确声明的图表（表格和海报留在窗口），
 /// 这里只决定「除入口卡外，是否再自动把完整视图弹到新窗口」。
 /// </summary>
 public enum SkillUiSurface
 {
-    /// <summary>气泡内只放醒目入口卡，用户点击后才在新窗口打开完整视图（默认）。</summary>
+    /// <summary>气泡保留入口卡并可内联图表，点击后打开完整视图（默认）。</summary>
     Entry = 0,
     /// <summary>气泡内放入口卡，并立即自动弹出新窗口展示完整视图。</summary>
     Auto = 1,
@@ -36,7 +36,11 @@ public enum SkillUiSectionKind
     /// <summary>条形图：标签 + 数值条，适合 Top N 大小对比。</summary>
     BarChart,
     /// <summary>纯文本段落。</summary>
-    Text
+    Text,
+    /// <summary>饼图：有限正数的类别占比。</summary>
+    PieChart,
+    /// <summary>环形图：类别占比与中心合计。</summary>
+    DonutChart
 }
 
 public enum ImageLoadState { None, Loading, Loaded, Failed }
@@ -89,7 +93,7 @@ public sealed class SkillUiItem : INotifyPropertyChanged
     /// <summary>Steam appid 等应用标识；宿主据此确定性构造海报地址。</summary>
     public string? AppId { get; init; }
 
-    /// <summary>数值（条形图用；按区块内最大值归一）。</summary>
+    /// <summary>图表数值（条形图按最大值归一，饼图与环形图按正数合计归一）。</summary>
     public double Metric { get; init; }
 
     /// <summary>占用字节数（可选）；用于汇总用户勾选的条目总量。</summary>
@@ -145,6 +149,34 @@ public sealed class SkillUiItem : INotifyPropertyChanged
     private void OnPropertyChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
+/// <summary>内置表格列；仅声明布局，不携带可执行 UI。</summary>
+public sealed record SkillUiTableColumn
+{
+    public string Header { get; init; } = "";
+    public string Width { get; init; } = "auto";
+    public double MinWidth { get; init; } = 64;
+    public double MaxWidth { get; init; } = 1600;
+    public string Align { get; init; } = "left";
+    public bool Wrap { get; init; }
+
+    /// <summary>JSON 与源码直接构造共用边界，避免非有限宽度进入 WPF 布局。</summary>
+    public static SkillUiTableColumn Normalize(SkillUiTableColumn column)
+    {
+        var width = column.Width?.Trim().ToLowerInvariant() ?? "auto";
+        var star = width.EndsWith('*');
+        var number = star ? width[..^1] : width;
+        if (star && number.Length == 0) number = "1";
+        if (width != "auto" && (!double.TryParse(number, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var value) || !double.IsFinite(value) ||
+            value <= 0 || value > (star ? 10 : 1600))) width = "auto";
+        var min = double.IsFinite(column.MinWidth) ? Math.Clamp(column.MinWidth, 32, 1600) : 64;
+        var max = double.IsFinite(column.MaxWidth) ? Math.Clamp(column.MaxWidth, min, 1600) : 1600;
+        var align = column.Align?.ToLowerInvariant();
+        return column with { Header = (column.Header ?? "")[..Math.Min(column.Header?.Length ?? 0, 120)],
+            Width = width, MinWidth = min, MaxWidth = max, Align = align is "right" or "center" ? align : "left" };
+    }
+}
+
 /// <summary>视图的一个区块，决定一片区域的布局方式。</summary>
 public sealed record SkillUiSection
 {
@@ -158,21 +190,26 @@ public sealed record SkillUiSection
     /// <summary>Table 的列头；为空则不渲染表头。</summary>
     public IReadOnlyList<string>? Headers { get; init; }
 
+    /// <summary>可选的内置表格列配置；非空时优先于旧 Headers。</summary>
+    public IReadOnlyList<SkillUiTableColumn> TableColumns { get; init; } = [];
+
     public IReadOnlyList<SkillUiItem> Items { get; init; } = [];
 
     public bool IsPosterGrid => Kind == SkillUiSectionKind.PosterGrid;
     public bool IsStatRow => Kind == SkillUiSectionKind.StatRow;
     public bool IsTable => Kind == SkillUiSectionKind.Table;
     public bool IsBarChart => Kind == SkillUiSectionKind.BarChart;
+    public bool IsChart => Kind is SkillUiSectionKind.BarChart or SkillUiSectionKind.PieChart or SkillUiSectionKind.DonutChart;
     public bool IsText => Kind == SkillUiSectionKind.Text;
     public bool HasTitle => !string.IsNullOrWhiteSpace(Title);
     public bool HasSubtitle => !string.IsNullOrWhiteSpace(Subtitle);
 
     /// <summary>表格列数：优先取列头数量，其次取首行单元格数量。</summary>
-    public int ColumnCount => Headers?.Count ?? Items.FirstOrDefault()?.Cells.Count ?? 1;
+    public int ColumnCount => Math.Clamp(TableColumns.Count > 0 ? TableColumns.Count :
+        Headers is { Count: > 0 } ? Headers.Count : Items.Select(item => item.Cells.Count).DefaultIfEmpty(1).Max(), 1, 6);
 
     /// <summary>条形图归一化基准；无数据或全为 0 时返回 0（调用方按 0 宽度处理）。</summary>
-    public double MaxMetric => Items.Count == 0 ? 0 : Items.Max(item => item.Metric);
+    public double MaxMetric => Items.Select(item => item.Metric).Where(value => double.IsFinite(value) && value > 0).DefaultIfEmpty(0).Max();
 }
 
 /// <summary>视图动作（窗口底部按钮）。</summary>
@@ -222,6 +259,9 @@ public sealed record SkillUiSpec
 
     public string? EffectiveEntrySummary => string.IsNullOrWhiteSpace(EntrySummary) ? Subtitle : EntrySummary;
 
+    /// <summary>聊天只内联明确声明的图表，表格和海报继续留在完整窗口。</summary>
+    public IEnumerable<SkillUiSection> InlineCharts => Sections.Where(section => section.IsChart);
+
     public int SectionCount => Sections.Count;
 
     /// <summary>
@@ -241,7 +281,7 @@ public sealed record SkillUiSpec
     {
         var map = new Dictionary<string, ItemSummary>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in Sections
-            .Where(section => section.Kind is SkillUiSectionKind.PosterGrid or SkillUiSectionKind.Table or SkillUiSectionKind.BarChart)
+            .Where(section => section.Kind is SkillUiSectionKind.PosterGrid or SkillUiSectionKind.Table or SkillUiSectionKind.BarChart or SkillUiSectionKind.PieChart or SkillUiSectionKind.DonutChart)
             .SelectMany(section => section.Items))
         {
             var key = ItemKey(item);
@@ -286,7 +326,7 @@ public sealed record SkillUiSpec
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in Sections
-            .Where(section => section.Kind is SkillUiSectionKind.PosterGrid or SkillUiSectionKind.Table or SkillUiSectionKind.BarChart)
+            .Where(section => section.Kind is SkillUiSectionKind.PosterGrid or SkillUiSectionKind.Table or SkillUiSectionKind.BarChart or SkillUiSectionKind.PieChart or SkillUiSectionKind.DonutChart)
             .SelectMany(section => section.Items))
         {
             var value = picker(item);
@@ -332,7 +372,7 @@ public static class SkillUiSpecContract
     private const int MaxActions = 3;
 
     private static readonly HashSet<string> KnownKinds = new(StringComparer.OrdinalIgnoreCase)
-        { "poster_grid", "stat_row", "table", "bar_chart", "text" };
+        { "poster_grid", "stat_row", "table", "bar_chart", "pie_chart", "donut_chart", "text" };
 
     private static readonly HashSet<string> KnownActions = new(StringComparer.OrdinalIgnoreCase)
         { "preview", "continue", "close" };
@@ -401,8 +441,29 @@ public static class SkillUiSpecContract
             Subtitle = TrimTo(GetString(el, "subtitle"), 160),
             Columns = kind == SkillUiSectionKind.PosterGrid ? Math.Clamp(ReadInt(el, "columns", 3), 1, MaxColumns) : 0,
             Headers = ReadStrings(el, "headers", MaxColumns),
+            TableColumns = kind == SkillUiSectionKind.Table ? ParseTableColumns(el) : [],
             Items = ParseItems(el, kind)
         };
+    }
+
+    private static IReadOnlyList<SkillUiTableColumn> ParseTableColumns(JsonElement el)
+    {
+        if (!el.TryGetProperty("table_columns", out var array) || array.ValueKind != JsonValueKind.Array) return [];
+        var columns = new List<SkillUiTableColumn>();
+        foreach (var column in array.EnumerateArray())
+        {
+            if (columns.Count >= MaxColumns) break;
+            if (column.ValueKind != JsonValueKind.Object) continue;
+            double ReadWidth(string key, double fallback) => column.TryGetProperty(key, out var value) &&
+                value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number) ? number : fallback;
+            columns.Add(SkillUiTableColumn.Normalize(new SkillUiTableColumn
+            {
+                Header = GetString(column, "header") ?? "", Width = GetString(column, "width") ?? "auto",
+                MinWidth = ReadWidth("min_width", 64), MaxWidth = ReadWidth("max_width", 1600),
+                Align = GetString(column, "align") ?? "left", Wrap = ReadBool(column, "wrap")
+            }));
+        }
+        return columns;
     }
 
     private static IReadOnlyList<SkillUiItem> ParseItems(JsonElement el, SkillUiSectionKind kind)
@@ -452,6 +513,8 @@ public static class SkillUiSpecContract
         "stat_row" => SkillUiSectionKind.StatRow,
         "table" => SkillUiSectionKind.Table,
         "bar_chart" => SkillUiSectionKind.BarChart,
+        "pie_chart" => SkillUiSectionKind.PieChart,
+        "donut_chart" => SkillUiSectionKind.DonutChart,
         _ => SkillUiSectionKind.Text
     };
 

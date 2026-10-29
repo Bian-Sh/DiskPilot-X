@@ -309,6 +309,9 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private double _glassOpacityPercent = 60;
 
+    [ObservableProperty] private bool _keepGlassWhenInactive;
+    partial void OnKeepGlassWhenInactiveChanged(bool value) => ApplyGlassSettings();
+
     partial void OnGlassOpacityPercentChanged(double value) => ApplyGlassSettings();
 
     private void ApplyGlassSettings()
@@ -316,6 +319,7 @@ public partial class SettingsViewModel : ObservableObject
         if (_isLoadingSettings) return;
         var profile = _themeManager.CurrentProfile.Clone();
         profile.GlassEnabled = GlassEnabled;
+        profile.KeepGlassWhenInactive = KeepGlassWhenInactive;
         profile.GlassOpacity = GlassOpacityPercent / 100;
         _themeManager.ApplyTheme(profile);
         SettingsChanged?.Invoke();
@@ -438,6 +442,7 @@ public partial class SettingsViewModel : ObservableObject
 
         var profile = preset.Clone();
         profile.GlassEnabled = GlassEnabled;
+        profile.KeepGlassWhenInactive = KeepGlassWhenInactive;
         profile.GlassOpacity = _themeManager.CurrentProfile.GlassOpacity;
         _themeManager.ApplyTheme(profile);
         _themeManager.Persist();
@@ -461,6 +466,7 @@ public partial class SettingsViewModel : ObservableObject
         SelectedThemeProfile = p;
         ThemeBackgroundColor = ThemeManager.ParseColor(p.BackgroundColor);
         GlassEnabled = p.GlassEnabled;
+        KeepGlassWhenInactive = p.KeepGlassWhenInactive;
         GlassOpacityPercent = 100 * p.GlassOpacity;
         AutoTextContrast = p.AutoTextContrast;
     }

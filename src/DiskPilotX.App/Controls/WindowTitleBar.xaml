@@ -8,7 +8,7 @@
              Background="Transparent">
 
     <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="UpdateBoolToVis" />
+        <converters:UpdateEntryVisibilityConverter x:Key="UpdateEntryVisibility" />
         <converters:ReleaseNotesMarkdownConverter x:Key="UpdateMarkdown" />
     </UserControl.Resources>
     <Grid Background="Transparent"
@@ -23,6 +23,7 @@
                     Orientation="Horizontal"
                     VerticalAlignment="Center"
                     Margin="16,0"
+                    Visibility="{Binding BrandingVisibility, RelativeSource={RelativeSource AncestorType=controls:WindowTitleBar}}"
                     IsHitTestVisible="False">
             <TextBlock Text="&#xE74E;"
                        FontFamily="Segoe MDL2 Assets"
@@ -44,7 +45,6 @@
                     WindowChrome.IsHitTestVisibleInChrome="True">
             <Button x:Name="UpdateButton"
                     DataContext="{Binding UpdateVM, RelativeSource={RelativeSource AncestorType={x:Type controls:WindowTitleBar}}}"
-                    Visibility="{Binding IsUpdateEntryVisible, Converter={StaticResource UpdateBoolToVis}}"
                     AutomationProperties.Name="{loc:Loc UpdateEntry}"
                     Width="Auto" MinWidth="46" MaxWidth="180" FontSize="18"
                     AutomationProperties.HelpText="{Binding StatusText}"
@@ -52,6 +52,12 @@
                     Style="{DynamicResource VP.TitleBarButton}"
                     Command="{Binding ActivateUpdateCommand}"
                     MouseEnter="UpdateButton_MouseEnter">
+                <Button.Visibility>
+                    <MultiBinding Converter="{StaticResource UpdateEntryVisibility}" FallbackValue="Collapsed" TargetNullValue="Collapsed">
+                        <Binding Path="ApplicationToolsVisibility" RelativeSource="{RelativeSource AncestorType={x:Type controls:WindowTitleBar}}"/>
+                        <Binding Path="UpdateVM.IsUpdateEntryVisible" RelativeSource="{RelativeSource AncestorType={x:Type controls:WindowTitleBar}}" FallbackValue="False" TargetNullValue="False"/>
+                    </MultiBinding>
+                </Button.Visibility>
                 <StackPanel Orientation="Horizontal" Margin="12,0">
                     <TextBlock Text="{Binding UpdateEntryGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" VerticalAlignment="Center"/>
                     <TextBlock Text="{Binding UpdateEntryHint}" FontFamily="{DynamicResource VP.FontFamily}" FontSize="12" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="120">

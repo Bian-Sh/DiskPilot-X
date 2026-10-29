@@ -18,6 +18,15 @@ public partial class WindowTitleBar : UserControl
         set => SetValue(ApplicationToolsVisibilityProperty, value);
     }
 
+    /// <summary>动态面板只保留一个正文主标题，主窗口仍显示品牌区。</summary>
+    public static readonly DependencyProperty BrandingVisibilityProperty = DependencyProperty.Register(
+        nameof(BrandingVisibility), typeof(Visibility), typeof(WindowTitleBar), new PropertyMetadata(Visibility.Visible));
+    public Visibility BrandingVisibility
+    {
+        get => (Visibility)GetValue(BrandingVisibilityProperty);
+        set => SetValue(BrandingVisibilityProperty,value);
+    }
+
     public static readonly DependencyProperty UpdateVMProperty = DependencyProperty.Register(
         nameof(UpdateVM), typeof(UpdateViewModel), typeof(WindowTitleBar), new PropertyMetadata(null));
     public UpdateViewModel? UpdateVM

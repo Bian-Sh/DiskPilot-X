@@ -1150,4 +1150,14 @@ This cannot be undone.</value></data>
   <data name="ThinkingLevelXHighLabel" xml:space="preserve"><value>Very high</value></data>
   <data name="ThinkingLevelMaxLabel" xml:space="preserve"><value>Maximum</value></data>
   <data name="SettingsModelThinkingEditHint" xml:space="preserve"><value>Edit thinking levels</value></data>
+  <data name="SkillTableAccessibleName" xml:space="preserve"><value>Skill results table</value></data>
+  <data name="SkillTableSelectAll" xml:space="preserve"><value>Select or clear all selectable rows</value></data>
+  <data name="SkillTableInvert" xml:space="preserve"><value>Invert selection</value></data>
+  <data name="SkillTableEmpty" xml:space="preserve"><value>No items to display</value></data>
+  <data name="SkillTableSelectionFormat" xml:space="preserve"><value>{0} / {1} selected</value></data>
+  <data name="ThemeKeepGlassInactiveHint" xml:space="preserve"><value>Only applies when frosted glass is enabled. Does not change input focus. Turn off to use the system inactive-window fallback.</value></data>
+  <data name="ThemeKeepGlassInactiveLabel" xml:space="preserve"><value>Keep glass in the background</value></data>
+  <data name="ThemeKeepGlassInactiveOption" xml:space="preserve"><value>Keep the glass effect while windows are inactive</value></data>
+  <data name="SkillChartEmpty" xml:space="preserve"><value>No positive data to display</value></data>
+  <data name="SkillChartTotal" xml:space="preserve"><value>Total</value></data>
 </root>

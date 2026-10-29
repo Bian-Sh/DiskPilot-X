@@ -17,11 +17,20 @@ public sealed class SkillTextExtension : MarkupExtension
     public string Path { get; set; } = ".";
     public string? CatalogPath { get; set; }
 
+    /// <summary>让内联图表等共享模板继承所属技能词典，不依赖聊天主窗口的数据上下文。</summary>
+    public static readonly DependencyProperty CatalogProperty = DependencyProperty.RegisterAttached(
+        "Catalog", typeof(IReadOnlyDictionary<string, Dictionary<string,string>>), typeof(SkillTextExtension),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.Inherits));
+    public static void SetCatalog(DependencyObject target, IReadOnlyDictionary<string, Dictionary<string,string>>? value) => target.SetValue(CatalogProperty,value);
+    public static IReadOnlyDictionary<string, Dictionary<string,string>>? GetCatalog(DependencyObject target) =>
+        (IReadOnlyDictionary<string, Dictionary<string,string>>?)target.GetValue(CatalogProperty);
+
     public override object ProvideValue(IServiceProvider serviceProvider)
     {
         var binding = new MultiBinding { Converter = Converter.Instance, Mode = BindingMode.OneWay };
         binding.Bindings.Add(new Binding(Path));
-        binding.Bindings.Add(CatalogPath is not null ? new Binding(CatalogPath) : new Binding("DataContext.Spec.Localizations")
+        binding.Bindings.Add(CatalogPath is not null ? new Binding(CatalogPath) : new Binding { Path=new PropertyPath(CatalogProperty), RelativeSource=RelativeSource.Self });
+        binding.Bindings.Add(new Binding("DataContext.Spec.Localizations")
         {
             RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(Window), 1)
         });
@@ -36,7 +45,7 @@ public sealed class SkillTextExtension : MarkupExtension
     {
         public static readonly Converter Instance = new();
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture) =>
-            Resolve(values[0] as string ?? "", values[1] as IReadOnlyDictionary<string, Dictionary<string, string>>);
+            Resolve(values[0] as string ?? "", values[1] as IReadOnlyDictionary<string, Dictionary<string, string>> ?? values[2] as IReadOnlyDictionary<string, Dictionary<string, string>>);
         public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) => throw new NotSupportedException();
     }
 

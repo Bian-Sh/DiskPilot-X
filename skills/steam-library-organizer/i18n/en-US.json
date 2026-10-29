@@ -52,4 +52,7 @@
   "value.unavailable": "-",
   "size.bytes": "{0:0} B",
   "size.value": "{0:0.0} {1}"
+,
+  "chart.title": "Installed size ranking",
+  "chart.subtitle": "Top 8 games by actual installed size"
 }

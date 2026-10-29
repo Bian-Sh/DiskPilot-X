@@ -9,7 +9,7 @@
         Title="视图" Width="1000" Height="780" MinWidth="700" MinHeight="500"
         WindowStartupLocation="CenterOwner" ShowActivated="False"
         WindowStyle="None" AllowsTransparency="False"
-        ResizeMode="CanResizeWithGrip" Background="Transparent"
+        ResizeMode="CanResizeWithGrip" Background="{DynamicResource VP.BackgroundAltBrush}"
         TextOptions.TextFormattingMode="Display"
         TextOptions.TextRenderingMode="ClearType">
   <Window.Resources>
@@ -31,18 +31,16 @@
           CornerRadius="{DynamicResource VP.WindowCornerRadius}">
     <Grid>
       <Grid.RowDefinitions>
-        <RowDefinition Height="36"/>
         <RowDefinition Height="Auto"/>
         <RowDefinition Height="*"/>
         <RowDefinition Height="Auto"/>
       </Grid.RowDefinitions>
 
-      <controls:WindowTitleBar x:Name="HostTitleBar" Grid.Row="0" ApplicationToolsVisibility="Collapsed"/>
+      <controls:WindowTitleBar x:Name="HostTitleBar" Grid.Row="0" VerticalAlignment="Top" Panel.ZIndex="1" ApplicationToolsVisibility="Collapsed" BrandingVisibility="Collapsed"/>
 
-      <!-- 头部：标题 + 副标题 + 强调色引导条 -->
-      <Border Grid.Row="1" Padding="28,12,28,18" BorderBrush="{DynamicResource VP.BorderSubtleBrush}" BorderThickness="0,0,0,1">
+      <!-- 头部：标题 + 副标题，避免额外装饰争夺信息层级 -->
+      <Border Grid.Row="0" Padding="28,14,156,18" BorderBrush="{DynamicResource VP.BorderSubtleBrush}" BorderThickness="0,0,0,1">
         <StackPanel>
-          <Border Width="42" Height="4" CornerRadius="2" Background="{DynamicResource VP.AccentBrush}" HorizontalAlignment="Left" Margin="0,0,0,12"/>
           <TextBlock Text="{loc:SkillText Spec.Title}" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource VP.TextPrimaryBrush}" TextWrapping="Wrap"/>
           <TextBlock Text="{loc:SkillText Spec.Subtitle}" FontSize="12" Foreground="{DynamicResource VP.TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0"
                      Visibility="{Binding Spec.Subtitle,Converter={StaticResource WinNullVis}}"/>
@@ -50,13 +48,13 @@
       </Border>
 
       <!-- 主体：区块列表（海报网格 / 统计行 / 表格 / 条形图 / 文本） -->
-      <ScrollViewer Grid.Row="2" x:Name="ContentScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28,20,28,20"
+      <ScrollViewer Grid.Row="1" x:Name="ContentScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28,20,28,20"
                     RequestBringIntoView="ContentScroll_RequestBringIntoView">
         <ItemsControl ItemsSource="{Binding Spec.Sections}"/>
       </ScrollViewer>
 
       <!-- 底栏：选择概况 + 动作按钮（直接使用宿主通用按钮样式） -->
-      <Border Grid.Row="3" Padding="28,14,28,18" BorderBrush="{DynamicResource VP.BorderSubtleBrush}" BorderThickness="0,1,0,0">
+      <Border Grid.Row="2" Padding="28,14,28,18" BorderBrush="{DynamicResource VP.BorderSubtleBrush}" BorderThickness="0,1,0,0">
         <Grid>
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>

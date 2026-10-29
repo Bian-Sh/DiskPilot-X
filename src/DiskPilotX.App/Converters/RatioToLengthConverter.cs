@@ -18,11 +18,12 @@ public sealed class RatioToLengthConverter : IMultiValueConverter
     {
         var value = ToDouble(values.ElementAtOrDefault(0));
         var max = ToDouble(values.ElementAtOrDefault(1));
-        if (max <= 0) return 0d;
+        var width = values.Length > 2 ? ToDouble(values[2]) : Factor;
+        if (!double.IsFinite(value) || value <= 0 || !double.IsFinite(max) || max <= 0 || !double.IsFinite(width) || width <= 0) return 0d;
         var ratio = value / max;
         if (double.IsNaN(ratio) || double.IsInfinity(ratio) || ratio < 0) ratio = 0;
         if (ratio > 1) ratio = 1;
-        return ratio * Factor;
+        return ratio * width;
     }
 
     public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)

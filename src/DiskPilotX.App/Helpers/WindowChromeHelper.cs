@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.ComponentModel;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -15,28 +14,29 @@ internal static class WindowChromeHelper
     public static void Apply(Window window, Border frame, WindowTitleBar titleBar)
     {
         window.WindowStyle = WindowStyle.None;
+        // 非透明 HWND 的透明底会在圆角抗锯齿处漏出黑色；底层与内容必须同色。
+        window.SetResourceReference(Window.BackgroundProperty, "VP.BackgroundAltBrush");
+        window.UseLayoutRounding = true;
+        window.SnapsToDevicePixels = true;
         window.ResizeMode = ResizeMode.CanResize;
-        WindowChrome.SetWindowChrome(window, new WindowChrome
+        var chrome = new WindowChrome
         {
             CaptionHeight = 36,
             ResizeBorderThickness = new Thickness(6),
-            GlassFrameThickness = new Thickness(0),
+            GlassFrameThickness = new Thickness(-1),
+            CornerRadius = new CornerRadius(0),
             UseAeroCaptionButtons = false
-        });
+        };
+        WindowChrome.SetWindowChrome(window, chrome);
         WindowChrome.SetIsHitTestVisibleInChrome(titleBar, true);
-        void UpdateClip() => frame.Clip = new RectangleGeometry(
-            new Rect(0, 0, frame.ActualWidth, frame.ActualHeight), frame.CornerRadius.TopLeft, frame.CornerRadius.TopLeft);
-        var cornerProperty = DependencyPropertyDescriptor.FromProperty(Border.CornerRadiusProperty, typeof(Border));
-        EventHandler updateClip = (_, _) => UpdateClip();
-        cornerProperty.AddValueChanged(frame, updateClip);
-        window.Closed += (_, _) => cornerProperty.RemoveValueChanged(frame, updateClip);
+        // 只让 DWM 绘制和裁切外轮廓：人工 HRGN、WPF 圆角和 Clip 叠加会留下错位白边。
+        frame.ClearValue(Border.CornerRadiusProperty);
+        frame.CornerRadius = new CornerRadius(0);
+        frame.ClearValue(Border.ClipProperty);
+        frame.BorderThickness = new Thickness(0);
         void UpdateFrame()
         {
-            var maximized = window.WindowState == WindowState.Maximized;
-            titleBar.UpdateMaximizeIcon(maximized);
-            if (maximized) frame.CornerRadius = new CornerRadius(0);
-            else frame.SetResourceReference(Border.CornerRadiusProperty, "VP.WindowCornerRadius");
-            UpdateClip();
+            titleBar.UpdateMaximizeIcon(window.WindowState == WindowState.Maximized);
         }
         frame.SizeChanged += (_, _) => UpdateFrame();
         window.StateChanged += (_, _) => UpdateFrame();
@@ -45,9 +45,13 @@ internal static class WindowChromeHelper
             var handle = new WindowInteropHelper(window).Handle;
             var source = HwndSource.FromHwnd(handle);
             source?.AddHook(ConstrainMaximize);
-            // Windows 11 使用原生圆角；旧系统保留内容裁切和可缩放边框。
+            // DWM 是唯一外轮廓来源；Windows 11 原生抗锯齿自动处理最大化和还原。
             var rounded = 2;
             _ = DwmSetWindowAttribute(handle, 33, ref rounded, sizeof(int));
+            // 原生边框也关闭，不再与主题内容叠出第二道轮廓。
+            var noBorder = unchecked((int)0xFFFFFFFE);
+            _ = DwmSetWindowAttribute(handle, 34, ref noBorder, sizeof(int));
+            UpdateFrame();
             window.Closed += (_, _) => source?.RemoveHook(ConstrainMaximize);
         };
     }

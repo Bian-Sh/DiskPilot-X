@@ -15,10 +15,12 @@ internal sealed class HostWindowChrome
 {
     private readonly Window _window;
     private readonly ThemeManager? _theme;
+    private readonly Border _frame;
 
-    private HostWindowChrome(Window window, ThemeManager? theme)
+    private HostWindowChrome(Window window, Border frame, ThemeManager? theme)
     {
         _window = window;
+        _frame = frame;
         _theme = theme;
     }
 
@@ -26,7 +28,7 @@ internal sealed class HostWindowChrome
     public static void Apply(Window window, Border frame, WindowTitleBar titleBar)
     {
         WindowChromeHelper.Apply(window, frame, titleBar);
-        _ = new HostWindowChrome(window, App.Services?.GetService(typeof(ThemeManager)) as ThemeManager).Attach();
+        _ = new HostWindowChrome(window, frame, App.Services?.GetService(typeof(ThemeManager)) as ThemeManager).Attach();
     }
 
     private HostWindowChrome Attach()
@@ -39,13 +41,13 @@ internal sealed class HostWindowChrome
 
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
-        // 明暗模式与磨砂材质都由 ThemeManager.ApplyGlassBackdrop 按当前主题统一下发。
-        _theme?.ApplyGlassBackdrop(_window);
+        // 明暗模式与磨砂材质都由 ThemeManager.ApplySkillWindowTheme 按当前主题统一下发。
+        _theme?.ApplySkillWindowTheme(_window, _frame);
     }
 
     /// <summary>主题切换后磨砂材质要重新下发，否则新建的窗口会停在旧材质上。</summary>
     private void OnThemeChanged() =>
-        _window.Dispatcher.BeginInvoke(new Action(() => _theme?.ApplyGlassBackdrop(_window)));
+        _window.Dispatcher.BeginInvoke(new Action(() => _theme?.ApplySkillWindowTheme(_window, _frame)));
 
     private void OnClosed(object? sender, EventArgs e)
     {

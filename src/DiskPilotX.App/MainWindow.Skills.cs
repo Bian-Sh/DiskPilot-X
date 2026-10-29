@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
@@ -117,7 +117,7 @@ public partial class MainWindow
             var discovery=await source.RunDiscoveryAsync(authorization,host,ct,parameters);
             if(discovery.View is {} view && _chatViewModel is not null)
             {
-                // 气泡里永远只留一张入口卡；surface=auto 时再顺手把完整视图弹到新窗口。
+                // 气泡保留一个入口并内联明确声明的条形图；surface=auto 时再打开完整窗口。
                 view = view with { Localizations = view.Localizations ?? package.Localizations };
                 _chatViewModel.AddView(view);
                 if(view.AutoOpensWindow) _chatViewModel.OpenSkillWindow(view);

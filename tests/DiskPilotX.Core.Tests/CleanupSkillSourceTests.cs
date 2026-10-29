@@ -46,6 +46,36 @@ public sealed class CleanupSkillSourceTests : IDisposable
         """;
 
     [Fact]
+    public async Task 源码技能可以编译并返回内置表格列配置()
+    {
+        const string source="""
+        using System.Threading;
+        using System.Threading.Tasks;
+        using DiskPilotX.Core.Models;
+        using DiskPilotX.Core.Services.Skills;
+        public sealed class TableProvider : IAppDataProvider
+        {
+            public Task<AppDataDiscoveryResult> DiscoverAsync(AppDataDiscoveryContext context, CancellationToken token)
+            {
+                var table=new SkillUiSection { Kind=SkillUiSectionKind.Table,
+                    TableColumns=new[] { new SkillUiTableColumn { Header="项目", Width="2*" }, new SkillUiTableColumn { Header="容量", Width="100", Align="right" } },
+                    Items=new[] { new SkillUiItem { Title="只读示例", Cells=new[] { "只读示例", "1 KB" }, Selectable=true, SizeBytes=1024 } } };
+                return Task.FromResult(new AppDataDiscoveryResult(new AppDataEntry[0]) { View=new SkillUiSpec { Title="内置表格", Sections=new[] { table } } });
+            }
+        }
+        """;
+        var store=Store; var package=store.Save(Package(source));
+        var service=new CleanupSkillSourceService(store);
+        var valid=await service.ValidateSourceAsync(package.Id);
+        Assert.True(valid.Success,string.Join(";",valid.Diagnostics.Select(d=>d.Message)));
+        var output=await service.RunDiscoveryAsync(service.Authorize(package.Id,package.Digest),new StubBridge(package.Id));
+        var section=Assert.Single(Assert.IsType<DiskPilotX.Core.Models.SkillUiSpec>(output.View).Sections);
+        Assert.Equal("2*",section.TableColumns[0].Width);
+        Assert.Equal("right",section.TableColumns[1].Align);
+        Assert.True(Assert.Single(section.Items).Selectable);
+    }
+
+    [Fact]
     public async Task CompileDiagnosticsAndAuthorizedExecutionUseRealFileSize()
     {
         var store = Store; var package = store.Save(Package(Detector));

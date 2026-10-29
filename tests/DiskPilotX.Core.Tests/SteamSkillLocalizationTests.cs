@@ -46,6 +46,7 @@ public sealed class SteamSkillLocalizationTests
         var result = await Discover(bridge);
         var view = Assert.IsType<SkillUiSpec>(result.View);
         Assert.NotNull(view.Localizations);
+        Assert.Equal(new[] { SkillUiSectionKind.StatRow,SkillUiSectionKind.PosterGrid,SkillUiSectionKind.Table,SkillUiSectionKind.BarChart },view.Sections.Select(section=>section.Kind));
         var catalog = new SkillTextCatalog(view.Localizations);
         var expected = new Dictionary<string, string>
         {
@@ -76,6 +77,9 @@ public sealed class SteamSkillLocalizationTests
         }
         var posters = Assert.Single(view.Sections, section => section.Kind == SkillUiSectionKind.PosterGrid);
         var table = Assert.Single(view.Sections, section => section.Kind == SkillUiSectionKind.Table);
+        var chart=Assert.Single(view.InlineCharts);
+        Assert.True(chart.MaxMetric>0);
+        Assert.All(chart.Items,item=>Assert.True(item.Metric>0));
         Assert.Equal(12, posters.Items.Count);
         Assert.Equal(expected.Count, table.Items.Count);
         foreach (var item in posters.Items.Concat(table.Items))
@@ -134,6 +138,7 @@ public sealed class SteamSkillLocalizationTests
         Assert.Empty(empty.Entries);
         var view = Assert.IsType<SkillUiSpec>(empty.View);
         Assert.NotNull(view.Localizations);
+
         Assert.Equal(SkillUiSurface.Entry, view.Surface);
         Assert.Equal(SkillTextCatalog.Bind("empty.title"), Assert.Single(Assert.Single(view.Sections).Items).Title);
         Assert.Equal(SkillTextCatalog.Bind("action.acknowledge"), Assert.Single(view.Actions).Label);

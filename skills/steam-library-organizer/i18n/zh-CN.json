@@ -52,4 +52,7 @@
   "value.unavailable": "-",
   "size.bytes": "{0:0} B",
   "size.value": "{0:0.0} {1}"
+,
+  "chart.title": "游戏占用排行",
+  "chart.subtitle": "按实际安装大小展示前 8 项"
 }

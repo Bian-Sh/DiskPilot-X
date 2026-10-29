@@ -23,6 +23,11 @@ description: "按需创建、验证、保存或修改扫描规则与「按需视
 
 ---
 
+
+## 内置结果表格
+
+需要展示项目、路径、容量等结构化结果时，优先返回 SkillUiSpec 的 Table 区块。宿主内置漂亮的主题表格、自适应列宽、三态全选、表内反选与选择汇总；技能只提供数据，不重复造表格 UI。旧 headers/cells 继续兼容；精确布局使用 table_columns（源码为 TableColumns / SkillUiTableColumn），详见 references/ui-contract.md 的完整示例。不要把结果表格与收集输入的 ui.xaml 表单混为一谈。
+
 ## 文件导航（按需读，别一次读完）
 
 | 文件 | 什么时候读 |
@@ -162,3 +167,13 @@ public sealed class Detector : ICleanupSkillDetector
 ### 本地化约定
 
 生成动态 UI 前读取 `get_localization_state`，不要硬编码宿主语言。任务表单和结果视图均优先提交 `localizations` 与 `{loc key}`；详细契约见 `references/localization.md`、`references/bridge-api.md`。宿主负责切换语言后的文案刷新，源码不长期驻留、不重复扫描，也不能把翻译后标签当作操作参数。
+
+## 图表呈现
+需要比较大小时显式返回bar_chart区块，metric用真实数值、value用显示文案，不能把海报item里的metric当成已声明图表。宿主在聊天入口旁直接绘制条形图，完整窗口仍展示全部区块。图表规则和字段见references/ui-contract.md，不需要自写XAML或生成第二份render_view。
+
+## 统一透明主题
+技能结果窗口和任务窗口自动跟随宿主全局透明材质开关、透明程度与明暗主题，表格底板由宿主统一处理。技能只声明数据，不设置整窗 Opacity，不为每个技能生成 GlassEnabled 等未披露字段；文字和业务控件保持正常不透明度。关闭透明或系统无法启用材质时自动使用实色主题背景，保持原生窗口按钮和单一圆角轮廓。
+后台材质是否保持通透由宿主主题设置统一决定，默认遵循系统失焦回退；不要在技能源码里伪造激活或调用窗口API。
+
+### 共用图表与滚轮
+宿主内置`bar_chart`、`pie_chart`、`donut_chart`，JSON与源码使用同一数据字段。按比较/构成需求显式声明，不自行绘图，不给每个结果自动追加图表；封面类盘点先图片，排行放末尾。饼/环图例、百分比、主题、透明和空态由宿主统一完成，详见references/ui-contract.md。table和任务DataGrid的边界滚轮转交也是宿主能力，不在技能中打补丁。
