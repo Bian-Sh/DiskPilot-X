@@ -133,9 +133,7 @@ public partial class MainViewModel : ObservableObject
         {
             var uiProgress = new Progress<ScanProgress>(p =>
             {
-                ScanProgressText = p.FileCount > 0 || p.FolderCount > 0
-                    ? L.Format("ScanProgressStatus", p.CurrentPath, p.FileCount, p.FolderCount)
-                    : p.CurrentPath;
+                ScanProgressText = ScanProgressFormatter.Format(p);
             });
 
             var progress = new ExecutionProgress(p =>

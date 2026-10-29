@@ -13,14 +13,10 @@ internal static class ParallelSizeCollector
     private const int ProgressInterval = 500;
 
     /// <summary>
-    /// Fills in file sizes on an already-structured FileEntry tree using parallel directory enumeration.
-    /// The totalFiles/totalFolders parameters are the counts already known from MFT enumeration,
-    /// used for continuous progress reporting (so the UI counters never drop to zero).
+    /// 并行采集已构建目标树的文件大小，进度计数仅从当前目标树计算。
     /// </summary>
     internal static (int files, int folders) CollectSizes(
         FileEntry root,
-        int totalFiles,
-        int totalFolders,
         IProgress<ScanProgress> progress,
         CancellationToken ct)
     {
@@ -47,6 +43,9 @@ internal static class ParallelSizeCollector
             }
         }
 
+        // 仅统计筛选及白名单裁剪后的目标树，不从调用方接收整盘 MFT 总数。
+        var totalFiles = directories.Sum(dir => dir.Children.Count(child => !child.IsDirectory));
+        var totalFolders = directories.Count;
         int fileCount = 0;
         int folderCount = directories.Count;
         int directoriesProcessed = 0;
@@ -123,7 +122,7 @@ internal static class ParallelSizeCollector
                 var processed = Interlocked.Increment(ref directoriesProcessed);
                 if (processed % ProgressInterval == 0)
                 {
-                    // Report with the stable MFT totals so the UI counters never drop.
+                    // 大小采集阶段只显示目标树的稳定计数。
                     progress.Report(new ScanProgress(
                         $"Collecting file sizes ({processed:N0} of {directories.Count:N0} folders)",
                         totalFiles, totalFolders));

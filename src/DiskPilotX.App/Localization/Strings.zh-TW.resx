@@ -364,6 +364,9 @@
   <data name="ScanningStatus" xml:space="preserve">
     <value>正在掃描...</value>
   </data>
+  <data name="ScanVolumeIndexProgressStatus" xml:space="preserve">
+    <value>正在讀取 {0} 整碟索引 — 已處理 {1:N0} 條檔案記錄、{2:N0} 條目錄記錄（非目標目錄數量）</value>
+  </data>
   <data name="ScanProgressStatus" xml:space="preserve">
     <value>{0} — {1:N0} 個檔案，{2:N0} 個資料夾</value>
   </data>

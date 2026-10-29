@@ -93,8 +93,9 @@ public partial class IncrementalFileScanner : IFileScanner
             // Fallback — incremental failed, do full scan below
         }
 
-        // Try MFT scan (fast path for NTFS volumes)
-        if (volumeRoot != null)
+        // 子目录直接遍历目标范围；只有卷根才承担整盘 MFT 索引的读取成本。
+        var useMft = volumeRoot != null && IsWholeVolumeRoot(fullPath);
+        if (useMft && volumeRoot != null)
         {
             _logger.LogInformation("Attempting MFT scan");
             var mftResult = await Task.Run(
@@ -135,7 +136,7 @@ public partial class IncrementalFileScanner : IFileScanner
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        if (volumeRoot != null) Fallback("MFT 扫描未成功，回退普通目录遍历。");
+        if (useMft) Fallback("MFT 扫描未成功，回退普通目录遍历。");
         Enter(ScanMethod.DirectoryTraversal);
         // Full scan (first scan or fallback)
         _logger.LogInformation("Performing full scan via FileScanner");

@@ -364,6 +364,9 @@
   <data name="ScanningStatus" xml:space="preserve">
     <value>Scanning...</value>
   </data>
+  <data name="ScanVolumeIndexProgressStatus" xml:space="preserve">
+    <value>Reading {0} volume index — processed {1:N0} file records and {2:N0} folder records (not target counts)</value>
+  </data>
   <data name="ScanProgressStatus" xml:space="preserve">
     <value>{0} — {1:N0} files, {2:N0} folders</value>
   </data>
