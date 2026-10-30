@@ -103,3 +103,6 @@ desktop.ini
 /.comet/*
 !/.comet/config.yaml
 # <<< Comet managed project state <<<
+
+# 本地 WorkBuddy 记忆只留在本机，不纳入 Git
+/.workbuddy/memory/
