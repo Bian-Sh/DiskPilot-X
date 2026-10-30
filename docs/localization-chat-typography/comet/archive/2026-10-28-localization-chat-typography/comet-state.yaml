@@ -1,0 +1,349 @@
+schema: comet.native.v4
+name: localization-chat-typography
+language: zh-CN
+phase: archive
+status: done
+state_version: 18
+brief: brief.md
+document_constraints_version: 3
+shape_confirmation_hash: bd904fce331211f1ff78bb1a3a7bb7ffce72413e1228911b5fd96d77b0d8d290
+spec_changes:
+  - capability: localization-chat
+    operation: create
+    source: specs/localization-chat/spec.md
+workspace:
+  isolation: worktree
+  change_branch: codex/localization-chat-typography
+  target_branch: main
+  finish: keep
+loop:
+  stage: done
+  goal_cycle: 3
+  iteration: 1
+  attempt: 1
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: null
+acceptance:
+  - id: A1
+    source: brief.md
+    text: 简中、繁中、英文与自动语言读取及切换一致，后台线程能读取稳定状态；无效语言不使应用崩溃。
+    result: passed
+    reason:
+      text: 完整brief/Spec及L/SkillLocalizationState实现已核对；独立LocalizationStateTests覆盖简繁英、auto、无效文化、后台线程稳定快照，实际发布PID三语切换状态与窗口一致。
+      truncated: false
+  - id: A2
+    source: brief.md
+    text: skill 可查询当前语言并订阅真实变化；旧 skill 兼容；关闭窗口解除订阅。
+    result: passed
+    reason:
+      text: 核对ISkillHostBridge默认实现、DefaultSkillHostBridge委派、L真实变化通知与幂等释放、窗口Closed释放。独立定向测试通过；旧桥与旧包兼容测试通过，没有新增可修改宿主语言的skill能力。
+      truncated: false
+  - id: A3
+    source: brief.md
+    text: 动态 UI 首次按当前语言呈现，切换后更新文字且保留表单和结果，不自动运行任务。
+    result: passed
+    reason:
+      text: 核对只更新绑定的表单/结果实现；独立SkillLocalizationViewTests和SkillTemplateViewTests通过。对最终PID51352现存Unity结果窗及任务窗以cua后台采集英繁简UIA/PNG：已选1项、roots=D:/验收/根目录保留、depth=6均保留，probe状态全文未变，语言恢复zh-CN；未执行任务。
+      truncated: false
+  - id: A4
+    source: brief.md
+    text: 截图对应列表中英文不被拉伸，行内代码基线正常，长路径可阅读，emoji 彩色且保留完整组合字符。
+    result: passed
+    reason:
+      text: 复核前轮深色宽栏/浅色窄栏真实应用PNG，代码/列表无异常拉伸及基线错位；当前MarkdownTypographyTests定向复测通过，长路径选择复制、彩色像素与完整字符簇覆盖有效。国家旗帜彩色仍为原已知字体限制跳过，绝不计通过或宣称覆盖全部Unicode
+        emoji。
+      truncated: false
+  - id: A5
+    source: brief.md
+    text: 相关回归及全量测试记录真实结果，使用非提权测试包完成应用窗口截图验收。
+    result: passed
+    reason:
+      text: 独立解析当前全量TRX：Core645通过；App338通过2失败1未执行，排除系统剪贴板2项后338通过1未执行；原目录既存DLL哈希匹配记录，其基线TRX复现相同2失败，测试源仅换行差异。验收要求是真实记录并执行全量而非伪称全绿；最终测试PID实际Path匹配且TokenElevation=false，并完成应用窗口cua核验。
+      truncated: false
+  - id: A6
+    source: brief.md
+    text: 两个自包含文件夹发布包保留 DLL 和 skills，实际清单分别为 asInvoker 和
+      requireAdministrator；发布环境验证源码编译和经授权的只读执行以及错误诊断。
+    result: passed
+    reason:
+      text: 独立从两个真实EXE的RT_MANIFEST读出asInvoker/requireAdministrator；每包445文件，运行时/Core/skills及卫星程序集完整，无内置Unity用户技能；重新逐文件哈希比较仅DiskPilot-X.exe/.dll不同且匹配Builder清单。复用并核对实际最终发布路径中四场景ValidateSource/Authorize/RunDiscovery及CS1519行列诊断记录；未触发用户包UAC或提权UI。
+      truncated: false
+  - id: A7
+    source: brief.md
+    text: 两个含 C# 动态视图的技能 steam-library-organizer 与 unity-cache-check 使用独立三语 JSON
+      文案目录；仅这两个技能的相关入口、表单和结果需要随宿主语言变化，纯 Markdown 技能不改。
+    result: passed
+    reason:
+      text: 独立读取Steam和真实用户Unity独立i18n三JSON：各语言分别53/72键；目录元数据只对含源码技能使用自有catalog，纯Markdown文件逐一匹配本轮保存哈希。Unity仍位于用户规则根，测试Fixtures仅为源码一致的便携副本，不恢复已退役硬编码Unity功能。
+      truncated: false
+  - id: A8
+    source: brief.md
+    text: 仅迁移已保存的
+      unity-cache-check：先备份再通过安全版本机制写入文案与源码引用，不改历史版本、不扩大搜索范围、不改变缓存口径，不自动运行清理；outputs
+      快照规则完全不修改。
+    result: passed
+    reason:
+      text: 逐项重算backup-manifest全部6文件：备份完全匹配，真实旧版本5文件哈希仍一致，仅current指针按预期改为faa872…/1.1.1；旧新SKILL.md、rules及安全元数据相同。审阅Detector全部差异仅本地化表达/传递，不改根目录、depth、四类缓存白名单或清理策略；独立真实源码内存桥安全测试通过。outputs规则实际哈希未变，actual-user-rule-final-check已再核对。
+      truncated: false
+  - id: A9
+    source: brief.md
+    text: Steam 与 Unity
+      结果中的标题、副标题、统计、列头、状态、按钮及数量/路径/日期模板均可随语言变化；游戏名、真实路径、Unity版本、appid及参数值不翻译。静态历史消息不强行回溯改写。
+    result: passed
+    reason:
+      text: 核对源码Bind模板及SkillText绑定覆盖结果标题、副标题、统计、表头、状态、按钮、数量/路径/日期；复核Steam/Unity有数据/空态4场景三语PNG/UIA，实际可见Text/Button/CheckBox/Window无裸loc
+        token，真实游戏名、路径、appid、Unity版本和参数不翻译。独立模板/批量成功回传3项通过，无编码模板回传且真实路径保留；静态历史消息未强改。UIA
+        DataItem原始Name的token残留另列可访问性风险，不冒充所有UIA层均本地化。
+      truncated: false
+  - id: A10
+    source: brief.md
+    text: JSON 三语言键集合及格式占位符一致；缺键、未知文化与旧包可回退，文案变更改变摘要并使旧源码授权失效；语言切换本身不更改包摘要。
+    result: passed
+    reason:
+      text: 独立重算六JSON键集及完整格式占位符一致；61项Core定向测试覆盖缺键/未知文化回退、繁体回退、旧包序列化摘要兼容、篡改/路径/大小/文化大小写约束；核对HashPackage包含文案、授权在编译前后复查同一摘要，故文案修改使旧授权失效。语言仅更改L状态，实际切换后发布probe摘要和内容全文不变，冻结包/源码哈希无变。
+      truncated: false
+  - id: A11
+    source: brief.md
+    text: 完成后重新执行相关和全量测试，发布新的双文件夹包，并在发布环境验证规则源码及英简繁 UI；沿用非提权测试、实际双清单和内容一致性检查。
+    result: passed
+    reason:
+      text: 确认本轮新双文件夹包为2026-10-28_13-28-16；实际最终文件与记录一致，独立核查发布源码四场景、英简繁PNG/UIA及表单/勾选。全量测试实际执行和非全绿结果已如实保留；本会话只补Core61通过、App29通过1字体跳过及模板3通过，不重复全量，不将失败/跳过计通过。
+      truncated: false
+builder_handoff:
+  candidate_id: 704934a1-7dc6-47b3-b760-57c7e9685070
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:9994dd7b-010e-40c5-853d-189322279c5d
+  iteration: 1
+  summary:
+    text: 用户收窄范围的Steam+用户Unity两个C#技能JSON本地化完成：Steam53/Unity72键三语，公共动态模板/目录与安全持久化测试，真实Unity备份迁移到1.1.1，发布包4场景三语cua及输入/勾选保留，11项候选有证据。诚实保留2项同机基线剪贴板失败及1项字体跳过。
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+    - A4
+    - A5
+    - A6
+    - A7
+    - A8
+    - A9
+    - A10
+    - A11
+  acceptance_review:
+    - id: A1
+      status: implemented-with-evidence
+      evidence:
+        - tests/DiskPilotX.App.Tests/LocalizationStateTests.cs
+        - .planning/two-skill-localization-20261028/app-without-system-clipboard-final.trx
+      note: 代码与可核对证据见two-skills-delivery.md；记录全部真实测试结果，不能将剪贴板失败/旗帜跳过算通过。
+    - id: A2
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.Core/Services/Skills/SkillHostBridge.cs
+        - tests/DiskPilotX.App.Tests/LocalizationStateTests.cs
+      note: 代码与可核对证据见two-skills-delivery.md；记录全部真实测试结果，不能将剪贴板失败/旗帜跳过算通过。
+    - id: A3
+      status: implemented-with-evidence
+      evidence:
+        - .planning/two-skill-localization-20261028/unity-selection-retained.json
+        - .planning/two-skill-localization-20261028/skill-ui-acceptance-summary.json
+        - tests/DiskPilotX.App.Tests/SkillTemplateViewTests.cs
+      note: 代码与可核对证据见two-skills-delivery.md；记录全部真实测试结果，不能将剪贴板失败/旗帜跳过算通过。
+    - id: A4
+      status: implemented-with-evidence
+      evidence:
+        - tests/DiskPilotX.App.Tests/MarkdownTypographyTests.cs
+        - .planning/localization-chat-typography/acceptance/chat-light-cua.png
+        - .planning/two-skill-localization-20261028/app-without-system-clipboard-final.trx
+      note: 代码与可核对证据见two-skills-delivery.md；记录全部真实测试结果，不能将剪贴板失败/旗帜跳过算通过。
+    - id: A5
+      status: implemented-with-evidence
+      evidence:
+        - .planning/two-skill-localization-20261028/app-full-final.trx
+        - .planning/two-skill-localization-20261028/core-full.trx
+        - .planning/two-skill-localization-20261028/baseline-clipboard/baseline-clipboard.trx
+        - .planning/two-skill-localization-20261028/acceptance-process.json
+      note: 代码与可核对证据见two-skills-delivery.md；记录全部真实测试结果，不能将剪贴板失败/旗帜跳过算通过。
+    - id: A6
+      status: implemented-with-evidence
+      evidence:
+        - .planning/two-skill-localization-20261028/bundle-verification.json
+        - .planning/two-skill-localization-20261028/package-content-comparison.json
+        - .planning/two-skill-localization-20261028/source-error-diagnostics.json
+      note: 代码与可核对证据见two-skills-delivery.md；记录全部真实测试结果，不能将剪贴板失败/旗帜跳过算通过。
+    - id: A7
+      status: implemented-with-evidence
+      evidence:
+        - skills/steam-library-organizer/i18n/en-US.json
+        - tests/DiskPilotX.Core.Tests/Fixtures/unity-cache-check/i18n/en-US.json
+        - .planning/two-skill-localization-20261028/json-integrity.json
+        - tests/DiskPilotX.Core.Tests/SkillCatalogJsonLocalizationTests.cs
+      note: 代码与可核对证据见two-skills-delivery.md；记录全部真实测试结果，不能将剪贴板失败/旗帜跳过算通过。
+    - id: A8
+      status: implemented-with-evidence
+      evidence:
+        - .planning/two-skill-localization-20261028/backup-manifest.json
+        - .planning/two-skill-localization-20261028/unity-user-migration.json
+        - .planning/two-skill-localization-20261028/out-of-scope-rule-hash.json
+      note: 代码与可核对证据见two-skills-delivery.md；记录全部真实测试结果，不能将剪贴板失败/旗帜跳过算通过。
+    - id: A9
+      status: implemented-with-evidence
+      evidence:
+        - tests/DiskPilotX.Core.Tests/SteamSkillLocalizationTests.cs
+        - tests/DiskPilotX.Core.Tests/UnitySkillLocalizationTests.cs
+        - .planning/two-skill-localization-20261028/skill-ui-acceptance-summary.json
+        - .planning/two-skill-localization-20261028/acceptance/unity-en-US.png
+      note: 代码与可核对证据见two-skills-delivery.md；记录全部真实测试结果，不能将剪贴板失败/旗帜跳过算通过。
+    - id: A10
+      status: implemented-with-evidence
+      evidence:
+        - tests/DiskPilotX.Core.Tests/SkillTextCatalogTests.cs
+        - tests/DiskPilotX.Core.Tests/SkillLocalizationJsonFilesTests.cs
+        - tests/DiskPilotX.Core.Tests/SkillLocalizedTemplateTests.cs
+        - .planning/two-skill-localization-20261028/core-full.trx
+      note: 代码与可核对证据见two-skills-delivery.md；记录全部真实测试结果，不能将剪贴板失败/旗帜跳过算通过。
+    - id: A11
+      status: implemented-with-evidence
+      evidence:
+        - .planning/two-skill-localization-20261028/published-packages.json
+        - .planning/two-skill-localization-20261028/skill-ui-acceptance-summary.json
+        - .planning/two-skill-localization-20261028/bundle-verification.json
+        - .planning/two-skill-localization-20261028/source-steam.json
+        - .planning/two-skill-localization-20261028/source-unity.json
+      note: 代码与可核对证据见two-skills-delivery.md；记录全部真实测试结果，不能将剪贴板失败/旗帜跳过算通过。
+  checks:
+    - name:
+        text: Core全量
+        truncated: false
+      result: passed
+      note:
+        text: 645/645
+        truncated: false
+    - name:
+        text: App全量真实结果
+        truncated: false
+      result: failed
+      note:
+        text: 338通过2系统剪贴板占用失败1已知旗帜跳过，原目录既存DLL同机复现2失败
+        truncated: false
+    - name:
+        text: App排除系统剪贴板环境测试
+        truncated: false
+      result: passed
+      note:
+        text: 338通过1字体跳过
+        truncated: false
+    - name:
+        text: 发布环境双技能三语UI及清单
+        truncated: false
+      result: passed
+      note:
+        text: Steam/Unity有数据和空态4场景、三语切换、Unity表单输入和选择保留；445文件两包仅app清单差异
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: App全量338通过2失败1跳过：两个系统剪贴板占用测试在主目录既存测试DLL同机复现相同失败，未修改该无关功能，未算通过。排除两项环境相关测试后338通过1跳过。
+      truncated: false
+    - text: 国家旗帜彩色为上一轮已知字体限制，明确跳过。
+      truncated: false
+    - text: 用户交付包实际requireAdministrator清单及445文件一致性已核查，未实际触发UAC或验收提权UI。
+      truncated: false
+    - text: Unity用户包已先备份后通过Store保存1.1.1新版本，旧版保留；测试仅使用独立目录夹具，不扫描真实Steam/Unity工程。
+      truncated: false
+    - text: 沿用未提交复制基线和worktree，未合并提交推送归档；纯Markdown和outputs规则不改。
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-10-28T05:35:00.512Z
+blockers: []
+verification:
+  candidate_id: 704934a1-7dc6-47b3-b760-57c7e9685070
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:53b20870-1aa7-40ea-8564-5c99144f5cd1
+  iteration: 1
+  attempt: 1
+  assurance: skill-coordinated
+  verdict: pass
+  checks: []
+  summary:
+    text: 独立只读核查完整11项均满足本次已确认验收要求，建议通过；不宣称全量测试全绿。独立Core61通过，App32通过+1已知字体跳过；复核全量Core645通过/App338通过2剪贴板基线失败1字体跳过。真实用户迁移/备份/历史、最终双包445文件和实际清单、PID51352未提权、发布四场景源码记录、三语PNG/UIA及实时输入/选择保留均已独立核对。源码386文件和双包890文件前后哈希未变。详尽报告与独立产物位于系统TEMP/diskpilot-verifier-53b20870。未执行accept-result、归档、提交、合并或破坏性/真实盘点。
+    truncated: false
+  risks:
+    - text: App全量仍有2项WhitelistClipboardContentionTests失败，失败点为预期错误信息为空；原目录既存DLL同机复现，未归因本轮改动，也未把失败计为通过。现有证据不等于证明剪贴板行为本身没有缺陷。
+      truncated: false
+    - text: 国家旗帜实际彩色像素测试明确NotExecuted/Skip；系统Segoe UI
+        Emoji字体限制仍在，不算通过；完整字符保留和常用组合emoji彩色验证不代表覆盖全部Unicode。
+      truncated: false
+    - text: 用户交付包仅实测EXE内嵌requireAdministrator与发布内容；没有实际触发UAC，也没有验收提权后UI。测试包非提权验收不能替代上述未执行检查。
+      truncated: false
+    - text: 发布环境真实Provider源码4场景复用当前哈希匹配的既有证据；本Verifier未重跑这些已授权源码，也未盘点真实Steam游戏或Unity工程、执行卸载/清理。仅夹具覆盖，不能推断用户全部实际数据规模/权限状况。
+      truncated: false
+    - text: 可见文字及动作已三语解析且回传token测试通过，但WPF
+        UIA的部分DataItem原始Name仍含对象ToString或{loc}/{loc64}；其Text子节点已本地化。完整屏幕阅读器可访问性并非本次确认验收要求，不能宣称整个UIA命名层已完成本地化。
+      truncated: false
+    - text: 当前PID51352已独立重测未提权、路径正确；其父进程51700现已退出，启动时父进程非提权仅复用acceptance-process.json记录，不声称当前重新读取父令牌。
+      truncated: false
+    - text: 源码skill使用可信代码授权而非安全沙箱；文案摘要变更后仍须重新确认，Steam卸载及后续清理必须保留宿主最终确认。用户包必须交付完整445文件文件夹，不能只拷EXE。
+      truncated: false
+    - text: 沿用复制的未提交worktree基线，未证明与最新main集成；没有提交、合并、推送、归档或清理其它会话产物。旧发布包不应误作本轮最终交付。
+      truncated: false
+    - text: 既有OpenTK/SkiaSharp NU1701等发布警告仍存在；未在本轮扩大为依赖升级。
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-10-28T05:55:16.884Z
+history:
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 独立只读核对冻结候选后，A1..A6在已确认范围内通过；没有发现具体应用功能缺陷。原始全量记录App337通过/1旗帜彩色跳过、Core617通过；独立定向复测App29通过/1同项跳过、Core2通过。已重新核对实际双包清单与442文件哈希、非提权进程、PNG/UIA和最终包源码编译授权只读运行证据。保留旗帜、未实测UAC、旧统一发布路径等全部限制；未修改源码或正式需求，未执行accept-result、归档、提交或合并。
+      truncated: false
+    completed_at: 2026-10-27T23:07:59.339Z
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: 用户认可上一轮结果，并明确追加：参考 Loom-X 插件，使用 JSON 将现有所有清理规则与 skill
+        完整本地化。拟覆盖5个有效内置skill和本机2条已保存用户规则的展示、表单与动态结果；保持安全约束、路径及执行语义不变，不授权清理、归档或Git交付。
+      truncated: false
+    completed_at: 2026-10-28T04:31:18.606Z
+  - goal_cycle: 2
+    iteration: 0
+    attempt: 0
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: Native confirmed acceptance criteria changed
+      truncated: false
+    completed_at: 2026-10-28T04:43:16.099Z
+  - goal_cycle: 3
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 独立只读核查完整11项均满足本次已确认验收要求，建议通过；不宣称全量测试全绿。独立Core61通过，App32通过+1已知字体跳过；复核全量Core645通过/App338通过2剪贴板基线失败1字体跳过。真实用户迁移/备份/历史、最终双包445文件和实际清单、PID51352未提权、发布四场景源码记录、三语PNG/UIA及实时输入/选择保留均已独立核对。源码386文件和双包890文件前后哈希未变。详尽报告与独立产物位于系统TEMP/diskpilot-verifier-53b20870。未执行accept-result、归档、提交、合并或破坏性/真实盘点。
+      truncated: false
+    completed_at: 2026-10-28T05:55:16.884Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pass
+verification_report: verification.md
+archived: true
+created_at: 2026-10-27T22:07:03.211Z
