@@ -1,17 +1,16 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Threading;
 
 namespace DiskPilotX.App.Views;
 
+/// <summary>
+/// 设置内容控件：由宿主 <see cref="SettingsWindow"/> 承载。左侧分区导航 + 右侧吸附滚动，
+/// 窗口外壳（标题栏 / 圆角 / 磨砂材质）全部交给 SettingsWindow，本控件只负责内容。
+/// </summary>
 public partial class SettingsPage : UserControl
 {
-    public event Action? BackRequested;
-    private bool _isShaking;
-    private bool _isAnimating;
     private Button[]? _navButtons;
 
     public SettingsPage()
@@ -120,86 +119,6 @@ public partial class SettingsPage : UserControl
         }
     }
 
-    public void AnimateIn()
-    {
-        _isAnimating = true;
-        Visibility = Visibility.Visible;
-
-        var duration = TimeSpan.FromMilliseconds(350);
-        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
-
-        CardBorder.RenderTransform = new ScaleTransform(0.9, 0.9);
-        CardBorder.RenderTransformOrigin = new Point(0.5, 0.5);
-
-        var scaleXAnim = new DoubleAnimation(0.9, 1, duration) { EasingFunction = easing };
-        var scaleYAnim = new DoubleAnimation(0.9, 1, duration) { EasingFunction = easing };
-
-        scaleXAnim.Completed += (_, _) => _isAnimating = false;
-        CardBorder.RenderTransform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnim);
-        CardBorder.RenderTransform.BeginAnimation(ScaleTransform.ScaleYProperty, scaleYAnim);
-    }
-
-    public void AnimateOut(Action? onComplete)
-    {
-        _isAnimating = true;
-        var duration = TimeSpan.FromMilliseconds(250);
-        var easing = new CubicEase { EasingMode = EasingMode.EaseIn };
-
-        CardBorder.RenderTransform = new ScaleTransform(1, 1);
-        CardBorder.RenderTransformOrigin = new Point(0.5, 0.5);
-
-        var scaleXAnim = new DoubleAnimation(1, 0.9, duration) { EasingFunction = easing };
-        var scaleYAnim = new DoubleAnimation(1, 0.9, duration) { EasingFunction = easing };
-
-        scaleXAnim.Completed += (_, _) =>
-        {
-            _isAnimating = false;
-            Visibility = Visibility.Collapsed;
-            onComplete?.Invoke();
-        };
-        CardBorder.RenderTransform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnim);
-        CardBorder.RenderTransform.BeginAnimation(ScaleTransform.ScaleYProperty, scaleYAnim);
-    }
-
-    private void RootGrid_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (_isAnimating)
-            return;
-
-        if (e.OriginalSource is Grid grid && grid == RootGrid)
-        {
-            ShakeCard();
-            e.Handled = true;
-        }
-    }
-
-    private void ShakeCard()
-    {
-        if (_isShaking)
-            return;
-
-        _isShaking = true;
-
-        var timeline = new ThicknessAnimationUsingKeyFrames
-        {
-            Duration = TimeSpan.FromMilliseconds(350)
-        };
-        timeline.KeyFrames.Add(new LinearThicknessKeyFrame(new Thickness(0), TimeSpan.Zero));
-        timeline.KeyFrames.Add(new LinearThicknessKeyFrame(new Thickness(-8, 0, 8, 0), TimeSpan.FromMilliseconds(70)));
-        timeline.KeyFrames.Add(new LinearThicknessKeyFrame(new Thickness(6, 0, -6, 0), TimeSpan.FromMilliseconds(140)));
-        timeline.KeyFrames.Add(new LinearThicknessKeyFrame(new Thickness(-4, 0, 4, 0), TimeSpan.FromMilliseconds(210)));
-        timeline.KeyFrames.Add(new LinearThicknessKeyFrame(new Thickness(2, 0, -2, 0), TimeSpan.FromMilliseconds(280)));
-        timeline.KeyFrames.Add(new LinearThicknessKeyFrame(new Thickness(0), TimeSpan.FromMilliseconds(350)));
-
-        Storyboard.SetTarget(timeline, CardBorder);
-        Storyboard.SetTargetProperty(timeline, new PropertyPath(MarginProperty));
-
-        var storyboard = new Storyboard();
-        storyboard.Children.Add(timeline);
-        storyboard.Completed += (_, _) => _isShaking = false;
-        storyboard.Begin();
-    }
-
     public void ReloadSettingsForOpen()
     {
         if (DataContext is not ViewModels.SettingsViewModel vm)
@@ -209,11 +128,4 @@ public partial class SettingsPage : UserControl
 
         vm.LoadSettings();
     }
-
-    private void BackButton_Click(object sender, RoutedEventArgs e)
-    {
-        BackRequested?.Invoke();
-    }
-
 }
-

@@ -69,10 +69,9 @@ public partial class MainWindow
         _settingsViewModel = settingsVm;
         if (DataContext is MainViewModel mainVm)
             mainVm.RecommendationsVM = recsVm;
-        SettingsPage.DataContext = settingsVm;
+        _settingsWindow?.SetViewModels(settingsVm, _updateViewModel);
         settingsVm.ShowModelDiscoveryFailureAsync = message => ShowAppMessageAsync(
             message, L.Text("SettingsModelDiscoveryFailedTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
-        SettingsPage.BackRequested += HideSettingsPage;
         settingsVm.SettingsChanged += OnSettingsChanged;
         TitleBar.SettingsRequested += (_, _) => ShowSettingsPage();
         TitleBar.CollapseChatRequested += (_, _) => ToggleChatPanel();
@@ -97,7 +96,7 @@ public partial class MainWindow
         _updateViewModel = updateVm;
         AboutPage.DataContext = updateVm;
         TitleBar.UpdateVM = updateVm;
-        SettingsPage.SetUpdateViewModel(updateVm);
+        _settingsWindow?.SetViewModels(_settingsViewModel, updateVm);
 
         if (DataContext is MainViewModel mainVm)
             mainVm.UpdateVM = updateVm;

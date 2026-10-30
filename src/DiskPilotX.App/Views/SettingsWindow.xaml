@@ -1,0 +1,33 @@
+<Window x:Class="DiskPilotX.App.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:DiskPilotX.App.Localization"
+        xmlns:controls="clr-namespace:DiskPilotX.App.Controls"
+        xmlns:views="clr-namespace:DiskPilotX.App.Views"
+        FontFamily="{DynamicResource VP.FontFamily}"
+        Title="{loc:Loc SettingsTitle}"
+        Width="760" Height="600" MinWidth="560" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None" AllowsTransparency="False"
+        ResizeMode="CanResizeWithGrip" Background="{DynamicResource VP.BackgroundAltBrush}"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType">
+
+  <!-- 与宿主主窗口同构：无系统标题栏；圆角、裁切、磨砂材质统一交给 HostWindowChrome -->
+  <Border x:Name="Frame" BorderThickness="1"
+          Background="{DynamicResource VP.BackgroundAltBrush}"
+          BorderBrush="{DynamicResource VP.BorderLightBrush}"
+          CornerRadius="{DynamicResource VP.WindowCornerRadius}">
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+
+      <controls:WindowTitleBar x:Name="HostTitleBar" Grid.Row="0" VerticalAlignment="Top" Panel.ZIndex="1"
+                               ApplicationToolsVisibility="Collapsed" BrandingVisibility="Visible"/>
+
+      <views:SettingsPage x:Name="SettingsControl" Grid.Row="1"/>
+    </Grid>
+  </Border>
+</Window>

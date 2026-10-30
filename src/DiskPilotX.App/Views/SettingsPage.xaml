@@ -43,64 +43,18 @@
                 </Setter.Value>
             </Setter>
         </Style>
-
-        <Style x:Key="SettingsBackButtonStyle" TargetType="Button">
-            <Setter Property="FontFamily" Value="{DynamicResource VP.FontFamily}" />
-            <Setter Property="FontSize" Value="16" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource VP.TextSecondaryBrush}" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Width" Value="32" />
-            <Setter Property="Height" Value="32" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="16">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}" />
-                                <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </UserControl.Resources>
 
-    <Grid x:Name="RootGrid" Background="Transparent" MouseLeftButtonDown="RootGrid_MouseLeftButtonDown">
-        <!-- Centered card -->
-        <Border x:Name="CardBorder" Background="{DynamicResource VP.BackgroundAltBrush}"
-                BorderBrush="{DynamicResource VP.BorderLightBrush}"
-                BorderThickness="1"
-                MaxWidth="720"
-                MaxHeight="580"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Padding="0"
-                CornerRadius="10">
-            <Border.Effect>
-                <DropShadowEffect Color="Black"
-                                  BlurRadius="32"
-                                  ShadowDepth="6"
-                                  Opacity="0.3"
-                                  RenderingBias="Quality" />
-            </Border.Effect>
+    <Grid x:Name="RootGrid" Background="Transparent">
+        <!-- 作为宿主 SettingsWindow 的内容根：底色与圆角由窗口外壳统一提供，这里保持透明以透出磨砂材质。 -->
+        <Border x:Name="CardBorder" Background="Transparent" Padding="0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="124" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <Grid Grid.Column="0" Margin="16,46,8,20">
+                <Grid Grid.Column="0" Margin="16,20,8,20">
                     <StackPanel>
                         <Button x:Name="GeneralNavButton"
                                 Style="{StaticResource SettingsNavButtonStyle}"
@@ -133,7 +87,7 @@
                 </Grid>
                 <!-- Scrollable content -->
 
-                <ScrollViewer x:Name="SettingsScrollViewer" Grid.Column="1" VerticalScrollBarVisibility="Auto" Margin="20,56,20,18" ScrollChanged="SettingsScrollViewer_ScrollChanged">
+                <ScrollViewer x:Name="SettingsScrollViewer" Grid.Column="1" VerticalScrollBarVisibility="Auto" Margin="20,20,20,18" ScrollChanged="SettingsScrollViewer_ScrollChanged">
                     <StackPanel x:Name="SettingsContentPanel" SizeChanged="SettingsContentPanel_SizeChanged">
 
                         <settings:GeneralSettingsSection x:Name="GeneralSectionControl"
@@ -152,25 +106,13 @@
                 </ScrollViewer>
 
 
-                <Button Grid.Column="1"
-                        Style="{StaticResource SettingsBackButtonStyle}"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Top"
-                        Margin="0,12,12,0"
-                        ToolTip="{loc:Loc SettingsBackToAppButton}"
-                        Click="BackButton_Click">
-                    <TextBlock Text="&#x2715;"
-                               FontSize="14"
-                               VerticalAlignment="Center"
-                               HorizontalAlignment="Center" />
-                </Button>
                 <!-- 设置操作反馈 -->
                 <Border x:Name="SettingsToast" Grid.Column="1" HorizontalAlignment="Right" IsHitTestVisible="False"
                         VerticalAlignment="Top"
                         Background="{DynamicResource VP.AccentBrush}"
                         CornerRadius="10"
                         Padding="14,8"
-                        Margin="0,16,56,0"
+                        Margin="0,16,16,0"
                         Visibility="{Binding IsSaveToastVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <TextBlock Text="{Binding SaveToastMessage}" MaxWidth="280" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"
                                Foreground="White"

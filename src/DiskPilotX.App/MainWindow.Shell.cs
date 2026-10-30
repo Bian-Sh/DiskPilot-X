@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using DiskPilotX.App.Helpers;
 using DiskPilotX.App.Localization;
+using DiskPilotX.App.Views;
 
 namespace DiskPilotX.App;
 
@@ -15,6 +16,24 @@ public partial class MainWindow
     private bool _isChatCollapsed;
     private bool _isChatAnimating;
     private double _expandedChatPanelWidth = DefaultChatPanelWidth;
+
+    // 设置改为独立弹窗（非模态）；单实例随主窗口存续，隐藏而非销毁，验收入口随时可读取其内容。
+    private SettingsWindow? _settingsWindow;
+
+    private SettingsWindow EnsureSettingsWindow()
+    {
+        if (_settingsWindow is not null) return _settingsWindow;
+        var window = new SettingsWindow();
+        // Owner 只能指向已显示的窗口；主窗口尚未显示时留空，ShowSettingsPage 再补挂。
+        if (IsLoaded) window.Owner = this;
+        window.SetViewModels(_settingsViewModel, _updateViewModel);
+        window.Closed += (_, _) => { if (ReferenceEquals(_settingsWindow, window)) _settingsWindow = null; };
+        _settingsWindow = window;
+        return window;
+    }
+
+    /// <summary>设置内容控件；供版本入口定位更新分区及更新验收入口读取滚动状态。</summary>
+    private SettingsPage SettingsPage => EnsureSettingsWindow().Settings;
 
     private void OpenSettingsDialog() => ShowSettingsPage();
 
@@ -119,13 +138,16 @@ public partial class MainWindow
         if (_settingsViewModel is null)
             return;
 
-        SettingsPage.ReloadSettingsForOpen();
-        SettingsPage.AnimateIn();
+        var window = EnsureSettingsWindow();
+        if (window.Owner is null && IsLoaded) window.Owner = this;
+        window.ReloadSettingsForOpen();
+        window.Show();
+        window.Activate();
     }
 
     private void HideSettingsPage()
     {
-        SettingsPage.AnimateOut(null);
+        _settingsWindow?.Hide();
     }
 
     private void VersionDisplay_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)

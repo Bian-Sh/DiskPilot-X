@@ -177,12 +177,16 @@ public partial class ThemeManager
         else ApplyBackdropCore(window, trackMain: false);
     }
 
-    /// <summary>动态窗口只在一个背景层叠主题色，按本窗口材质结果决定透明或实色回退。</summary>
+    /// <summary>
+    /// 动态窗口与宿主主窗口共用同一套底色：以 BackgroundColor 为基准，按本窗口材质结果叠加与
+    /// <see cref="GetGlassOpacity"/> 同强度的主题遮色。这样磨砂关闭时窗口不再退回 BackgroundAlt，
+    /// 避免出现比宿主更深/更浅的割裂配色。
+    /// </summary>
     public bool ApplySkillWindowTheme(Window window, System.Windows.Controls.Border surface)
     {
         ApplyGlassBackdrop(window);
         var active=IsWindowGlassActive(window);
-        var color=ParseColor(_currentProfile.BackgroundAltColor);
+        var color=ParseColor(_currentProfile.BackgroundColor);
         color.A=255;
         window.Background=active ? Brushes.Transparent : new SolidColorBrush(color);
         var tint=color;

@@ -19,13 +19,75 @@ public static class AcrylicHelper
     public static void SetDarkMode(Window window, bool enabled) =>
         TrySetAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE, enabled ? 1 : 0);
 
+    /// <summary>
+    /// 启用磨砂材质：Windows 11 22H2+ 用系统 DWM 材质；更旧的 Windows 10 / Windows 11 21H2
+    /// 只能走 SetWindowCompositionAttribute 的 AccentPolicy 亚克力路径（拖动时有轻微迟滞，属系统实现限制）。
+    /// </summary>
     public static bool TryEnableAcrylic(Window window) =>
-        IsWindows11_22H2OrLater() && TrySetAttribute(window, DWMWA_SYSTEMBACKDROP_TYPE, DWMSBT_TRANSIENTWINDOW);
+        IsWindows11_22H2OrLater()
+            ? TrySetAttribute(window, DWMWA_SYSTEMBACKDROP_TYPE, DWMSBT_TRANSIENTWINDOW)
+            : TryEnableAcrylicLegacy(window);
 
     public static void DisableBackdrop(Window window)
     {
         if (IsWindows11_22H2OrLater())
             TrySetAttribute(window, DWMWA_SYSTEMBACKDROP_TYPE, DWMSBT_NONE);
+        else
+            SetAccentState(window, ACCENT_DISABLED);
+    }
+
+    // ── Windows 10 / 旧版 Windows 11 亚克力回退路径 ──────────────────
+    private const int WCA_ACCENT_POLICY = 19;
+    private const int ACCENT_DISABLED = 0;
+    private const int ACCENT_ENABLE_ACRYLICBLURBEHIND = 4;
+    // 亚克力要求 GradientColor 的 alpha ≥ 1 才会真正出模糊；主题色由 WPF 叠色层负责，这里只留近乎全透明的白。
+    private const uint ACCENT_TINT_COLOR = 0x01FFFFFF;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct AccentPolicy
+    {
+        public int AccentState;
+        public int AccentFlags;
+        public uint GradientColor;
+        public int AnimationId;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowCompositionAttributeData
+    {
+        public int Attribute;
+        public IntPtr Data;
+        public int SizeOfData;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
+
+    private static bool TryEnableAcrylicLegacy(Window window) => SetAccentState(window, ACCENT_ENABLE_ACRYLICBLURBEHIND);
+
+    private static bool SetAccentState(Window window, int accentState)
+    {
+        try
+        {
+            var hwnd = new WindowInteropHelper(window).EnsureHandle();
+            var accent = new AccentPolicy
+            {
+                AccentState = accentState,
+                AccentFlags = 2,
+                GradientColor = accentState == ACCENT_DISABLED ? 0u : ACCENT_TINT_COLOR
+            };
+            var size = Marshal.SizeOf<AccentPolicy>();
+            var buffer = Marshal.AllocHGlobal(size);
+            try
+            {
+                Marshal.StructureToPtr(accent, buffer, false);
+                var data = new WindowCompositionAttributeData { Attribute = WCA_ACCENT_POLICY, Data = buffer, SizeOfData = size };
+                return SetWindowCompositionAttribute(hwnd, ref data) != 0;
+            }
+            finally { Marshal.FreeHGlobal(buffer); }
+        }
+        catch (DllNotFoundException) { return false; }
+        catch (EntryPointNotFoundException) { return false; }
     }
 
     private static readonly DependencyProperty BackgroundGlassStateProperty = DependencyProperty.RegisterAttached(

@@ -536,12 +536,6 @@
             </Grid>
         </Grid>
 
-        <!-- Settings Page Overlay -->
-        <views:SettingsPage x:Name="SettingsPage"
-                            Grid.RowSpan="2"
-                            Panel.ZIndex="100"
-                            Visibility="Collapsed" />
-
         <!-- App Modal Overlay -->
         <controls:AppModalHost x:Name="ModalHost"
                                Grid.RowSpan="2"

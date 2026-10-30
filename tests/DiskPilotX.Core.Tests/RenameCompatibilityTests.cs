@@ -73,4 +73,49 @@ public sealed class RenameCompatibilityTests
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
+
+    [Fact]
+    public void 新版缺失时把旧版设置并入统一目录且保留旧文件()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "diskpilotx-migrate-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var legacy = Path.Combine(root, "SpaceMonger", "settings.dat");
+            Directory.CreateDirectory(Path.GetDirectoryName(legacy)!);
+            File.WriteAllText(legacy, "旧版真实配置");
+
+            var migrated = AppCompatibility.MigrateLegacyData(new[] { root });
+
+            var current = Path.Combine(root, "DiskPilot-X", "settings.dat");
+            Assert.Contains(current, migrated);
+            Assert.Equal("旧版真实配置", File.ReadAllText(current));
+            // 非破坏性：旧目录文件原样保留。
+            Assert.Equal("旧版真实配置", File.ReadAllText(legacy));
+            // 迁移后 ResolveDataPath 指向的新版路径已能读到既有配置。
+            Assert.Equal(current, AppCompatibility.ResolveDataPath(root, "settings.dat"));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void 新版已存在设置时迁移以新版为准不覆盖()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "diskpilotx-migrate-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var legacy = Path.Combine(root, "SpaceMonger", "settings.dat");
+            Directory.CreateDirectory(Path.GetDirectoryName(legacy)!);
+            File.WriteAllText(legacy, "旧版真实配置");
+            var current = Path.Combine(root, "DiskPilot-X", "settings.dat");
+            Directory.CreateDirectory(Path.GetDirectoryName(current)!);
+            File.WriteAllText(current, "新版配置");
+
+            var migrated = AppCompatibility.MigrateLegacyData(new[] { root });
+
+            Assert.DoesNotContain(current, migrated);
+            Assert.Equal("新版配置", File.ReadAllText(current));
+            Assert.Equal("旧版真实配置", File.ReadAllText(legacy));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
 }

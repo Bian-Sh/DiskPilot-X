@@ -41,6 +41,17 @@ public partial class App : Application
         base.OnStartup(e);
         CrashDiagnostics.Register(this);
 
+        try
+        {
+            var migrated = DiskPilotX.Core.AppCompatibility.MigrateLegacyData();
+            if (migrated.Count > 0)
+                Log.Information("Migrated {Count} legacy SpaceMonger data file(s) into DiskPilot-X directory", migrated.Count);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Legacy SpaceMonger data migration failed");
+        }
+
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.ClearProviders().AddSerilog(dispose: true));
 
