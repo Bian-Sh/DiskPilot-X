@@ -1,0 +1,205 @@
+schema: comet.native.v4
+name: update-experience-loomx-20261028
+language: zh-CN
+phase: verify
+status: active
+state_version: 6
+brief: brief.md
+document_constraints_version: 3
+shape_confirmation_hash: 3f3293a07fd76cf50c4bf877fb24b60c087e3d460c1176c316be355d40c435ed
+spec_changes:
+  - capability: app-updates
+    operation: create
+    source: specs/app-updates/spec.md
+workspace:
+  isolation: worktree
+  change_branch: codex/update-experience-loomx-20261028
+  target_branch: main
+  finish: null
+loop:
+  stage: verify-ready
+  goal_cycle: 1
+  iteration: 1
+  attempt: 1
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 1
+  previous_unresolved_ids: []
+  next_action: dispatch-new-verifier
+acceptance:
+  - id: A1
+    source: brief.md
+    text: A1：发现更新时右上角显示下载入口，下载进度、完成待安装与失败重试状态一致。
+    result: pending
+    reason: null
+  - id: A2
+    source: brief.md
+    text: A2：hover 显示更新日志，宽约 380、最大高 420 且受窗口可用高度约束，长日志可滚动。
+    result: pending
+    reason: null
+  - id: A3
+    source: brief.md
+    text: A3：指针离开按钮、跨空白区域、进入弹窗、滚轮及拖动滚动条均不关闭；进入弹窗外其他可交互控件时关闭。
+    result: pending
+    reason: null
+  - id: A4
+    source: brief.md
+    text: A4：设置更新页对齐 Loom-X：版本、自动检查、更新代理、手动检查、版本历史与日志，支持加载更多及失败重试。
+    result: pending
+    reason: null
+  - id: A5
+    source: brief.md
+    text: A5：关于页更新按钮仅展示状态，不再执行检查、下载或安装，所有入口共享状态。
+    result: pending
+    reason: null
+  - id: A6
+    source: brief.md
+    text: A6：单元回归和非提权发布包 UI 验证通过；文件夹包包含依赖和 skills，实际清单分别为 asInvoker /
+      requireAdministrator，发布环境源码规则验证和只读执行通过。
+    result: pending
+    reason: null
+builder_handoff:
+  candidate_id: f7db956a-9f18-474f-9974-98fb5993b319
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:07ac1424-6ce7-46a0-af75-65062c33ce57
+  iteration: 1
+  summary:
+    text: 真实进度复核：旧工作树停在Build且未接入后继实现；已在保全后快进到包含后继更新体验、设置路由与发布验证的main。实际应用源码与当前main完全相同，原需求由已有主线实现覆盖；补齐流程移交而非新增功能。
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+    - A4
+    - A5
+    - A6
+  acceptance_review:
+    - id: A1
+      status: implemented-with-evidence
+      evidence:
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/src/DiskPilotX.App/ViewModels/UpdateViewModel.cs
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/src/DiskPilotX.App/Controls/WindowTitleBar.xaml
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/tests/DiskPilotX.App.Tests/UpdateExperienceTests.cs
+        - D:\AppData\Visual
+          Studio\Projects\DiskPilot-X\work\剩余工作树真实进度收尾_2026-10-30_13-05-32/update-chat-app.log
+      note: 现有共享UpdateVM管理更新可见、进度、失败与重试，主线专项回归通过。
+    - id: A2
+      status: implemented-with-evidence
+      evidence:
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/src/DiskPilotX.App/Controls/WindowTitleBar.xaml
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/src/DiskPilotX.App/Controls/WindowTitleBar.xaml.cs
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/src/DiskPilotX.App/Converters/ReleaseNotesMarkdownConverter.cs
+        - D:\AppData\Visual
+          Studio\Projects\DiskPilot-X\work\剩余工作树真实进度收尾_2026-10-30_13-05-32/update-chat-app.log
+      note: 日志浮层位于WindowTitleBar，而非草案中的独立UpdateEntry.xaml；实际宽380、最大高420、滚轮转发与可用高度限制已有实现。
+    - id: A3
+      status: implemented-with-evidence
+      evidence:
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/src/DiskPilotX.App/Controls/UpdatePopupPolicy.cs
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/src/DiskPilotX.App/Controls/WindowTitleBar.xaml.cs
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/tests/DiskPilotX.App.Tests/UpdateExperienceTests.cs
+        - D:\AppData\Visual
+          Studio\Projects\DiskPilot-X\work\剩余工作树真实进度收尾_2026-10-30_13-05-32/update-chat-app.log
+      note: 命中策略区分入口、浮层、空白和外部可交互控件，无MouseLeave定时关闭；测试覆盖外部点击、滚轮与失活。
+    - id: A4
+      status: implemented-with-evidence
+      evidence:
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/src/DiskPilotX.App/Views/SettingsSections/UpdateSettingsSection.xaml
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/src/DiskPilotX.App/ViewModels/UpdateViewModel.cs
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/tests/DiskPilotX.App.Tests/UpdateSettingsScrollTests.cs
+        - D:\AppData\Visual
+          Studio\Projects\DiskPilot-X\work\剩余工作树真实进度收尾_2026-10-30_13-05-32/update-chat-app.log
+      note: 现有设置分区提供持久化偏好、代理、手动检查、版本分页、失败保留与重试。
+    - id: A5
+      status: implemented-with-evidence
+      evidence:
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/src/DiskPilotX.App/Views/AboutPage.xaml
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/tests/DiskPilotX.App.Tests/UpdateExperienceTests.cs
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/docs/update-ux-workflow/comet/archive/2026-10-28-update-ux-loomx-20261028/brief.md
+        - D:\AppData\Visual
+          Studio\Projects\DiskPilot-X\work\剩余工作树真实进度收尾_2026-10-30_13-05-32/update-chat-app.log
+      note: 旧任务关于页状态按钮要求已被后继已确认需求进一步收紧为关于页完全无更新区域；当前源码不会检查、下载或安装。请按真实后继需求判定，不恢复已废弃按钮；此差异须在验收中明确。
+    - id: A6
+      status: implemented-with-evidence
+      evidence:
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/docs/update-ux-workflow/comet/archive/2026-10-28-update-ux-loomx-20261028/verification.md
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/work/EXE打包_2026-10-29_21-09-15/验收报告.md
+        - D:/AppData/Visual
+          Studio/Projects/DiskPilot-X/work/EXE打包_2026-10-29_21-09-15/发布验证.json
+        - D:\AppData\Visual
+          Studio\Projects\DiskPilot-X\work\剩余工作树真实进度收尾_2026-10-30_13-05-32/update-chat-app.log
+      note: 后继已归档更新任务含独立UI/清单/源码规则验证；最新1869702发布报告覆盖完整文件夹、实际双清单、非提权UI、Steam/等价源码编译执行与完整诊断。当前候选应用源码与1869702一致（后续仅文档归档）。本轮界面专项60通过，不宣称重做UAC或管理员UI。
+  checks:
+    - name:
+        text: 主线聊天与更新界面专项
+        truncated: false
+      result: passed
+      note:
+        text: D:\AppData\Visual
+          Studio\Projects\DiskPilot-X\work\剩余工作树真实进度收尾_2026-10-30_13-05-32/update-chat-app.log：60通过
+        truncated: false
+    - name:
+        text: 候选与主线源码一致
+        truncated: false
+      result: passed
+      note:
+        text: git diff main -- src tests skills 返回0；主线与1869702应用代码一致。
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: 本轮未新增产品行为，草案文件路径与当前实现可不同；A5后继已确认需求取消关于页更新区域。
+      truncated: false
+    - text: 旧UI证据与最新发布报告分开陈述，不冒称本轮操作实际UAC或管理员UI。
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-10-30T05:24:58.316Z
+blockers: []
+verification: null
+history:
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: execution-error
+    unresolved_ids: []
+    summary:
+      text: "Native Verifier-requested check execution failed: EEXIST: file already
+        exists, open 'D:\\AppData\\Visual
+        Studio\\Projects\\DiskPilot-X\\.worktrees\\update-experience-loomx-2026\
+        1028\\.comet\\runtime\\native\\changes\\update-experience-loomx-20261028\
+        \\logs\\checks\\519af21a-1422-4517-943e-a23f5fa8e5aa-verifier-source-re\
+        lease-audit.log'"
+      truncated: false
+    completed_at: 2026-10-30T05:37:55.367Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pending
+verification_report: null
+archived: false
+created_at: 2026-10-28T05:57:56.265Z
