@@ -2,17 +2,17 @@
 
 ## 背景
 
-项目已有 `specs/001-disk-space-analyzer/spec.md`，但近期大量真实需求散落在 `docs/iteration-*`、验收 checklist、TODO 和发布记录中，缺少一份能承接当前产品状态的需求文档。
+项目已有 `specs/archive/2026-10-30-001-disk-space-analyzer/spec.md`，但近期大量真实需求散落在 `docs/iteration-*`、验收 checklist、TODO 和发布记录中，缺少一份能承接当前产品状态的需求文档。
 
 ## 本次产物
 
 - 新增 `docs/product-requirements-reconstructed-2026-06-19.md`：中文反推 PRD，覆盖产品定位、用户旅程、功能需求、非功能需求、验收基线、已知空白和来源索引。
-- 更新 `specs/001-disk-space-analyzer/spec.md`：在 Success Criteria 前增加 2026-06-19 addendum，指向反推 PRD，避免后续只看早期 SDD spec 时遗漏近期需求。
+- 更新 `specs/archive/2026-10-30-001-disk-space-analyzer/spec.md`：在 Success Criteria 前增加 2026-06-19 addendum，指向反推 PRD，避免后续只看早期 SDD spec 时遗漏近期需求。
 
 ## 反推依据
 
 - `README.md` 的产品定位、功能列表和配置说明。
-- `specs/001-disk-space-analyzer/` 的早期 SDD 规格、计划、任务和数据模型。
+- `specs/archive/2026-10-30-001-disk-space-analyzer/` 的早期 SDD 规格、计划、任务和数据模型。
 - `docs/iteration-*` 中关于导航、设置、控制台、推荐面板、聊天、中文本地化、面包屑、打包发布的迭代记录。
 - `docs/checklist-conversation-ui-acceptance-2026-06-18.md` 和 2026-06-19 acceptance server 验收状态。
 - 当前源码模块结构，包括 `MainWindow`、`TreemapViewModel`、`RecommendationsViewModel`、`ChatViewModel`、`SettingsViewModel`、`AcceptanceAutomationServer`、扫描/推荐/清理核心服务。

@@ -2,7 +2,7 @@
 
 ## 背景
 
-本项目早期只有 `specs/001-disk-space-analyzer/spec.md` 这份 SDD 规格，但 2026-06-14 到 2026-06-19 的多轮实现已经形成了大量迭代纪要、验收 checklist、TODO 和发布记录。本文以现有 `docs/`、`README.md`、`specs/001-disk-space-analyzer/` 以及当前源码结构为依据，反推当前产品需求，补齐原型和需求文档之间的空白。
+本项目早期只有 `specs/archive/2026-10-30-001-disk-space-analyzer/spec.md` 这份 SDD 规格，但 2026-06-14 到 2026-06-19 的多轮实现已经形成了大量迭代纪要、验收 checklist、TODO 和发布记录。本文以现有 `docs/`、`README.md`、`specs/archive/2026-10-30-001-disk-space-analyzer/` 以及当前源码结构为依据，反推当前产品需求，补齐原型和需求文档之间的空白。
 
 本文不是替代源码或 SDD spec 的唯一事实源：
 
@@ -163,7 +163,7 @@ SpaceMonger Next 是面向 Windows 10/11 的磁盘空间分析工具，以 Space
 - **NFR-03 隐私**：AI 只接收元数据；用户应能从设置和说明中理解发送范围。
 - **NFR-04 可诊断性**：扫描、AI 请求、JSON 解析、清理结果和 UI 自测必须有可追踪日志。
 - **NFR-05 本地化**：中文资源文件真实编码必须保持正确；不得因 PowerShell 显示乱码而重写无关中文。
-- **NFR-06 可维护性**：新增需求或修复必须沉淀到 `docs/`，并在必要时同步 `specs/001-disk-space-analyzer/spec.md`。
+- **NFR-06 可维护性**：新增需求或修复必须沉淀到 `docs/`，并在必要时同步 `specs/archive/2026-10-30-001-disk-space-analyzer/spec.md`。
 
 ## 已知空白与待补齐项
 
@@ -188,8 +188,8 @@ SpaceMonger Next 是面向 Windows 10/11 的磁盘空间分析工具，以 Space
 ## 文档来源索引
 
 - `README.md`：产品定位、功能列表、运行/配置说明。
-- `specs/001-disk-space-analyzer/spec.md`：早期 SDD 功能规格、用户故事、FR/SC/Assumptions。
-- `specs/001-disk-space-analyzer/plan.md`：技术上下文与项目结构。
+- `specs/archive/2026-10-30-001-disk-space-analyzer/spec.md`：早期 SDD 功能规格、用户故事、FR/SC/Assumptions。
+- `specs/archive/2026-10-30-001-disk-space-analyzer/plan.md`：技术上下文与项目结构。
 - `docs/iteration-*`：2026-06-14 至 2026-06-19 的实际实现与修复记录。
 - `docs/checklist-conversation-ui-acceptance-2026-06-18.md`：UI 异常验收项与 2026-06-19 acceptance server 复验状态。
 - `docs/todo-navigation-treemap-followups-2026-06-17.md`、`docs/todo-ui-acceptance-findings-2026-06-18.md`：未完成和待复验需求。
