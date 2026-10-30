@@ -1,9 +1,9 @@
 schema: comet.native.v4
 name: cleanup-skill-creator
 language: zh-CN
-phase: verify
-status: await-user
-state_version: 10
+phase: archive
+status: done
+state_version: 12
 brief: brief.md
 document_constraints_version: 3
 shape_confirmation_hash: 7e3cb7fd88e11b53bb2eb8a2f3514f56133d66e1405200f1134c9032874a8f55
@@ -15,9 +15,9 @@ workspace:
   isolation: worktree
   change_branch: codex/cleanup-skill-creator
   target_branch: main
-  finish: null
+  finish: keep
 loop:
-  stage: await-user
+  stage: done
   goal_cycle: 1
   iteration: 2
   attempt: 1
@@ -26,7 +26,7 @@ loop:
   no_progress_count: 0
   execution_failure_count: 0
   previous_unresolved_ids: []
-  next_action: confirm-skill-coordinated-pass
+  next_action: null
 acceptance:
   - id: A1
     source: brief.md
@@ -235,14 +235,7 @@ builder_handoff:
   known_limits_truncated: false
   review: null
   submitted_at: 2026-10-25T14:19:04.083Z
-blockers:
-  - owner: user
-    reason:
-      text: The generic Skill bridge cannot prove an independent Verifier execution;
-        user confirmation is required before Archive.
-      truncated: false
-    acceptance_ids: []
-    resolution_action: await-user
+blockers: []
 verification:
   candidate_id: ef62ba1a-4df7-48ce-8e55-970bd9368828
   identity_provider: skill-coordinated
@@ -361,5 +354,5 @@ history_overflow:
     recovery: 0
 verification_result: pass
 verification_report: verification.md
-archived: false
+archived: true
 created_at: 2026-10-25T05:48:18.417Z
