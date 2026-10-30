@@ -687,7 +687,7 @@ public partial class SettingsViewModel : ObservableObject
 
         try
         {
-            var json = JsonSerializer.Serialize(source.Select(CloneWhitelistEntry).ToList(), new JsonSerializerOptions { WriteIndented = true });
+            var json = JsonSerializer.Serialize(source.Select(CloneWhitelistEntry).ToList(), DiskPilotX.Core.UserDataJson.Options);
             _writeClipboard(json);
             WhitelistErrorMessage = null;
             _ = ShowSaveToastAsync(L.Text("SettingsWhitelistCopiedToast"));

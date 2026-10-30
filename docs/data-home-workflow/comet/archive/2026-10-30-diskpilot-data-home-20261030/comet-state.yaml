@@ -1,0 +1,257 @@
+schema: comet.native.v4
+name: diskpilot-data-home-20261030
+language: zh-CN
+phase: archive
+status: done
+state_version: 26
+brief: brief.md
+document_constraints_version: 3
+shape_confirmation_hash: 1513d42218accc67591b553f4be047b80a82894dc4ce72a9b6e07e67f793305b
+spec_changes:
+  - capability: user-data-home
+    operation: create
+    source: specs/user-data-home/spec.md
+workspace:
+  isolation: current
+  change_branch: codex/diskpilot-data-home-20261030
+  target_branch: codex/diskpilot-data-home-20261030
+  finish: null
+loop:
+  stage: done
+  goal_cycle: 4
+  iteration: 1
+  attempt: 1
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: null
+acceptance:
+  - id: A1
+    source: brief.md
+    text: 有明确的访问通道差异证据和纠错记录；真实目录通过用户资源管理器进程的原生通道确认仅1JSON及对应metadata；旧用户目录未访问。
+    result: passed
+    reason:
+      text: 已读当前brief、完整Spec及纠错记录findings.md。D盘tool-cache-before固定副本为491564字节，与真实original原件610068字节明确不同，独立解析确认二者业务内容一致。本次不带Apply独立运行Repair-ActualOne.ps1，其Application来自已打开资源管理器窗口Document.Folder.Application，原生NameSpace读回目录仅1JSON和1metadata；没有使用普通C盘文件视图证明真实数据，也未访问旧品牌用户目录。此前46份真实数据完成结论明确撤回，不作本轮通过依据。
+      truncated: false
+  - id: A2
+    source: brief.md
+    text: 指定真实文件610068字节原件已备份；修复后446026字节且SHA256为82AE4E1183FB6F7184DF2746469177CE2877FDCEC1B9AA8E887CA7AEB37DF978，外层和17个嵌套字段Unicode转义为0；嵌套JSON业务值与其余字段保持不变。
+    result: passed
+    reason:
+      text: 独立脚本independent-verifier-check.py直接比较D盘真实原件与本次verify-only-5e61668982e24875ab0407a2e37d559a原生读回：原件610068字节、SHA256
+        CC2B1127A5AEA9E419EE638FF1E42A89715D7B89417A351BEDFAB983EAF64026；结果446026字节、SHA256
+        82AE4E1183FB6F7184DF2746469177CE2877FDCEC1B9AA8E887CA7AEB37DF978。确认原34039个外层汉字转义已处理，结果全文件Unicode转义0；严格匹配预期17个业务字段，嵌套解析业务值及JSON片段外普通文本一致，其他字段及签名精确不变；metadata仅SourceLength由610068变为446026。证据independent-verifier-evidence.json；与Runtime
+        actual-user-semantics passed记录相符。
+      truncated: false
+  - id: A3
+    source: brief.md
+    text: 修复结果必须经原生通道重新读取，而非缓存；当前正式发布Core可读取且metadata仍有效。修复及复核没有修改其他真实文件或产品源码，原件可恢复。
+    result: passed
+    reason:
+      text: 复用了当前candidate绑定的两项Runtime
+        passed记录并读取其日志；另独立执行一次无参数Repair-ActualOne.ps1，从资源管理器原生通道新复制固定JSON和metadata到本轮D盘私有目录，确认原生总文件数2、当前正式发布Core加载成功、metadata有效、结果哈希与转换件及原生after-write读回一致。已审查脚本无Apply路径只复制读回，未改写用户文件、产品源码或其他缓存；写回脚本目标固定为指定JSON和metadata。original原件及metadata哈希验证成功且与precommit原件一致，保留可恢复备份；未进行实际恢复以免改写真实文件。
+      truncated: false
+builder_handoff:
+  candidate_id: 3dbf321a-a05a-45da-9f29-82c0211064c2
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:97dd48b6-b615-433a-92f2-bf631e18eddf
+  iteration: 1
+  summary:
+    text: 纠正AppData重定向导致的错误验收：普通工具路径实际为Codex缓存，不是用户真实目录。已通过用户资源管理器进程原生Shell通道仅修复1份真实会话，610068到446026字节；外层34039汉字转义及17嵌套JSON字段已规范化，真实读回0Unicode转义、当前Core可读、原有效metadata有效，缓存同名副本同步。原始真实文件单独备份，前轮46真实数据完成结论撤回。
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+  acceptance_review:
+    - id: A1
+      status: implemented-with-evidence
+      evidence:
+        - .planning/data-home-20261030/EVIDENCE_CORRECTION.md
+        - .planning/data-home-20261030/real-6cb-repair-2026-10-30_17-50-04/actual-backup-report.json
+        - .planning/data-home-20261030/real-6cb-repair-2026-10-30_17-50-04/Repair-ActualOne.ps1
+      note: GetFinalPathNameByHandle已证实普通访问落至Codex
+        LocalCache；资源管理器远程Application.NameSpace才为真实1JSON+1metadata。旧用户目录未访问。
+    - id: A2
+      status: implemented-with-evidence
+      evidence:
+        - .planning/data-home-20261030/real-6cb-repair-2026-10-30_17-50-04/original
+        - .planning/data-home-20261030/real-6cb-repair-2026-10-30_17-50-04/conversion-plan.json
+        - .planning/data-home-20261030/real-6cb-repair-2026-10-30_17-50-04/semantic-verification.json
+        - .planning/data-home-20261030/real-6cb-repair-2026-10-30_17-50-04/actual-repair-success.json
+      note: 真实610068字节原件已备份，17业务字段与外层规范化，结果446026字节及约定SHA；业务值不变，其他字段和签名不变，meta仅SourceLength更新。
+    - id: A3
+      status: implemented-with-evidence
+      evidence:
+        - .planning/data-home-20261030/real-6cb-repair-2026-10-30_17-50-04/actual-repair-success.json
+        - .planning/data-home-20261030/real-6cb-repair-2026-10-30_17-50-04/Repair-ActualOne.ps1
+        - .planning/data-home-20261030/real-6cb-repair-2026-10-30_17-50-04/verify-actual-semantics.py
+      note: 实际写回后再从原生通道复制读回，真实1JSON、0Unicode转义、当前正式发布Core读取与metadata校验均成功；没有修改产品源码或其他真实文件。
+  checks:
+    - name:
+        text: 真实文件通道与原件备份
+        truncated: false
+      result: passed
+      note:
+        text: 真实原件610068字节，工具缓存491564字节的错误通道已剥离；原件JSON和meta经原生复制备份。
+        truncated: false
+    - name:
+        text: 真实原生写回与再次复制读回
+        truncated: false
+      result: passed
+      note:
+        text: 1份JSON、446026字节、SHA82AE4E...、0转义、当前Core可读且metadata有效。
+        truncated: false
+    - name:
+        text: 离线业务语义核验
+        truncated: false
+      result: passed
+      note:
+        text: 17已知业务JSON字符串解析后值一致，其他字段精确一致；metadata除SourceLength不变。
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: 前轮对46份JSON的完成结论仅涉及Codex缓存，不能用作真实数据通过证据，已明确撤回并留纠错记录。
+      truncated: false
+    - text: 本轮用户真实目录仅1份JSON及对应metadata；不操作旧用户目录，不修改其他真实会话，也不清理其他缓存。
+      truncated: false
+    - text: 仅修复这一份现有真实数据，没有新增产品逻辑、重新打包或宣称所有未来嵌套工具JSON自动规范化。
+      truncated: false
+    - text: 工具同名缓存仅在与真实原件JSON语义一致时同步，以免Codex编辑器再次显示旧副本。
+      truncated: false
+    - text: 未接受结果、归档、Git提交/合并/推送。
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-10-30T10:12:39.023Z
+blockers: []
+verification:
+  candidate_id: 3dbf321a-a05a-45da-9f29-82c0211064c2
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:1bf58ad5-361f-4234-a095-8e4d9939bb9a
+  iteration: 1
+  attempt: 1
+  assurance: skill-coordinated
+  verdict: pass
+  checks:
+    - id: actual-user-native-readback
+      name:
+        text: 原生真实目录唯一会话读回校验
+        truncated: false
+      argv_display:
+        - text: -NoProfile
+          truncated: false
+        - text: -File
+          truncated: false
+        - text: .planning/data-home-20261030/real-6cb-repair-2026-10-30_17-50-04/Repair-ActualOne.ps1
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1045
+    - id: actual-user-semantics
+      name:
+        text: 真实原件与修复件业务语义核验
+        truncated: false
+      argv_display:
+        - text: .planning/data-home-20261030/real-6cb-repair-2026-10-30_17-50-04/verify-actual-semantics.py
+          truncated: false
+        - text: D:\AppData\Visual
+            Studio\Projects\DiskPilot-X\.worktrees\diskpilot-data-home-20261030\.planning\data-home-20261030\real-6cb-repair-2026-10-30_17-50-04
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 160
+  summary:
+    text: 独立只读Verifier已完整评估A1–A3，全部通过，无必须修复项。以资源管理器原生读回及独立语义比较为依据，未以Builder自评替代结论；复核仅新增本轮私有证据，不改写真实数据、产品、测试或其他缓存。不接受结果、不归档、不进行Git写操作。
+    truncated: false
+  risks:
+    - text: 结论仅覆盖本轮唯一真实会话和当前原生读回快照，不沿用旧46份缓存转换完成结论，不保证未来会话自动规范化。
+      truncated: false
+    - text: 按授权未做全仓追溯审计、全套测试、打包或UI验收；没有执行恢复操作。上述均非本轮验收所需的未完成检查。
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-10-30T10:22:02.146Z
+history:
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 独立只读验收A1–A5全部通过，无必须修复项。独立核实71原件哈希/UTC时间、JSON语义及24授权绑定，双包真实EXE资源和源码绑定、非提权窗口与发布探针；匹配的三项Runtime检查未重跑。保留UAC未实际交互和既有字体跳过限制，等待用户决定，不接受结果、不归档、不实施Git交付。
+      truncated: false
+    completed_at: 2026-10-30T07:43:46.198Z
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: 用户明确撤销自动迁移：AppDataMigration.cs不需要，用户已手动复制会话。移除迁移类、启动调用、迁移专用元数据刷新及测试；保留固定新版路径和所有中文JSON写入，不再操作用户数据目录。
+      truncated: false
+    completed_at: 2026-10-30T08:16:46.823Z
+  - goal_cycle: 2
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 同一独立只读Verifier已完成本轮小范围A1–A4评估，各恰好一次passed，无必须修复项。仅复用匹配当前候选的Runtime完整检查，未重跑套件或源码夹具；独立核查源码差异、无迁移守卫、发布证据、实际EXE清单及窗口截图。等待用户决定，不接受最终结果、不归档、不实施Git交付。
+      truncated: false
+    completed_at: 2026-10-30T08:36:51.369Z
+  - goal_cycle: 2
+    iteration: 1
+    attempt: 1
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: 用户要求删除旧格式专用兼容和测试，只对新版Conversations保留JSON做一次性规范化；不得访问或修改旧目录。核查标准JSON解析无旧格式分支，不新增拒绝标准转义逻辑或产品迁移器。
+      truncated: false
+    completed_at: 2026-10-30T08:53:30.679Z
+  - goal_cycle: 3
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 独立只读核验A1–A3全部通过，无本轮必须修复项。复用匹配Runtime回归证据，独立完成指定只读复验及备份/授权/时间/双EXE哈希核对；未再次转换或修改用户文件，未接受结果、归档或执行Git写操作。
+      truncated: false
+    completed_at: 2026-10-30T09:13:54.427Z
+  - goal_cycle: 3
+    iteration: 1
+    attempt: 1
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: 撤回前轮真实数据完成结论：工具AppData路径被重定向到Codex缓存，46份非用户真实目录；用户实际只有指定1JSON。已通过资源管理器原生通道仅修复该1文件并备份、读回校验，现在按真实通道重新验收。
+      truncated: false
+    completed_at: 2026-10-30T10:07:29.876Z
+  - goal_cycle: 4
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 独立只读Verifier已完整评估A1–A3，全部通过，无必须修复项。以资源管理器原生读回及独立语义比较为依据，未以Builder自评替代结论；复核仅新增本轮私有证据，不改写真实数据、产品、测试或其他缓存。不接受结果、不归档、不进行Git写操作。
+      truncated: false
+    completed_at: 2026-10-30T10:22:02.146Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pass
+verification_report: verification.md
+archived: true
+created_at: 2026-10-30T06:48:31.038Z

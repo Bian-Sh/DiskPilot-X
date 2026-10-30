@@ -18,7 +18,7 @@ public sealed class CleanupSkillStore
     private static readonly UTF8Encoding Utf8 = new(false, true);
     internal static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower, WriteIndented = true
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower, WriteIndented = true, Encoder = UserDataJson.Options.Encoder
     };
 
     public CleanupSkillStore(string? userRoot = null, IEnumerable<string>? builtInRoots = null)
@@ -352,7 +352,9 @@ public sealed class CleanupSkillStore
         }
     }
     internal static string Hash(string value) => Convert.ToHexStringLower(SHA256.HashData(Utf8.GetBytes(value)));
-    private static string HashPackage(CleanupSkillPackage package) => Hash(JsonSerializer.Serialize(package with { Digest = "" }, JsonOptions));
+    // 摘要继续沿用旧编码规范，磁盘中文直写不应使既有版本和授权失效。
+    private static readonly JsonSerializerOptions DigestJsonOptions = new(JsonOptions) { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Default };
+    private static string HashPackage(CleanupSkillPackage package) => Hash(JsonSerializer.Serialize(package with { Digest = "" }, DigestJsonOptions));
     private static string? ReadOptional(string root, string relative) => File.Exists(CleanupSkillSafety.SafePath(root, relative)) ? ReadText(root, relative) : null;
     private static string ReadText(string root, string relative, int maxBytes = MaxPackageBytes)
     {

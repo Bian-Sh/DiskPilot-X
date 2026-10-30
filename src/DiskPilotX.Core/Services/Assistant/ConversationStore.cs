@@ -58,7 +58,7 @@ public sealed record ConversationMetadata(string Id, string? PrivacySignature, l
 /// <summary>每会话一个本地快照；先写同目录临时文件，再原子替换，避免中断破坏上一份记录。</summary>
 public sealed class ConversationStore(string rootDirectory)
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
+    private static readonly JsonSerializerOptions JsonOptions = new(UserDataJson.Options) { WriteIndented = false };
     private static readonly JsonSerializerOptions MetadataJsonOptions = new() { RespectRequiredConstructorParameters = true };
 
     public void Save(ConversationSnapshot snapshot)

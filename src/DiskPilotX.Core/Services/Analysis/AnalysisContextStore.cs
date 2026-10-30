@@ -54,7 +54,7 @@ public sealed class AnalysisContextStore(string directory, TimeProvider? clock =
             Directory.CreateDirectory(dir);
             if ((File.GetAttributes(dir) & FileAttributes.ReparsePoint) != 0) throw new UnauthorizedAccessException("记录目录不能是重解析点。");
             data.Uses.RemoveAll(x => x.At < clock.GetUtcNow().AddDays(-30));
-            var text = JsonSerializer.Serialize(data);
+            var text = JsonSerializer.Serialize(data, UserDataJson.Options);
             if (text.Length > 1_000_000) throw new InvalidDataException("记录容量已达到限制，请清除不再需要的记录。");
             var temp = file + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try { File.WriteAllText(temp, text); File.Move(temp, file, true); }

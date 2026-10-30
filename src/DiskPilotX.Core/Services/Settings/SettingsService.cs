@@ -44,7 +44,7 @@ public class SettingsService : ISettingsService
         var directory = Path.GetDirectoryName(SettingsFilePath)!;
         Directory.CreateDirectory(directory);
 
-        var json = JsonSerializer.Serialize(settings);
+        var json = JsonSerializer.Serialize(settings, UserDataJson.Options);
         File.WriteAllText(SettingsFilePath, json);
     }
 
