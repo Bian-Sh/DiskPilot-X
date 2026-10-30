@@ -37,7 +37,7 @@ public sealed class RenameCompatibilityTests
     }
 
     [Fact]
-    public void 未保存新版设置时仍读取旧版数据目录()
+    public void 未保存新版设置也不回退旧版数据目录()
     {
         var root = Path.Combine(Path.GetTempPath(), "diskpilotx-rename-" + Guid.NewGuid().ToString("N"));
         try
@@ -45,10 +45,10 @@ public sealed class RenameCompatibilityTests
             var legacy = Path.Combine(root, "SpaceMonger", "settings.dat");
             Directory.CreateDirectory(Path.GetDirectoryName(legacy)!);
             File.WriteAllText(legacy, "旧版设置占位");
-            Assert.Equal(legacy, AppCompatibility.ResolveDataPath(root, "settings.dat"));
+            Assert.Equal(Path.Combine(root, "DiskPilot-X", "settings.dat"), AppCompatibility.ResolveDataPath(root, "settings.dat"));
             var current = Path.Combine(root, "DiskPilot-X", "settings.dat");
             Directory.CreateDirectory(Path.GetDirectoryName(current)!);
-            Assert.Equal(legacy, AppCompatibility.ResolveDataPath(root, "settings.dat"));
+            Assert.Equal(Path.Combine(root, "DiskPilot-X", "settings.dat"), AppCompatibility.ResolveDataPath(root, "settings.dat"));
             File.WriteAllText(current, "新版设置占位");
             Assert.Equal(current, AppCompatibility.ResolveDataPath(root, "settings.dat"));
         }
@@ -58,7 +58,7 @@ public sealed class RenameCompatibilityTests
     [Theory]
     [InlineData("Conversations")]
     [InlineData("cleanup-skills")]
-    public void 旧版对话和规则目录仍可访问且新版优先(string directory)
+    public void 旧版对话和规则存在时路径仍固定新版(string directory)
     {
         var root = Path.Combine(Path.GetTempPath(), "diskpilotx-rename-" + Guid.NewGuid().ToString("N"));
         try
@@ -67,7 +67,7 @@ public sealed class RenameCompatibilityTests
             Assert.Equal(current, AppCompatibility.ResolveDataPath(root, directory));
             var legacy = Path.Combine(root, "SpaceMonger", directory);
             Directory.CreateDirectory(legacy);
-            Assert.Equal(legacy, AppCompatibility.ResolveDataPath(root, directory));
+            Assert.Equal(current, AppCompatibility.ResolveDataPath(root, directory));
             Directory.CreateDirectory(current);
             Assert.Equal(current, AppCompatibility.ResolveDataPath(root, directory));
         }

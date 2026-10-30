@@ -317,7 +317,7 @@ public class UpdateService : IUpdateService
                 MsiFileSize = result.MsiFileSize,
                 InstallerSha256 = result.InstallerSha256
             };
-            var json = JsonSerializer.Serialize(meta, new JsonSerializerOptions { WriteIndented = true });
+            var json = JsonSerializer.Serialize(meta, DiskPilotX.Core.UserDataJson.Options);
             File.WriteAllText(CacheMetaPath, json);
         }
         catch

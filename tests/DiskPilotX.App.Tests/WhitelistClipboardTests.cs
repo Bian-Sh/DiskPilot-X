@@ -54,6 +54,7 @@ public sealed class WhitelistClipboardTests
         source.Entries(kind).Clear();
         source.Entries(kind).Add(new() { Path = @" D:\Shared\RoundTrip ", Description = " 往返备注 " });
         source.Vm.CopyWhitelistCommand.Execute(kind);
+        Assert.Contains("往返备注", source.Text);
         var export = Assert.Single(JsonSerializer.Deserialize<List<PathWhitelistEntry>>(source.Text)!);
         Assert.Equal(@"D:\Shared\RoundTrip", export.Path);
         Assert.Equal("往返备注", export.Description);
