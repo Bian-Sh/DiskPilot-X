@@ -1,9 +1,9 @@
 schema: comet.native.v4
 name: chat-model-list-identity
 language: zh-CN
-phase: verify
-status: await-user
-state_version: 23
+phase: archive
+status: done
+state_version: 25
 brief: brief.md
 document_constraints_version: 3
 shape_confirmation_hash: 84406179944de15071e697eac4c06295ee3e79ee775a7fd0f0ac73319937178a
@@ -17,7 +17,7 @@ workspace:
   target_branch: main
   finish: null
 loop:
-  stage: await-user
+  stage: done
   goal_cycle: 2
   iteration: 1
   attempt: 1
@@ -26,7 +26,7 @@ loop:
   no_progress_count: 0
   execution_failure_count: 0
   previous_unresolved_ids: []
-  next_action: confirm-skill-coordinated-pass
+  next_action: null
 acceptance:
   - id: A1
     source: brief.md
@@ -247,14 +247,7 @@ builder_handoff:
   known_limits_truncated: false
   review: null
   submitted_at: 2026-10-26T01:30:48.944Z
-blockers:
-  - owner: user
-    reason:
-      text: The generic Skill bridge cannot prove an independent Verifier execution;
-        user confirmation is required before Archive.
-      truncated: false
-    acceptance_ids: []
-    resolution_action: await-user
+blockers: []
 verification:
   candidate_id: 7a219290-da11-4654-85ce-5a06d4b9bf69
   identity_provider: skill-coordinated
@@ -408,5 +401,5 @@ history_overflow:
     recovery: 0
 verification_result: pass
 verification_report: verification.md
-archived: false
+archived: true
 created_at: 2026-10-25T22:30:49.428Z
