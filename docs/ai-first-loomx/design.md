@@ -6,7 +6,7 @@
 
 主界面继续以磁盘分析为中心。右侧 AI 面板保留，扫描、Treemap、文件树、清理建议和确认后的清理可被 AI 调用。AI 的核心地位体现为理解当前状态、连续使用工具、验证结果和解释下一步。
 
-正式目标与验收见 ../comet/changes/ai-first-loomx-harness/brief.md 及其 specs/disk-copilot/spec.md。此文件解释实现选择，不单独扩张需求。
+正式目标与验收见 ../comet/archive/2026-11-01-ai-first-loomx-harness/brief.md 及其 specs/disk-copilot/spec.md。此文件解释实现选择，不单独扩张需求。
 
 ## 实际代码调查
 

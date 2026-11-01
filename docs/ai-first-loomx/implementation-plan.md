@@ -3,7 +3,7 @@
 目标：按已确认的十二项验收，保留磁盘主工作区与右侧 AI 面板，替换 AI 编排并完成工具闭环。
 架构：仓库内固定 Harness 快照；Core 会话门面和原生模型适配；App 共享操作与事件投影。
 技术：.NET 10、WPF、Tiny Harness、现有扫描与路径保护服务。
-规格：docs/comet/changes/ai-first-loomx-harness/specs/disk-copilot/spec.md。
+规格：docs/comet/archive/2026-11-01-ai-first-loomx-harness/specs/disk-copilot/spec.md。
 
 ## 约束
 
