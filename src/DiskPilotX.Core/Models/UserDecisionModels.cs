@@ -229,17 +229,16 @@ public static class UserDecisionValidator
         ArgumentNullException.ThrowIfNull(request);
         var errors = new List<UserDecisionValidationError>();
 
-        var namesOnly = request.Fields.Count == 1 && request.Fields[0].IsCredentialName;
-        ValidateDisplayText(errors, UserDecisionValidationError.RequestFieldId, "标题", request.Title, true, MaxTitleLength, namesOnly);
-        ValidateDisplayText(errors, UserDecisionValidationError.RequestFieldId, "问题", request.Question, true, MaxQuestionLength, namesOnly);
-        ValidateDisplayText(errors, UserDecisionValidationError.RequestFieldId, "说明", request.Description, false, MaxDescriptionLength, namesOnly);
+        ValidateDisplayText(errors, UserDecisionValidationError.RequestFieldId, "标题", request.Title, true, MaxTitleLength);
+        ValidateDisplayText(errors, UserDecisionValidationError.RequestFieldId, "问题", request.Question, true, MaxQuestionLength);
+        ValidateDisplayText(errors, UserDecisionValidationError.RequestFieldId, "说明", request.Description, false, MaxDescriptionLength);
         ValidateDisplayText(
             errors,
             UserDecisionValidationError.RequestFieldId,
             "影响摘要",
             request.ImpactSummary,
             false,
-            MaxImpactSummaryLength, namesOnly);
+            MaxImpactSummaryLength);
 
         if (request.Fields.Count == 0)
         {
@@ -306,7 +305,7 @@ public static class UserDecisionValidator
         string fieldId)
     {
         ValidateIdentifier(errors, fieldId, "字段 id", field.Id, MaxFieldIdLength);
-        ValidateDisplayText(errors, fieldId, "字段标题", field.Label, true, MaxFieldLabelLength, field.IsCredentialName);
+        ValidateDisplayText(errors, fieldId, "字段标题", field.Label, true, MaxFieldLabelLength);
 
         if (field.IsCredentialName && (field.Type is not (UserDecisionFieldType.Text or UserDecisionFieldType.SingleSelect)
             || field.IsMultiline || field.MaxLength is > 200))
@@ -489,7 +488,7 @@ public static class UserDecisionValidator
             "自由输入提示",
             field.CustomInputPlaceholder,
             field.CustomInputPlaceholder is not null,
-            MaxCustomInputPlaceholderLength, field.IsCredentialName);
+            MaxCustomInputPlaceholderLength);
 
         var maxLength = field.MaxLength ?? (field.IsCredentialName ? 200 : DefaultTextMaxLength);
         if (maxLength <= 0 || maxLength > MaxTextLength)
@@ -518,14 +517,14 @@ public static class UserDecisionValidator
         foreach (var option in field.Options)
         {
             ValidateIdentifier(errors, fieldId, "选项 id", option.Id, MaxOptionIdLength);
-            ValidateDisplayText(errors, fieldId, "选项标签", option.Label, true, MaxOptionLabelLength, field.IsCredentialName);
+            ValidateDisplayText(errors, fieldId, "选项标签", option.Label, true, MaxOptionLabelLength);
             ValidateDisplayText(
                 errors,
                 fieldId,
                 "选项说明",
                 option.Description,
                 false,
-                MaxOptionDescriptionLength, field.IsCredentialName);
+                MaxOptionDescriptionLength);
 
             if (!optionIds.Add(option.Id ?? string.Empty))
             {
@@ -588,9 +587,9 @@ public static class UserDecisionValidator
         {
             errors.Add(new UserDecisionValidationError(fieldId, "文本默认值超过最大长度。"));
         }
-        else if (ContainsBlockedFieldContent(field, field.DefaultText))
+        else if (HasInvalidLineBreak(field, field.DefaultText))
         {
-            errors.Add(new UserDecisionValidationError(fieldId, "文本默认值包含敏感字段模式。"));
+            errors.Add(new UserDecisionValidationError(fieldId, "单行文本默认值不能包含换行。"));
         }
     }
 
@@ -663,9 +662,9 @@ public static class UserDecisionValidator
             return;
         }
 
-        if (ContainsBlockedFieldContent(field, customInput))
+        if (HasInvalidLineBreak(field, customInput))
         {
-            errors.Add(new UserDecisionValidationError(field.Id, "自由输入包含敏感信息。"));
+            errors.Add(new UserDecisionValidationError(field.Id, "单行自由输入不能包含换行。"));
             return;
         }
     }
@@ -779,9 +778,9 @@ public static class UserDecisionValidator
         {
             errors.Add(new UserDecisionValidationError(field.Id, "文本长度超过最大限制。"));
         }
-        else if (ContainsBlockedFieldContent(field, text))
+        else if (HasInvalidLineBreak(field, text))
         {
-            errors.Add(new UserDecisionValidationError(field.Id, "文本内容包含敏感信息。"));
+            errors.Add(new UserDecisionValidationError(field.Id, "单行文本不能包含换行。"));
         }
     }
 
@@ -828,10 +827,6 @@ public static class UserDecisionValidator
         {
             errors.Add(new UserDecisionValidationError(fieldId, $"{name}长度超过限制。"));
         }
-        else if (UserDecisionContentPolicy.IsSensitivePath([value]) || UserDecisionContentPolicy.ContainsCredentialValue(value))
-        {
-            errors.Add(new UserDecisionValidationError(fieldId, $"{name}包含敏感字段模式。"));
-        }
     }
 
     private static void ValidateDisplayText(
@@ -840,7 +835,7 @@ public static class UserDecisionValidator
         string name,
         string? value,
         bool required,
-        int maxLength, bool credentialName = false)
+        int maxLength)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -856,15 +851,10 @@ public static class UserDecisionValidator
         {
             errors.Add(new UserDecisionValidationError(fieldId, $"{name}长度超过限制。"));
         }
-        else if (credentialName ? UserDecisionContentPolicy.ContainsCredentialValue(value) : UserDecisionContentPolicy.ContainsSensitiveContent(value))
-        {
-            errors.Add(new UserDecisionValidationError(fieldId, $"{name}包含敏感字段模式。"));
-        }
     }
 
-    private static bool ContainsBlockedFieldContent(UserDecisionField field, string value) => field.IsCredentialName
-        ? value.Contains('\r') || value.Contains('\n') || UserDecisionContentPolicy.ContainsCredentialValue(value)
-        : UserDecisionContentPolicy.ContainsSensitiveContent(value);
+    private static bool HasInvalidLineBreak(UserDecisionField field, string value) =>
+        field.IsCredentialName && (value.Contains('\r') || value.Contains('\n'));
     private static bool TryConvertNumber(object value, out decimal number)
     {
         try

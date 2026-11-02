@@ -8,10 +8,10 @@ public sealed class RenameCompatibilityTests
     [Theory]
     [InlineData("SPACEMONGER_CREDENTIAL_旧引用")]
     [InlineData("DISKPILOT_X_CREDENTIAL_新引用")]
-    public void 更名后仍拒绝新旧版凭据引用(string value)
+    public void 新旧版凭据引用样式作为普通文本保留(string value)
     {
         var request = UserDecisionRequest.Parse(JsonNode.Parse("""{"title":"确认","question":"规则名称是什么？","fields":[{"id":"name","label":"凭据名称","type":"text","purpose":"credential_name"}]}"""));
-        Assert.NotEmpty(UserDecisionValidator.ValidateSubmission(request, new Dictionary<string, object?> { ["name"] = value }));
+        Assert.Empty(UserDecisionValidator.ValidateSubmission(request, new Dictionary<string, object?> { ["name"] = value }));
     }
 
     [Fact]

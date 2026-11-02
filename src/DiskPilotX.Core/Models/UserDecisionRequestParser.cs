@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 
 namespace DiskPilotX.Core.Models;
 
-/// <summary>移植 Loom-X askuser 的严格解析、内容边界与输入 Schema。</summary>
+/// <summary>用户决策请求的结构解析与输入 Schema；正文内容不参与拒绝或脱敏。</summary>
 internal static class UserDecisionRequestParser
 {
     private static readonly HashSet<string> RequestProperties = new(StringComparer.Ordinal)
@@ -35,7 +35,6 @@ internal static class UserDecisionRequestParser
                 [new UserDecisionField("answer", "回答", UserDecisionFieldType.Text, isRequired: true, isMultiline: true)],
                 OptionalString(root, "reason"), OptionalString(root, "impact_summary"),
                 OptionalValue(root, "allow_cancel", true));
-            ValidateContentBoundary(legacy);
             ThrowIfInvalid(legacy);
             return legacy;
         }
@@ -51,7 +50,6 @@ internal static class UserDecisionRequestParser
             OptionalString(root, "reason"),
             OptionalString(root, "impact_summary"),
             OptionalValue(root, "allow_cancel", true));
-        ValidateContentBoundary(request);
         ThrowIfInvalid(request);
         return request;
     }
@@ -116,122 +114,6 @@ internal static class UserDecisionRequestParser
         {
             throw InvalidRequest("用户决策请求包含未知属性。");
         }
-    }
-
-    private static void ValidateContentBoundary(UserDecisionRequest request)
-    {
-        if (EnumerateDisplayContent(request).Any(IsProhibitedContent))
-        {
-            throw InvalidRequest("用户决策请求包含禁止的正文或配置内容。");
-        }
-    }
-
-    private static IEnumerable<string?> EnumerateDisplayContent(UserDecisionRequest request)
-    {
-        yield return request.Title;
-        yield return request.Question;
-        yield return request.Description;
-        yield return request.ImpactSummary;
-
-        foreach (var field in request.Fields)
-        {
-            yield return field.Label;
-            yield return field.DefaultText;
-            foreach (var option in field.Options)
-            {
-                yield return option.Label;
-                yield return option.Description;
-            }
-        }
-    }
-
-    private static bool IsProhibitedContent(string? content)
-    {
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            return false;
-        }
-
-        var trimmed = content.Trim();
-        if (LooksLikeJsonDocument(trimmed))
-        {
-            return true;
-        }
-
-        var lines = content
-            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var assignmentCount = lines.Count(LooksLikeTomlAssignment);
-        if (assignmentCount >= 2 || (assignmentCount >= 1 && lines.Any(LooksLikeTomlTableHeader)))
-        {
-            return true;
-        }
-
-        return lines.Any(LooksLikeHttpHeader);
-    }
-
-    private static bool LooksLikeJsonDocument(string content)
-    {
-        if (content.Length < 2
-            || (content[0] != '{' || content[^1] != '}')
-            && (content[0] != '[' || content[^1] != ']'))
-        {
-            return false;
-        }
-
-        try
-        {
-            return JsonNode.Parse(content) is JsonObject or JsonArray;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
-    }
-
-    private static bool LooksLikeTomlTableHeader(string line)
-    {
-        var trimmed = line.Trim();
-        return trimmed.Length >= 3 && trimmed.StartsWith('[') && trimmed.EndsWith(']');
-    }
-
-    private static bool LooksLikeTomlAssignment(string line)
-    {
-        var trimmed = line.Trim();
-        var equalsIndex = trimmed.IndexOf('=');
-        if (equalsIndex <= 0 || equalsIndex == trimmed.Length - 1)
-        {
-            return false;
-        }
-
-        var key = trimmed[..equalsIndex].Trim();
-        if (key.Length >= 2
-            && (key[0] == '"' && key[^1] == '"' || key[0] == '\'' && key[^1] == '\''))
-        {
-            return true;
-        }
-
-        return key.All(character => char.IsLetterOrDigit(character)
-            || character is '_' or '-' or '.' or ' ');
-    }
-
-    private static bool LooksLikeHttpHeader(string line)
-    {
-        var trimmed = line.Trim();
-        var colonIndex = trimmed.IndexOf(':');
-        if (colonIndex <= 0 || colonIndex == trimmed.Length - 1)
-        {
-            return false;
-        }
-
-        // 目录和资料网址是本应用的正常输入，不是 HTTP 请求头。
-        if (colonIndex == 1 && char.IsAsciiLetter(trimmed[0]) && trimmed[colonIndex+1] is '\\' or '/') return false;
-        if (Uri.TryCreate(trimmed,UriKind.Absolute,out var uri) && uri.Scheme is "http" or "https") return false;
-        var name = trimmed[..colonIndex];
-        return name.All(character => character is >= 'A' and <= 'Z'
-            or >= 'a' and <= 'z'
-            or >= '0' and <= '9'
-            or '!' or '#' or '$' or '%' or '&' or '\'' or '*' or '+' or '-' or '.'
-            or '^' or '_' or '`' or '|' or '~');
     }
 
     private static void ThrowIfInvalid(UserDecisionRequest request)
@@ -374,7 +256,7 @@ internal static class UserDecisionRequestParser
                   "id": { "type": "string", "maxLength": 64 },
                   "label": { "type": "string", "maxLength": 200 },
                   "type": { "type": "string", "enum": ["single_select", "multi_select", "number", "text"], "description": "single_select 和 multi_select 必须提供至少一个 options。" },
-                  "purpose": { "type": "string", "enum": ["general", "credential_name"], "default": "general", "description": "只有收集、选择或自定义凭据名称时设为 credential_name；仅限单行 text 或 single_select 字段，最长200字。允许名称术语，仍禁止真实密钥、认证赋值及凭据引用。" },
+                  "purpose": { "type": "string", "enum": ["general", "credential_name"], "default": "general", "description": "兼容旧的名称用途标记；仅限单行 text 或 single_select 字段，最长200字。与普通字段一样不检查或脱敏正文内容。" },
                   "is_required": { "type": "boolean", "default": false },
                   "options": {
                     "type": "array",

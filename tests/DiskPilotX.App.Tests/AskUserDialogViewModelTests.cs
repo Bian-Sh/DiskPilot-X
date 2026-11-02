@@ -137,14 +137,15 @@ public sealed class AskUserDialogViewModelTests
     [InlineData("sk-proj-abcdefghijklmnopqrstuv")]
     [InlineData("password=secret-value")]
     [InlineData("访问密钥")]
-    public void 文本和其他答案都拒绝密钥(string secret)
+    public async Task 文本和自由输入原样提交且不按内容拒绝(string secret)
     {
         var text = Dialog("""[{"id":"note","label":"说明","type":"text"}]""");
         Assert.IsType<AskUserTextFieldViewModel>(text.CurrentField).TextValue = secret;
-        Assert.False(text.TryCompleteSubmission());
-        Assert.DoesNotContain(secret, text.CurrentField.ErrorMessage);
+        Assert.True(text.TryCompleteSubmission());
+        Assert.Equal(secret, (await text.Completion)["values"]!["note"]!.GetValue<string>());
         var select = Dialog("""[{"id":"mode","label":"方式","type":"single_select","options":[{"id":"a","label":"缓存"}],"allow_custom_input":true}]""");
         Assert.IsType<AskUserSingleSelectFieldViewModel>(select.CurrentField).CustomInput = secret;
-        Assert.False(select.TryCompleteSubmission());
+        Assert.True(select.TryCompleteSubmission());
+        Assert.Equal(secret, (await select.Completion)["custom_inputs"]!["mode"]!.GetValue<string>());
     }
 }

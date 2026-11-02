@@ -59,23 +59,23 @@ public sealed class AskUserRequestTests
     [InlineData("Paste your access token")]
     [InlineData("Authorization: Bearer abcdef")]
     [InlineData("sk-proj-abcdefghijklmnopqrstuv")]
-    public void 问题不得索取或携带密钥(string question)
+    public void 问题内容不按关键词或值形态拒绝(string question)
     {
         var node = Request("""[{"id":"answer","label":"回答","type":"text"}]""");
         node["question"] = question;
-        var error = Assert.Throws<UserDecisionValidationException>(() => UserDecisionRequest.Parse(node));
-        Assert.DoesNotContain(question, error.Message);
+        Assert.Equal(question, UserDecisionRequest.Parse(node).Question);
     }
 
     [Fact]
-    public void 凭据名称用途允许名称术语但拒绝真实密钥与引用()
+    public void 旧名称用途只保留单行格式而不拦截内容()
     {
         var node = Request("""[{"id":"name","label":"API Key 名称","type":"text","purpose":"credential_name","max_length":80}]""");
         node["question"] = "请选择 API Key 名称";
         var request = UserDecisionRequest.Parse(node);
         Assert.Empty(UserDecisionValidator.ValidateSubmission(request, new Dictionary<string, object?> { ["name"] = "生产 API Key" }));
-        foreach (var value in new[] { "sk-proj-abcdefghijklmnopqrstuv", "authorization=secret-value", "LOOMX_CREDENTIAL_PROD", "a\nb" })
-            Assert.NotEmpty(UserDecisionValidator.ValidateSubmission(request, new Dictionary<string, object?> { ["name"] = value }));
+        foreach (var value in new[] { "sk-proj-abcdefghijklmnopqrstuv", "authorization=secret-value", "LOOMX_CREDENTIAL_PROD" })
+            Assert.Empty(UserDecisionValidator.ValidateSubmission(request, new Dictionary<string, object?> { ["name"] = value }));
+        Assert.NotEmpty(UserDecisionValidator.ValidateSubmission(request, new Dictionary<string, object?> { ["name"] = "a\nb" }));
     }
 
     [Fact]
@@ -100,10 +100,10 @@ public sealed class AskUserRequestTests
     [InlineData("请输入真实的 API Key")]
     [InlineData("请粘贴实际密钥")]
     [InlineData("Paste your API key")]
-    public void 凭据名称用途也不得索取密钥值(string question)
+    public void 旧名称用途不再检查问题关键词(string question)
     {
         var node = Request("""[{"id":"name","label":"凭据名称","type":"text","purpose":"credential_name"}]""");
         node["question"] = question;
-        Assert.Throws<UserDecisionValidationException>(() => UserDecisionRequest.Parse(node));
+        Assert.Equal(question, UserDecisionRequest.Parse(node).Question);
     }
 }
