@@ -22,7 +22,7 @@ How to use: expand folders to inspect precise structure. Use it when you need ac
 
 ### Recommendations / Cleanup Analysis
 Recommendations analyze the current scan and produce reviewable cleanup candidates.
-How to use: scan first, then ask for cleanup analysis or run recommendations. If old recommendations exist, a new analysis replaces them. Real cleanup still requires review and confirmation in the cleanup flow.
+How to use: scan first, then ask for cleanup analysis or run recommendations. 新的建议默认追加并去重；替换已有清单必须由用户明确选择。 Real cleanup still requires review and confirmation in the cleanup flow.
 
 ### AI Chat / Copilot
 AI Chat explains scan results, answers file tree questions, and can prepare confirmation cards for scan, recommendation analysis, or navigation actions.
@@ -58,3 +58,9 @@ How to use: open it when a scan or analysis behaves unexpectedly and check recen
 - Do not present non-disk-management app controls as callable AI actions.
 - Do not answer “what is / how to use” questions as if the user requested execution.
 - If the user asks “推荐清理是什么”, explain the module; do not say only “需要先扫描才能清理”.
+
+### 多路径无头扫描与快照入口
+
+可以同时分析多个目录，不必把每个扫描都显示到磁盘地图。结果保留在本次应用运行的内存中，对话里留下带范围、扫描时间和占用的入口；点击哪一项，就在地图和目录树中查看哪份快照，不重复扫描或请求 AI。
+
+同次运行重进历史对话仍可查看尚在内存中的结果。重启、内存回收、路径失效或安全设置限制时，入口保留并说明原因；点击“重新扫描”才会读取当前磁盘。快照非实时，也不代表旧清理许可仍有效。这里只解释操作，不因用户询问功能就自动扫描、切换视图或清理。

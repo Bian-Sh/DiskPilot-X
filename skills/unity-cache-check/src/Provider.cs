@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using static DiskPilotX.Core.Services.Skills.SkillTextCatalog;
@@ -14,13 +15,13 @@ using DiskPilotX.Core.Services.Skills;
 /// Unity 项目缓存盘点（只读发现）。
 ///
 /// 设计要点：
-/// ① 搜索范围只来自任务面板：roots 填一个或多个绝对路径（分号分隔），depth 控制向下层数。
-///    面板输入为空、全是相对路径或全部不存在时，直接返回空结果并说明原因，
+/// ① 搜索范围只来自对话参数：roots 填一个或多个绝对路径（分号分隔），depth 控制向下层数。
+///    对话输入为空、全是相对路径或全部不存在时，直接返回空结果并说明原因，
 ///    绝不退化成「扫描本机全部磁盘」——不静默扩大范围。
 /// ② Unity 项目常常散落在多个磁盘，Unity Hub 只记录自己打开过的项目，不能作为唯一来源，
 ///    因此判定依据只有目录结构。
 /// ③ 项目判定：目录里同时存在 Assets 与 ProjectSettings。
-/// ④ 缓存口径：只统计 Library / Temp / obj / Logs；排除 Build(s)、MemoryCaptures、Recordings、
+/// ④ 缓存口径：只统计 Library；排除 Build(s)、MemoryCaptures、Recordings、
 ///    .vs/.idea 等 IDE 目录，Assets / Packages / ProjectSettings 属于项目本体，永不计入。
 /// ⑤ 读不到的元数据（Unity 版本）如实标注「未读到」，不编造。
 ///
@@ -40,7 +41,7 @@ public sealed class Provider : IAppDataProvider
     private static readonly Regex VersionRegex = new(@"m_EditorVersion\s*:\s*(\S+)", RegexOptions.Compiled);
 
     /// <summary>用户确认过的缓存白名单（顺序即展示顺序）。</summary>
-    private static readonly string[] CacheFolders = ["Library", "Temp", "obj", "Logs"];
+    private static readonly string[] CacheFolders = ["Library"];
 
     /// <summary>不往下遍历的目录：系统目录、构建/录制产物、IDE 目录，以及被当作缓存统计的目录本身。</summary>
     private static readonly HashSet<string> SkipNames = new(StringComparer.OrdinalIgnoreCase)
@@ -55,22 +56,15 @@ public sealed class Provider : IAppDataProvider
 
     public Task<AppDataDiscoveryResult> DiscoverAsync(AppDataDiscoveryContext context, CancellationToken token)
     {
+        if (string.Equals(ReadParameter(context.Parameters,"mode"),"inspect",StringComparison.OrdinalIgnoreCase))
+            return Task.FromResult(InspectProjects(context,token));
         var host = context.Host;
         var texts = new SkillTextCatalog(context.Localizations);
         var notes = new List<string>();
         var roots = new List<string>();
 
-        // 面板主字段：roots（分号分隔的多个绝对路径）
+        // 对话主字段：roots（分号分隔的多个绝对路径）
         CollectRoots(host, texts, ReadParameter(context.Parameters, "roots", "search_roots", "paths", "root"), roots, notes);
-
-        // 仅当 roots 没给出任何有效目录时，才用面板里用户自己填的 scope_path 兜底。
-        // 兜底对象仍是用户输入的目录，不会换成全部磁盘。
-        if (roots.Count == 0)
-        {
-            var scope = ReadParameter(context.Parameters, "scope_path", "scope");
-            CollectRoots(host, texts, scope, roots, notes);
-            if (roots.Count > 0) notes.Add(Bind("input.scopeFallback"));
-        }
 
         var depth = ResolveDepth(ReadParameter(context.Parameters, "depth", "max_depth", "search_depth"), notes);
 
@@ -101,8 +95,79 @@ public sealed class Provider : IAppDataProvider
             FormatSize(ordered.Sum(item => item.CacheBytes))));
 
         return Task.FromResult(new AppDataDiscoveryResult(
-            [.. ordered.Select(item => new AppDataEntry(item.Name, item.Name, item.Path, item.CacheBytes, texts.Resolve(item.Detail, host.GetLocalizationState().CultureName)))],
+            [.. ordered.Where(item=>item.CacheBytes>0).Select(item => new AppDataEntry(item.Name, item.Name, Path.Combine(item.Path,"Library"), item.CacheBytes))],
             BuildView(ordered, roots, depth, notes) with { Localizations = context.Localizations }));
+    }
+
+    /// <summary>仅按需读取少量线索；时间和Hub在册状态都不是删除授权。</summary>
+    private static AppDataDiscoveryResult InspectProjects(AppDataDiscoveryContext context,CancellationToken token)
+    {
+        var entries=new List<AppDataEntry>(); var host=context.Host;
+        var raw=ReadParameter(context.Parameters,"roots")??"";
+        foreach(var candidate in raw.Split([';','\n','\r'],StringSplitOptions.RemoveEmptyEntries).Take(6))
+        {
+            token.ThrowIfCancellationRequested();
+            var library=candidate.Trim();
+            if(!Path.IsPathFullyQualified(library)) continue;
+            try { library=Path.GetFullPath(library).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar); } catch { continue; }
+            if(!string.Equals(Path.GetFileName(library),"Library",StringComparison.OrdinalIgnoreCase))continue;
+            var project=Path.GetDirectoryName(library);
+            if(project is null || !host.DirectoryExists(library) || !host.DirectoryExists(Path.Combine(project,"Assets")) || !host.DirectoryExists(Path.Combine(project,"ProjectSettings"))) continue;
+            DateTime? latest=null;
+            foreach(var folder in new[]{"Assets","Packages","ProjectSettings"})
+            {
+                try { var time=host.GetDirectoryLastWriteTimeUtc(Path.Combine(project,folder)); if(time.HasValue && (!latest.HasValue || time>latest))latest=time; } catch { }
+            }
+            var hubFile=ReadParameter(context.Parameters,"hub_projects_file");
+            if(string.IsNullOrWhiteSpace(hubFile)) hubFile=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"UnityHub","projects-v1.json");
+            var state=ReadHubState(host,hubFile,project);
+            var detail=JsonSerializer.Serialize(new {recent_content_change_utc=latest,
+                activity_source="Assets/Packages/ProjectSettings",
+                activity_note="近似线索，非最近开发时间或删除依据。",
+                hub_status=state,hub_source=state=="unknown"?"unknown":"local-project-record"},DiskPilotX.Core.UserDataJson.Options);
+            entries.Add(new(Path.GetFileName(project),Path.GetFileName(project),library,0,detail));
+        }
+        return new(entries);
+    }
+    private static string ReadHubState(ISkillHostBridge host,string file,string project)
+    {
+        try
+        {
+            if(!Path.IsPathFullyQualified(file))return "unknown";
+            var text=host.ReadTextFile(file);
+            if(string.IsNullOrWhiteSpace(text)||text.Length>1_048_576)return "unknown";
+            using var document=JsonDocument.Parse(text,new JsonDocumentOptions {MaxDepth=16});
+            var root=document.RootElement;
+            if(root.ValueKind!=JsonValueKind.Object || !root.TryGetProperty("schema_version",out var version) || version.GetString()!="v1" || !root.TryGetProperty("data",out var data))return "unknown";
+            var paths=new List<string>();
+            if(data.ValueKind==JsonValueKind.Array)
+            {
+                foreach(var item in data.EnumerateArray().Take(10001))
+                {
+                    if(item.ValueKind!=JsonValueKind.Object || !item.TryGetProperty("path",out var path) || path.ValueKind!=JsonValueKind.String)return "unknown";
+                    paths.Add(path.GetString()!);
+                }
+            }
+            else if(data.ValueKind==JsonValueKind.Object)
+            {
+                foreach(var item in data.EnumerateObject().Take(10001))
+                {
+                    if(Path.IsPathFullyQualified(item.Name))paths.Add(item.Name);
+                    else if(item.Value.ValueKind==JsonValueKind.Object && item.Value.TryGetProperty("path",out var path) && path.ValueKind==JsonValueKind.String)paths.Add(path.GetString()!);
+                    else return "unknown";
+                }
+            }
+            else return "unknown";
+            if(paths.Count>10000)return "unknown";
+            var normalized=Path.GetFullPath(project).TrimEnd('\\','/');
+            foreach(var path in paths)
+            {
+                if(!Path.IsPathFullyQualified(path))return "unknown";
+                if(string.Equals(Path.GetFullPath(path).TrimEnd('\\','/'),normalized,StringComparison.OrdinalIgnoreCase))return "listed";
+            }
+            return "not_listed";
+        }
+        catch { return "unknown"; }
     }
 
     // ---------- 参数解析与校验 ----------
@@ -337,7 +402,7 @@ public sealed class Provider : IAppDataProvider
 
     // ---------- 视图 ----------
 
-    /// <summary>根目录无效时的视图：明确要求回面板补目录，不悄悄扩大范围。</summary>
+    /// <summary>根目录无效时的视图：明确要求回对话补目录，不悄悄扩大范围。</summary>
     private static SkillUiSpec BuildNoRootView(IReadOnlyList<string> notes)
     {
         var items = new List<SkillUiItem>
@@ -469,13 +534,13 @@ public sealed class Provider : IAppDataProvider
                         FormatSize(item.CacheBytes),
                         item.Detail
                     ],
-                    Path = item.Path,
+                    Path = Path.Combine(item.Path,"Library"),
                     SizeBytes = item.CacheBytes,
                     Metric = item.CacheBytes,
                     Badge = item.CacheBytes <= 0
                         ? Bind("badge.none")
                         : (item.CacheBytes >= BigCacheThreshold ? Bind("badge.large") : Bind("badge.cache")),
-                    Selectable = true
+                    Selectable = item.CacheBytes > 0
                 })
             ]
         };
