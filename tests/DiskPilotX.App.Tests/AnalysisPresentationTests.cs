@@ -258,7 +258,7 @@ public class AnalysisPresentationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Panel_StatusRemainsVisibleWithOrWithoutRecommendations(bool hasRecommendations) => RunSta(() =>
+    public void Panel_任何状态都不额外占用列表状态行(bool hasRecommendations) => RunSta(() =>
     {
         WithLanguage("en", () =>
         {
@@ -271,11 +271,7 @@ public class AnalysisPresentationTests
             viewModel.SetAnalysisTask(TaskResult(AnalysisTaskStatus.Running, AnalysisOutcome.Unknown, ["等待确认"]));
             Layout(host);
 
-            var status = panel.FindName("AnalysisStatus") as TextBlock;
-            status.Should().NotBeNull();
-            status!.Visibility.Should().Be(Visibility.Visible);
-            status.ActualHeight.Should().BeGreaterThan(0);
-            status.Text.Should().Contain("Unassessed: 1");
+            panel.FindName("AnalysisStatus").Should().BeNull();
             var list = (ListView)panel.FindName("RecommendationsList");
             list.Items.Count.Should().Be(hasRecommendations ? 1 : 0);
             var overlay = (Border)panel.FindName("AnalyzingOverlay");
@@ -283,8 +279,23 @@ public class AnalysisPresentationTests
 
             viewModel.SetAnalysisTask(TaskResult(AnalysisTaskStatus.Cancelled, AnalysisOutcome.Unknown));
             Layout(host);
-            status.Text.Should().Contain("Analysis cancelled");
-            if (hasRecommendations) status.Text.Should().Contain("previous analysis");
+            panel.FindName("AnalysisStatus").Should().BeNull();
+            Grid.GetRow(list).Should().Be(1);
+            var height = list.ActualHeight;
+            foreach (var statusValue in Enum.GetValues<AnalysisTaskStatus>())
+            {
+                viewModel.SetAnalysisTask(TaskResult(statusValue, AnalysisOutcome.Unknown, [new string('长', 500)]));
+                Layout(host);
+                panel.FindName("AnalysisStatus").Should().BeNull();
+                list.ActualHeight.Should().BeApproximately(height, 0.1);
+            }
+            foreach (var outcome in Enum.GetValues<AnalysisOutcome>())
+            {
+                viewModel.SetAnalysisTask(TaskResult(AnalysisTaskStatus.Completed, outcome, ["限制信息"]));
+                Layout(host);
+                panel.FindName("AnalysisStatus").Should().BeNull();
+                list.ActualHeight.Should().BeApproximately(height, 0.1);
+            }
         });
     });
 

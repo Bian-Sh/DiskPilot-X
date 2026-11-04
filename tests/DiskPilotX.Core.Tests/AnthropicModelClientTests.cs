@@ -47,6 +47,10 @@ public sealed class AnthropicModelClientTests
         stream.Write(Start + ToolBlock(3, "call-a", "list_files") + ToolBlock(7, "call-b", "inspect")
             + Delta(3, "input_json_delta", "partial_json", "{\"path\":")
             + Delta(7, "input_json_delta", "partial_json", "{}"));
+        Assert.True(await events.MoveNextAsync());
+        Assert.Equal("list_files", Assert.IsType<ModelToolCallPreparingEvent>(events.Current).ToolName);
+        Assert.True(await events.MoveNextAsync());
+        Assert.Equal("inspect", Assert.IsType<ModelToolCallPreparingEvent>(events.Current).ToolName);
         var pending = events.MoveNextAsync().AsTask();
         stream.Write(": 心跳\r\nevent: content_block_delta\r\ndata: {\"type\":\"content_block_delta\",\n"
             + "data: \"index\":3,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"\\\"C:/测试\\\"}\"}}\n\n");

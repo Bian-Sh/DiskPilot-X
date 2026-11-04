@@ -39,7 +39,7 @@ public sealed partial class DiskAssistantService
 
     private bool CanCommitAnalysis(JsonNode? args)
     {
-        if (args?["analysis_mode"]?.GetValue<bool>() != true) return true;
+        if (args?["analysis_mode"]?.GetValue<bool>() != true && args?["task_id"] is null) return true;
         if (analysisTask is null || args?["task_id"]?.GetValue<string>() != analysisTask.Id.ToString()
             || args?["scan_id"]?.GetValue<string>() != analysisTask.ScanId.ToString()
             || analysisPrivacy != CurrentPrivacy() || analysisScanPolicy != JsonSerializer.Serialize(settings.LoadSettings().ScanWhitelist)) return false;

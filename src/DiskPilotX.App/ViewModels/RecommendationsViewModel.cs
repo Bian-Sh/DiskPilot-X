@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -90,7 +90,23 @@ public partial class RecommendationsViewModel : ObservableObject
         }
     }
 
-    public string EmptyStateTitleText => AnalysisPresentationState == "Running"
+    private string? _emptyStateTitle;
+    private string? _emptyStateDescription;
+    private bool HasMandatoryAnalysisNotice => AnalysisPresentationState is not ("NotStarted" or "NoRecommendations" or "Recommendations");
+
+    /// <summary>仅调整空态纯文本；已有建议时不更新，也不改变任务结论或清理选择。</summary>
+    public bool SetEmptyStatePresentation(string? title, string? description)
+    {
+        if (title?.Length > 80 || description?.Length > 1200) throw new ArgumentException("空态标题最多80字符，说明最多1200字符。");
+        if (HasAnyRecommendations) return false;
+        _emptyStateTitle = string.IsNullOrWhiteSpace(title) ? null : title.Trim();
+        _emptyStateDescription = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        NotifyAnalysisPresentation();
+        return true;
+    }
+
+    public string EmptyStateTitleText => !HasMandatoryAnalysisNotice && _emptyStateTitle is { } custom ? custom
+        : AnalysisPresentationState == "Running"
         ? L.Text("RecommendationsWaitingForAiTitle")
         : L.Text($"AnalysisState{AnalysisPresentationState}Title");
 
@@ -99,6 +115,8 @@ public partial class RecommendationsViewModel : ObservableObject
         get
         {
             var description = L.Text($"AnalysisState{AnalysisPresentationState}Description");
+            if (_emptyStateDescription is { } custom)
+                description = HasMandatoryAnalysisNotice ? description + Environment.NewLine + Environment.NewLine + custom : custom;
             return AnalysisTask is { Unassessed.Count: > 0 } task
                 ? description + Environment.NewLine + string.Join(Environment.NewLine, task.Unassessed)
                 : description;
@@ -126,6 +144,7 @@ public partial class RecommendationsViewModel : ObservableObject
     /// <summary>开始新分析，但保留既有建议、选择及筛选，直到新结果实际发布。</summary>
     public void BeginAnalysis()
     {
+        _emptyStateTitle = _emptyStateDescription = null;
         _analysisStarted = true;
         _recommendationsFromPreviousAnalysis = HasAnyRecommendations;
         AnalysisTask = null;
@@ -141,6 +160,8 @@ public partial class RecommendationsViewModel : ObservableObject
     public void SetAnalysisTask(AnalysisTaskResult task)
     {
         ArgumentNullException.ThrowIfNull(task);
+        if (AnalysisTask?.Id != task.Id)
+            _emptyStateTitle = _emptyStateDescription = null;
         if (HasAnyRecommendations &&
             (_recommendationsTaskId is { } previousId && previousId != task.Id ||
              _recommendationsTaskId is null && task.Status is AnalysisTaskStatus.Failed or AnalysisTaskStatus.Cancelled))
@@ -204,6 +225,7 @@ public partial class RecommendationsViewModel : ObservableObject
 
     public void BeginExternalRecommendationLoad()
     {
+        _emptyStateTitle = _emptyStateDescription = null;
         _logger.LogInformation("External recommendation load started");
         AnalysisError = null;
         IsWaitingForExternalRecommendations = true;

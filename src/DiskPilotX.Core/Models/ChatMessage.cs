@@ -10,6 +10,8 @@ using DiskPilotX.Core.Services.Copilot;
 
 namespace DiskPilotX.Core.Models;
 
+public enum ChatActivityPhase { WaitingForModel, ReceivingReply, ReceivingReasoning, PreparingTool, ExecutingTool, WaitingForUser }
+
 public class ChatMessage : INotifyPropertyChanged
 {
     private static readonly Regex ThinkingTitleRegex = new(@"^\s*\*\*([^*\r\n]+)\*\*(?:\r?\n\r?\n|\s*$)", RegexOptions.Compiled);
@@ -48,7 +50,7 @@ public class ChatMessage : INotifyPropertyChanged
     public bool HasIncompleteCacheUsage
     {
         get => _hasIncompleteCacheUsage;
-        set { if (_hasIncompleteCacheUsage == value) return; _hasIncompleteCacheUsage = value; OnPropertyChanged(nameof(CacheHitRateText)); OnPropertyChanged(nameof(UsageDetails)); OnPropertyChanged(nameof(UsageText)); }
+        set { if (_hasIncompleteCacheUsage == value) return; _hasIncompleteCacheUsage = value; OnPropertyChanged(nameof(CacheHitRateText)); OnPropertyChanged(nameof(UsageDetails)); OnPropertyChanged(nameof(UsageTooltipDetails)); OnPropertyChanged(nameof(UsageText)); }
     }
     private static long? CacheInput(ModelTokenUsage usage) => usage.GetTotalInputTokens();
     public string CacheHitRateText => HasIncompleteCacheUsage ? "未提供（部分请求缺少统计）"
@@ -58,7 +60,7 @@ public class ChatMessage : INotifyPropertyChanged
     public ModelTokenUsage? Usage
     {
         get => _usage;
-        set { if (_usage == value) return; _usage = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasUsage)); OnPropertyChanged(nameof(UsageText)); OnPropertyChanged(nameof(UsageSummary)); OnPropertyChanged(nameof(UsageDetails)); OnPropertyChanged(nameof(CacheHitRateText)); }
+        set { if (_usage == value) return; _usage = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasUsage)); OnPropertyChanged(nameof(UsageText)); OnPropertyChanged(nameof(UsageSummary)); OnPropertyChanged(nameof(UsageDetails)); OnPropertyChanged(nameof(UsageTooltipDetails)); OnPropertyChanged(nameof(UsageTotalText)); OnPropertyChanged(nameof(CacheHitRateText)); }
     }
     public bool HasUsage => Usage is not null;
     public string UsageSummary => Usage?.TotalTokens is { } total
@@ -78,6 +80,28 @@ public class ChatMessage : INotifyPropertyChanged
             return rows;
         }
     }
+    private static string FormatUsageTokens(long? count) => count is >= 0
+        ? count.Value.ToString("N0", CultureInfo.InvariantCulture) + " tok" : "未提供";
+
+    public string UsageTotalText => FormatUsageTokens(Usage?.TotalTokens);
+
+    /// <summary>悬浮卡只展示四行；原始写入、推理等统计仍留在历史与完整可访问说明中。</summary>
+    public IReadOnlyList<KeyValuePair<string, string>> UsageTooltipDetails
+    {
+        get
+        {
+            if (Usage is not { } usage) return [];
+            var totalInput = CacheInput(usage);
+            var cached = usage.CachedInputTokens is >= 0 && (totalInput is null || usage.CachedInputTokens <= totalInput)
+                ? usage.CachedInputTokens : null;
+            var completeSplit = !HasIncompleteCacheUsage && totalInput is >= 0 && cached.HasValue && cached <= totalInput;
+            var hit = completeSplit && totalInput > 0
+                ? (cached!.Value * 100d / totalInput!.Value).ToString("0", CultureInfo.InvariantCulture) + "%" : "未提供";
+            return [new("缓存命中", hit),
+                new("未缓存输入", FormatUsageTokens(completeSplit ? totalInput - cached : null)),
+                new("缓存读取", FormatUsageTokens(HasIncompleteCacheUsage ? null : cached)), new("输出", FormatUsageTokens(usage.OutputTokens))];
+        }
+    }
     public string UsageText => Usage is null ? string.Empty
         : "已报告 Token · " + string.Join(" · ", UsageDetails.Select(row => $"{row.Key} {row.Value}"));
 
@@ -85,6 +109,34 @@ public class ChatMessage : INotifyPropertyChanged
 
     public IEnumerable<ChatSegment> ProcessSegments => Segments.Where(segment => !segment.IsFinal);
     public IEnumerable<ChatSegment> FinalSegments => Segments.Where(segment => segment.IsFinal);
+    private ChatActivityPhase _activity;
+    private DateTime? _activityStartedAt;
+    private TimeSpan _activityElapsed;
+    private string? _activityToolCallId;
+    public string ActivityDurationText => FormatDuration(_activityElapsed);
+    public ChatActivityPhase Activity
+    {
+        get => _activity;
+        private set { if (_activity == value) return; _activity = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowActivityAnimation)); }
+    }
+    public bool ShowActivityAnimation => IsStreaming && Activity != ChatActivityPhase.WaitingForUser;
+
+    private void StartActivity(ChatActivityPhase phase, DateTime startedAt, bool restart = false)
+    {
+        if (_activityStartedAt.HasValue && Activity == phase && !restart) return;
+        _activityStartedAt = startedAt;
+        Activity = phase;
+        RefreshElapsed(startedAt);
+    }
+
+    public void SetWaitingForUser(bool waiting, DateTime? now = null)
+    {
+        if (!IsStreaming) return;
+        var tool = Segments.LastOrDefault(segment => segment.IsTool && segment.Status is ChatSegmentStatus.Running or ChatSegmentStatus.WaitingForUser);
+        if (tool is not null) tool.Status = waiting ? ChatSegmentStatus.WaitingForUser : ChatSegmentStatus.Running;
+        StartActivity(waiting ? ChatActivityPhase.WaitingForUser : tool is null ? ChatActivityPhase.WaitingForModel : ChatActivityPhase.ExecutingTool, now ?? DateTime.Now);
+    }
+
     public bool HasProcess => ProcessSegments.Any() || IsStreaming;
     public bool HasFinalContent => FinalSegments.Any();
     public string CopyText => HasFinalContent ? string.Concat(FinalSegments.Select(segment => segment.Text)) : Text;
@@ -94,9 +146,10 @@ public class ChatMessage : INotifyPropertyChanged
     public bool HasDuration => Sender == ChatSender.Assistant && (IsStreaming || CompletedAt.HasValue);
     public string DisplayTime => Timestamp.ToString("HH:mm", CultureInfo.CurrentCulture);
     public string FullTime => Timestamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.CurrentCulture);
-    public string DurationText => _elapsed.TotalHours >= 1 ? $"{(int)_elapsed.TotalHours}h{_elapsed.Minutes:00}m"
-        : _elapsed.TotalMinutes >= 1 ? $"{(int)_elapsed.TotalMinutes}m{_elapsed.Seconds:00}s"
-        : $"{(int)_elapsed.TotalSeconds}s";
+    public string DurationText => FormatDuration(_elapsed);
+    private static string FormatDuration(TimeSpan elapsed) => elapsed.TotalHours >= 1 ? $"{(int)elapsed.TotalHours}h{elapsed.Minutes:00}m"
+        : elapsed.TotalMinutes >= 1 ? $"{(int)elapsed.TotalMinutes}m{elapsed.Seconds:00}s"
+        : $"{(int)elapsed.TotalSeconds}s";
     public bool IsProcessExpanded
     {
         get => _isProcessExpanded;
@@ -114,10 +167,14 @@ public class ChatMessage : INotifyPropertyChanged
 
     public void RefreshElapsed(DateTime? now = null)
     {
-        var duration = (CompletedAt ?? now ?? DateTime.Now) - Timestamp;
+        var clock = CompletedAt ?? now ?? DateTime.Now;
+        var duration = clock - Timestamp;
+        var activityDuration = clock - (_activityStartedAt ?? clock);
+        _activityElapsed = activityDuration < TimeSpan.Zero ? TimeSpan.Zero : activityDuration;
         _elapsed = duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
         OnPropertyChanged(nameof(Elapsed));
         OnPropertyChanged(nameof(DurationText));
+        OnPropertyChanged(nameof(ActivityDurationText));
     }
 
     private void MarkFinalContent()
@@ -125,6 +182,11 @@ public class ChatMessage : INotifyPropertyChanged
         var lastTool = Segments.ToList().FindLastIndex(segment => segment.IsTool);
         foreach (var segment in Segments.Skip(Math.Max(_stepStartIndex, lastTool + 1)).Where(segment => segment.IsText))
             segment.IsFinal = true;
+        if (HasFinalContent)
+        {
+            IsProcessExpanded = false;
+            foreach (var segment in Segments) segment.IsExpanded = false;
+        }
         RefreshSegmentBindings();
     }
 
@@ -150,11 +212,7 @@ public class ChatMessage : INotifyPropertyChanged
         if (CompletedAt.HasValue) return;
         IsStreaming = false;
         MarkCompletedAt(completedAt);
-        if (status == ChatSegmentStatus.Completed && HasFinalContent)
-        {
-            IsProcessExpanded = false;
-            foreach (var segment in Segments) segment.IsExpanded = false;
-        }
+
     }
 
     /// <summary>将真实 Agent 事件投影为有序内容；工具结果仅回填对应调用。</summary>
@@ -165,25 +223,54 @@ public class ChatMessage : INotifyPropertyChanged
             case AgentEventKind.SessionStarted:
                 Timestamp = activity.Timestamp.LocalDateTime;
                 IsStreaming = true;
-                RefreshElapsed(Timestamp);
+                _activityToolCallId = null;
+                StartActivity(ChatActivityPhase.WaitingForModel, Timestamp, restart: true);
                 break;
+            case AgentEventKind.ModelRetrying:
             case AgentEventKind.StepStarted:
+                foreach (var pending in Segments.Where(segment => segment.Status == ChatSegmentStatus.Preparing))
+                    pending.Status = ChatSegmentStatus.Cancelled;
                 CompleteActiveSegment();
                 _stepStartIndex = Segments.Count;
                 _hasStepDeltas = false;
+                _activityToolCallId = null;
+                StartActivity(ChatActivityPhase.WaitingForModel, activity.Timestamp.LocalDateTime, restart: true);
                 break;
             case AgentEventKind.TextDelta:
             case AgentEventKind.ReasoningDelta:
                 if (string.IsNullOrEmpty(activity.Text)) break;
                 _hasStepDeltas = true;
                 IsStreaming = true;
+                StartActivity(activity.Kind == AgentEventKind.TextDelta ? ChatActivityPhase.ReceivingReply : ChatActivityPhase.ReceivingReasoning, activity.Timestamp.LocalDateTime);
                 AppendContent(activity.Kind == AgentEventKind.TextDelta
                     ? ChatSegmentKind.Text : ChatSegmentKind.Thinking, activity.Text, activity.IsSummary);
+                break;
+            case AgentEventKind.ToolCallPreparing:
+                CompleteActiveSegment();
+                IsStreaming = true;
+                var samePreparation = _activityToolCallId == activity.ToolCallId || _activityToolCallId == activity.PreviousToolCallId;
+                StartActivity(ChatActivityPhase.PreparingTool, activity.Timestamp.LocalDateTime, restart: !samePreparation);
+                _activityToolCallId = activity.ToolCallId;
+                if (!string.IsNullOrEmpty(activity.PreviousToolCallId) && Segments.FirstOrDefault(segment => segment.IsTool
+                    && segment.ToolCallId == activity.PreviousToolCallId && segment.Status == ChatSegmentStatus.Preparing) is { } previous)
+                {
+                    // 同一真实调用可能被上游重复扇出；绑定时合并多余准备卡片，保留首个真实调用。
+                    if (Segments.Skip(_stepStartIndex).Any(segment => segment.IsTool
+                        && segment.ToolCallId == activity.ToolCallId && !ReferenceEquals(segment, previous)))
+                    {
+                        Segments.Remove(previous);
+                        break;
+                    }
+                    previous.ToolCallId = activity.ToolCallId;
+                }
+                GetToolSegment(activity.ToolCallId, activity.ToolName, preparing: true).Status = ChatSegmentStatus.Preparing;
                 break;
             case AgentEventKind.ToolCallStarted:
                 CompleteActiveSegment();
                 IsStreaming = true;
-                GetToolSegment(activity.ToolCallId, activity.ToolName);
+                _activityToolCallId = activity.ToolCallId;
+                StartActivity(ChatActivityPhase.ExecutingTool, activity.Timestamp.LocalDateTime, restart: true);
+                GetToolSegment(activity.ToolCallId, activity.ToolName).Status = ChatSegmentStatus.Running;
                 break;
             case AgentEventKind.MessageCompleted when activity.Message?.Role == ChatRole.Tool:
                 var result = activity.Message;
@@ -234,13 +321,18 @@ public class ChatMessage : INotifyPropertyChanged
                     && Segments.Skip(_stepStartIndex).Any(segment => segment.IsText && segment.HasText))
                 {
                     MarkFinalContent();
-                    FinishProcess(ChatSegmentStatus.Completed, activity.Timestamp.LocalDateTime);
+                    StartActivity(ChatActivityPhase.WaitingForModel, activity.Timestamp.LocalDateTime, restart: true);
                 }
                 break;
+            case AgentEventKind.WaitingForUser:
+                StartActivity(ChatActivityPhase.WaitingForUser, activity.Timestamp.LocalDateTime, restart: true);
+                break;
             case AgentEventKind.ToolApprovalRequested:
+                StartActivity(ChatActivityPhase.WaitingForUser, activity.Timestamp.LocalDateTime, restart: true);
                 GetToolSegment(activity.ToolCallId, activity.ToolName).Status = ChatSegmentStatus.WaitingForUser;
                 break;
             case AgentEventKind.ToolCallCompleted:
+                StartActivity(ChatActivityPhase.WaitingForModel, activity.Timestamp.LocalDateTime, restart: true);
                 var tool = GetToolSegment(activity.ToolCallId, activity.ToolName);
                 if (!string.IsNullOrWhiteSpace(activity.Detail)) tool.Detail = string.IsNullOrWhiteSpace(tool.Detail) ? activity.Detail : tool.Detail + "\n" + activity.Detail;
                 if(tool.Status != ChatSegmentStatus.Cancelled) tool.Status = activity.Success == false ? ChatSegmentStatus.Failed : ChatSegmentStatus.Completed;
@@ -255,9 +347,9 @@ public class ChatMessage : INotifyPropertyChanged
                     _ => ChatSegmentStatus.Completed
                 };
                 foreach (var segment in Segments.Where(segment =>
-                    segment.Status is ChatSegmentStatus.Running or ChatSegmentStatus.WaitingForUser))
+                    segment.Status is ChatSegmentStatus.Running or ChatSegmentStatus.WaitingForUser or ChatSegmentStatus.Preparing))
                 {
-                    segment.Status = status;
+                    segment.Status = segment.Status == ChatSegmentStatus.Preparing && status == ChatSegmentStatus.Completed ? ChatSegmentStatus.Cancelled : status;
                     if (segment.IsTool && !string.IsNullOrEmpty(activity.Detail)) segment.Detail = activity.Detail;
                 }
                 _activeSegment = null;
@@ -288,12 +380,13 @@ public class ChatMessage : INotifyPropertyChanged
         _activeSegment = null;
     }
 
-    private ChatSegment GetToolSegment(string? callId, string? name)
+    private ChatSegment GetToolSegment(string? callId, string? name, bool preparing = false)
     {
-        var segment = string.IsNullOrEmpty(callId) ? null : Segments.FirstOrDefault(item => item.IsTool && item.ToolCallId == callId);
+        var segment = string.IsNullOrEmpty(callId) ? null : Segments.Skip(preparing ? _stepStartIndex : 0).FirstOrDefault(item => item.IsTool && item.ToolCallId == callId
+            && (!preparing || item.Status == ChatSegmentStatus.Preparing));
         if (segment is null)
         {
-            segment = new ChatSegment(ChatSegmentKind.Tool) { ToolCallId = callId, ToolName = name };
+            segment = new ChatSegment(ChatSegmentKind.Tool) { ToolCallId = callId, ToolName = name, Status = ChatSegmentStatus.Preparing };
             Segments.Add(segment);
         }
         else if (!string.IsNullOrEmpty(name)) segment.ToolName = name;
@@ -380,6 +473,7 @@ public class ChatMessage : INotifyPropertyChanged
             IsThinkingExpanded = value && HasThinking;
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasDuration));
+            OnPropertyChanged(nameof(ShowActivityAnimation));
             OnPropertyChanged(nameof(HasProcess));
         }
     }

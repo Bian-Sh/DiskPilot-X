@@ -172,6 +172,21 @@ public partial class RecommendationEngine
         return result;
     }
 
+    /// <summary>追加前按真实路径去重及排除父子重叠，优先保留原对象与勾选状态。</summary>
+    public static List<CleanupRecommendation> MergeRecommendations(IEnumerable<CleanupRecommendation> existing, IEnumerable<CleanupRecommendation> incoming)
+    {
+        var kept = new List<CleanupRecommendation>();
+        var paths = new List<string>();
+        foreach (var item in existing.Concat(incoming))
+        {
+            if (!TryNormalizePath(item.TargetPath, out var path) || paths.Any(previous =>
+                IsSameOrUnderPrefix(path, previous) || IsSameOrUnderPrefix(previous, path))) continue;
+            kept.Add(item);
+            paths.Add(path);
+        }
+        return kept;
+    }
+
     public static bool IsDeletionProtected(string path)
     {
         return string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path) ||

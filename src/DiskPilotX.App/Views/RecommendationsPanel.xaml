@@ -22,7 +22,6 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -115,17 +114,8 @@
             </Grid>
         </Border>
 
-        <!-- 当前任务状态在有旧建议或新建议时仍保持可见。 -->
-        <TextBlock x:Name="AnalysisStatus"
-                   Grid.Row="1"
-                   Text="{Binding AnalysisStatusText}"
-                   TextWrapping="Wrap"
-                   Foreground="{DynamicResource VP.TextSecondaryBrush}"
-                   FontSize="12"
-                   Margin="20,6,20,8" />
-
         <!-- Analyzing overlay -->
-        <Border x:Name="AnalyzingOverlay" Grid.Row="2"
+        <Border x:Name="AnalyzingOverlay" Grid.Row="1"
                 Panel.ZIndex="10"
                 Background="Transparent"
                 Padding="0,8,0,0">
@@ -160,7 +150,7 @@
         </Border>
 
         <!-- Error / empty display -->
-        <Border Grid.Row="2"
+        <Border Grid.Row="1"
                 Panel.ZIndex="5"
                 Background="Transparent"
                 Padding="20">
@@ -178,6 +168,7 @@
                     </Style.Triggers>
                 </Style>
             </Border.Style>
+            <ScrollViewer x:Name="EmptyStateScroll" VerticalAlignment="Center" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="520">
                 <TextBlock Text="{Binding AnalysisError}"
                            TextWrapping="Wrap"
@@ -196,7 +187,7 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
-                <TextBlock FontSize="15"
+                <TextBlock FontSize="15" TextWrapping="Wrap"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource VP.TextPrimaryBrush}"
                            HorizontalAlignment="Center"
@@ -235,11 +226,12 @@
                     </TextBlock.Style>
                 </TextBlock>
             </StackPanel>
+            </ScrollViewer>
         </Border>
 
-        <!-- 第 2 行：建议列表 -->
+        <!-- 第 1 行：建议列表，不预留额外状态行。 -->
         <ListView x:Name="RecommendationsList"
-                  Grid.Row="2"
+                  Grid.Row="1"
                   Style="{DynamicResource VP.ListView}"
                   ItemsSource="{Binding FilteredRecommendations}"
                   Margin="4,0,4,4"
@@ -376,7 +368,7 @@
         </ListView>
 
         <!-- 第 3 行：汇总栏 -->
-        <Border Grid.Row="3"
+        <Border Grid.Row="2"
                 Background="{DynamicResource VP.SurfaceBrush}"
                 BorderBrush="{DynamicResource VP.BorderSubtleBrush}"
                 BorderThickness="0,1,0,0"

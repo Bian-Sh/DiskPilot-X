@@ -205,8 +205,10 @@ public sealed partial class DiskAssistantService
             if (string.IsNullOrWhiteSpace(options.Endpoint.ApiKey)) throw new InvalidOperationException("请先在设置中配置 API Key。");
             LastAnalysisResult = null;
             analysisTask = null;
+            pendingAnalysisLimitations.Clear();
             suggestedTopics.Clear();
             readRuleDigests.Clear();
+            rulePages.Clear();
             observedTopics.Clear();
             accumulatedDiagnostics = new();
             completedCleanupThisRun = false;
@@ -273,7 +275,7 @@ public sealed partial class DiskAssistantService
                         var result = await handler(args, ct).ConfigureAwait(false);
                         if (options.IsAnalysis && !await CheckAnalysisBoundaryAsync(args, ct).ConfigureAwait(false)) return ToolResult.SafeFail("{\"ok\":false,\"error\":\"操作期间条件发生变化，结果不再属于当前分析，请重新分析。\"}");
                         if (result["ok"]?.GetValue<bool>() == false) runHadToolFailure = true;
-                        if (result["cancelled"]?.GetValue<bool>() == true) { declinedOperations.Add(name); analysisTask?.Defer("用户取消了本轮部分操作。"); }
+                        if (result["cancelled"]?.GetValue<bool>() == true) { declinedOperations.Add(name); DeferAnalysis("用户取消了本轮部分操作。"); }
                         return result["ok"]?.GetValue<bool>() == false ? ToolResult.SafeFail(result.ToJsonString(AgentJson.Options)) : ToolResult.Ok(result.ToJsonString(AgentJson.Options));
                     }
                     catch (OperationCanceledException) { throw; }
@@ -286,6 +288,7 @@ public sealed partial class DiskAssistantService
                     }
                     catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or JsonException or UnauthorizedAccessException or IOException)
                     {
+                        if (name is "publish_recommendations" or "complete_analysis") DeferAnalysis("分析结果提交或汇总失败，需要保留未完成部分。");
                         // 只给一句套话会让模型无法自我修正（本机单用户应用，异常消息不含密钥）。
                         loggerFactory.CreateLogger("DiskAssistantService").LogWarning(ex, "工具 {Tool} 执行失败", name);
                         return ToolResult.SafeFail("操作未完成：" + ex.GetType().Name + "：" + ex.Message + " 请读取当前上下文后修正。");
@@ -374,9 +377,21 @@ public sealed partial class DiskAssistantService
             if (c.Session?.RootEntry is null) return Error("尚无允许分析的扫描结果。");
             var focus = ResolveFocus(c, a?["path"]?.GetValue<string>() ?? options.FocusPath);
             if (focus is null) return Error("分析范围不在当前扫描树中。");
-            evidenceScanId = c.Session.Id; evidenceScope = focus.Path;
-            if (analysisTask is not null) analysisTask.EvidenceRead = true;
-            return new JsonObject { ["ok"] = true, ["scan_id"] = c.Session.Id.ToString(), ["evidence"] = policy.BuildEvidence(c.Session, focus) };
+            if (analysisTask is not null && analysisTask.ScanId == c.Session.Id && !analysisTask.Contains(focus.Path))
+                return Error("证据路径超出本轮已确定的分析范围，请在目标范围开始新的分析。");
+            var evidence = policy.BuildEvidence(c.Session, focus);
+            if (analysisTask is null || analysisTask.ScanId != c.Session.Id)
+            {
+                BeginAnalysisTask(c.Session.Id, options.FocusPath ?? focus.Path, focus, CurrentPrivacy());
+                LastAnalysisResult = null;
+                accumulatedDiagnostics = new();
+            }
+            // 局部查看只补充证据，不改变本轮整体发布边界。
+            if (evidenceScanId != c.Session.Id) evidenceScope = analysisTask.ScopePath;
+            evidenceScanId = c.Session.Id;
+            analysisTask.EvidenceRead = true;
+            PublishAnalysisState();
+            return new JsonObject { ["ok"] = true, ["scan_id"] = c.Session.Id.ToString(), ["scope_path"] = evidenceScope, ["evidence_path"] = focus.Path, ["evidence"] = evidence };
         });
         Add("publish_recommendations", "校验并发布清理建议，大小和安全限制由本地核验。scan_id 取自 get_copilot_context 或 analyze_paths 的返回；一次调用即可发布多个范围的候选。mode 取 replace（默认，用本轮结果替换面板）/ merge（追加到现有清单，保留已勾选状态）。", """{"type":"object","properties":{"scan_id":{"type":"string"},"mode":{"type":"string","enum":["replace","merge"]},"recommendations":{"type":"array","maxItems":100,"items":{"type":"object","properties":{"path":{"type":"string"},"category":{"type":"string"},"safety_rating":{"type":"string"},"explanation":{"type":"string"}},"required":["path","category","safety_rating","explanation"]}}},"required":["scan_id","recommendations"]}""", async (a, ct) =>
         {
@@ -391,31 +406,50 @@ public sealed partial class DiskAssistantService
             var c = await GetVisibleContext(ct, options.IsAnalysis).ConfigureAwait(false);
             if (c.Session?.RootEntry is null || a?["scan_id"]?.GetValue<string>() != c.Session.Id.ToString()) return Error("扫描结果已改变，请重新读取上下文。");
             if (evidenceScanId != c.Session.Id) return Error("请先读取本次扫描的分析证据。");
+            if (!await CheckAnalysisBoundaryAsync(null, ct).ConfigureAwait(false)) return Error("分析期间扫描或安全条件已变化，请重新分析。");
             var focus = ResolveFocus(c, options.FocusPath ?? evidenceScope);
             if (focus is null) return Error("分析范围失效。");
             if (options.IsAnalysis && lastRejectedPublish == a?.ToJsonString()) return Error("相同候选已因保护或限制被过滤，请说明限制，不要重复提交。");
             var analysis = policy.ValidateCandidates(c.Session, JsonSerializer.SerializeToElement(a), focus);
-            var payload = new JsonObject { ["scan_id"] = c.Session.Id.ToString(), ["focus_path"] = focus.Path, ["analysis_mode"] = options.IsAnalysis, ["task_id"] = analysisTask?.Id.ToString(), ["recommendations"] = JsonSerializer.SerializeToNode(analysis.Recommendations.Select(r => new
+            var payload = new JsonObject { ["scan_id"] = c.Session.Id.ToString(), ["mode"] = a?["mode"]?.GetValue<string>() ?? "replace", ["focus_path"] = focus.Path, ["analysis_mode"] = options.IsAnalysis, ["task_id"] = analysisTask?.Id.ToString(), ["recommendations"] = JsonSerializer.SerializeToNode(analysis.Recommendations.Select(r => new
                 { id = r.Id, path = r.TargetPath, size_bytes = r.Size, category = r.Category.ToString(), safety_rating = r.SafetyRating.ToString(), explanation = r.Explanation })) };
             var published = await workspace.Execute("publish_recommendations", payload, ct).ConfigureAwait(false);
+            var acceptedThisBatch = 0;
+            JsonNode? batchValidation = null;
             if (published["ok"]?.GetValue<bool>() != false)
             {
                 if(published["recommendations"] is JsonArray accepted)
                 {
-                    var actual=accepted.OfType<JsonObject>().ToDictionary(r=>r["path"]!.GetValue<string>(),StringComparer.OrdinalIgnoreCase);
+                    var rows = accepted.OfType<JsonObject>().ToArray();
+                    var actual = rows.GroupBy(r => r["path"]!.GetValue<string>(), StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+                    if (actual.Count != rows.Length) DeferAnalysis("宿主返回了重复候选，清单结果需要复核。");
                     analysis.Diagnostics.HostFilteredCount += analysis.Recommendations.Count(r=>!actual.ContainsKey(r.TargetPath));
                     analysis.Recommendations=analysis.Recommendations.Where(r=>actual.ContainsKey(r.TargetPath)).ToList();
                     foreach(var item in analysis.Recommendations)item.Id=actual[item.TargetPath]["id"]?.GetValue<string>()??item.Id;
                     analysis.Diagnostics.ParsedRecommendationCount=analysis.Recommendations.Count;
                 }
                 if (options.IsAnalysis && analysis.Diagnostics.InputRecommendationCount > 0 && analysis.Recommendations.Count == 0) lastRejectedPublish = a?.ToJsonString();
-                if (options.IsAnalysis) AccumulateDiagnostics(analysis.Diagnostics);
+                acceptedThisBatch = analysis.Recommendations.Count;
+                batchValidation = ValidationSummary(analysis.Diagnostics, acceptedThisBatch);
+                AccumulateDiagnostics(analysis.Diagnostics);
                 foreach (var candidate in analysis.Recommendations) recommendationTopics[candidate.TargetPath] = observedTopics.Concat(readRuleDigests.Keys).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+                if (a?["mode"]?.GetValue<string>() == "merge" && LastAnalysisResult is { } previous)
+                {
+                    analysis.Diagnostics.InputRecommendationCount += previous.Diagnostics.InputRecommendationCount;
+                    var retained = published["recommendations"] is JsonArray all
+                        ? all.OfType<JsonObject>().Select(item => item["path"]!.GetValue<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase) : null;
+                    analysis.Recommendations = previous.Recommendations.Concat(analysis.Recommendations)
+                        .Where(item => retained is null || retained.Contains(item.TargetPath))
+                        .DistinctBy(item => item.TargetPath, StringComparer.OrdinalIgnoreCase).ToList();
+                }
+                analysis.Diagnostics.ParsedRecommendationCount = analysis.Recommendations.Count;
                 LastAnalysisResult = analysis;
                 if (analysisTask is not null) analysisTask.AcceptedCount = analysis.Recommendations.Count;
             }
             else analysisTask?.Defer("本轮建议未能写入推荐列表。");
-            published["validation"] = ValidationSummary(analysis.Diagnostics, analysis.Recommendations.Count);
+            published["validation"] = batchValidation ?? ValidationSummary(analysis.Diagnostics, acceptedThisBatch);
             return published;
         }, ToolRiskLevel.Write);
         Add("ask_user", "用结构化问题收集单选、多选、文本或数字；保留用户答案和取消，不索取凭据。", UserDecisionRequest.CreateSchema().ToJsonString(), async (a, ct) =>
@@ -431,12 +465,19 @@ public sealed partial class DiskAssistantService
         Add("show_skill_panel", "为已保存的用户清理规则发布可重开的任务面板卡片，用户点击后打开。", """{"type":"object","properties":{"id":{"type":"string"},"summary":{"type":"string"}},"required":["id"]}""", (a,ct)=>workspace.Execute("show_skill_panel",a,ct));
         Add("render_view", RenderViewDescription, RenderViewSchema, (a,ct)=>workspace.Execute("render_view",a,ct));
         Add("analyze_paths", AnalyzePathsDescription, AnalyzePathsSchema, (a,ct)=>workspace.Execute("analyze_paths",a,ct), timeoutSeconds:Timeout.Infinite);
+        Add("set_recommendations_empty_state", "仅设置推荐清理面板无建议时的中心标题和说明，纯文本；不改变任务结论、建议、勾选或清理权限。已有建议时不更新。标题最多80字符，说明最多1200字符；均传空字符串恢复默认。受限、失败或未完成的宿主提示仍保留。", """{"type":"object","properties":{"title":{"type":"string","maxLength":80},"description":{"type":"string","maxLength":1200}},"required":["title","description"],"additionalProperties":false}""", (a, ct) =>
+        {
+            var title = a?["title"]?.GetValue<string>();
+            var description = a?["description"]?.GetValue<string>();
+            if (title is null || description is null || title.Length > 80 || description.Length > 1200) return Task.FromResult(Error("需要纯文本title和description，分别不超过80与1200字符。"));
+            return workspace.Execute("set_recommendations_empty_state", new JsonObject { ["title"] = title, ["description"] = description }, ct);
+        });
         Add("list_recommendations", "读取本地已发布建议及其当前 ID、清单版本和选中状态。", """{"type":"object","properties":{}}""", (a, ct) => workspace.Execute("list_recommendations", a, ct));
         Add("select_recommendations", "按当前建议 ID 选择或取消建议，不删除文件。", """{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string"}},"selected":{"type":"boolean"}},"required":["ids","selected"]}""", (a, ct) => workspace.Execute("select_recommendations", a, ct), ToolRiskLevel.Write);
         Add("cleanup_recommendations", "请求用户确认当前版本的具体清理清单；只有确认后才执行并返回实际结果。", """{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string"},"minItems":1},"version":{"type":"string"}},"required":["ids","version"]}""", (a, ct) => workspace.Execute("cleanup_recommendations", a, ct), ToolRiskLevel.Destructive, 1800);
         RegisterAnalysisTools(Add, options);
         if (!options.IsAnalysis) return registry;
-        var allowed = new HashSet<string>(StringComparer.Ordinal) { "get_copilot_context", "get_analysis_evidence", "publish_recommendations", "find_by_name", "find_by_path", "list_children", "summarize_subtree", "find_large_files", "list_analysis_rules", "read_analysis_rule", "preview_analysis_rule", "ask_user", "complete_analysis", "get_analysis_context", "report_task_topics", "read_analysis_history", "request_rule_creation", "web_search" };
+        var allowed = new HashSet<string>(StringComparer.Ordinal) { "get_copilot_context", "get_analysis_evidence", "publish_recommendations", "set_recommendations_empty_state", "find_by_name", "find_by_path", "list_children", "summarize_subtree", "find_large_files", "list_analysis_rules", "read_analysis_rule", "preview_analysis_rule", "ask_user", "complete_analysis", "get_analysis_context", "report_task_topics", "read_analysis_history", "request_rule_creation", "web_search" };
         var analysisRegistry = new ToolRegistry(); foreach (var tool in registry.All.Where(tool => allowed.Contains(tool.Name))) analysisRegistry.Register(tool); return analysisRegistry;
     }
 

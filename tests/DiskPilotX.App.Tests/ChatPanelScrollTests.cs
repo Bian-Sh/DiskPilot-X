@@ -54,6 +54,7 @@ public sealed class ChatPanelScrollTests
         Assert.NotNull(root.Background);
         var copy = Visuals<Button>(root).Single(button => button.Width == 28 && button.Height == 26);
         Assert.Equal(HorizontalAlignment.Left, ((FrameworkElement)VisualTreeHelper.GetParent(copy)).HorizontalAlignment);
+        Assert.Equal(Visibility.Collapsed, Visuals<Border>(root).Single(element => element.Name == "UsageBadge").Visibility);
         message.ModelId = "实际模型-缓存验收";
         message.Usage = new(1234, 56, 1290, 1000, 0, 12, 1234);
         Layout(panel);
@@ -72,14 +73,17 @@ public sealed class ChatPanelScrollTests
         Layout(panel);
         Assert.Same(message, usageTip.DataContext);
         var tipText = Visuals<TextBlock>(usageTip).Select(text => text.Text).ToArray();
-        Assert.Contains("已报告用量", tipText);
+        Assert.Contains("Token 用量", tipText);
+        Assert.Contains(Visuals<System.Windows.Shapes.Path>(usageTip), path => path.Name == "UsageDatabaseIcon");
         Assert.Contains("缓存读取", tipText);
-        Assert.Contains("缓存命中率", tipText);
+        Assert.Contains("缓存命中", tipText);
+        Assert.Contains("未缓存输入", tipText);
         Assert.DoesNotContain(tipText, text => text.Contains("命中率 ="));
-        Assert.Contains((1000d / 1234).ToString("P1"), tipText);
-        Assert.Contains(1234.ToString("N0"), tipText);
-        Assert.Contains(1290.ToString("N0"), tipText);
-        Assert.InRange(usageTip.ActualWidth, 230, 260);
+        Assert.Contains("81%", tipText);
+        Assert.Contains("234 tok", tipText);
+        Assert.Contains("1,290 tok", tipText);
+        Assert.InRange(usageTip.ActualWidth, 259, 261);
+        Assert.Equal(4, Visuals<ItemsControl>(usageTip).Single().Items.Count);
         usageTip.IsOpen = false;
         Layout(panel);
         // AI 底部仅有完成时间与复制按钮；创建时间和执行时长不混入底部时间。

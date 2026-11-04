@@ -190,6 +190,7 @@ public sealed class ProcessLabelConverter : IValueConverter
 {
     public object Convert(object value,Type targetType,object parameter,CultureInfo culture)
     {
+        if (parameter is "activity") return L.Text("CopilotActivity_" + value);
         var key = value is ChatSegmentStatus status ? "CopilotStatus_" + status : "CopilotTool_" + value;
         if (parameter is "process" && value is ChatSegmentStatus processStatus)
             key = processStatus switch

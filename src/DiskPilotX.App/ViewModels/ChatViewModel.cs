@@ -305,10 +305,11 @@ public partial class ChatViewModel : ObservableObject
             pendingDecision?.TrySetResult(false); pendingDecision = decision; IsUserInputRequested = allowNotes;
             PendingInteractionCard = new AiInteractionCard { Title = title, Description = description, Impact = impact,
                 ConfirmText = Localized("Continue","继续"), CancelText = Localized("Cancel","取消"), Action = new(AiActionKind.None), UserNotes = allowNotes ? "" : null };
+            displayMessage?.SetWaitingForUser(true);
             StatusText = L.Text("CopilotWaiting");
         });
         try { return await decision.Task.WaitAsync(ct); }
-        finally { await OnUiAsync(() => { if (ReferenceEquals(pendingDecision, decision)) { pendingDecision = null; PendingInteractionCard = null; IsUserInputRequested = false; StatusText = IsOperationRunning ? L.Text("CopilotWorking") : L.Text("CopilotReady"); } }); }
+        finally { await OnUiAsync(() => { if (ReferenceEquals(pendingDecision, decision)) { pendingDecision = null; PendingInteractionCard = null; IsUserInputRequested = false; displayMessage?.SetWaitingForUser(false); StatusText = IsOperationRunning ? L.Text("CopilotWorking") : L.Text("CopilotReady"); } }); }
     }
     public string? LastUserNotes { get; private set; }
     [RelayCommand] private void ConfirmInteraction() { LastUserNotes = PendingInteractionCard?.UserNotes; pendingDecision?.TrySetResult(true); }

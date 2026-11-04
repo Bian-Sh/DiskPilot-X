@@ -21,7 +21,13 @@ public sealed record TextDeltaEvent(string Text) : ModelStreamEvent;
 
 public sealed record ReasoningDeltaEvent(string Text, bool IsSummary = false) : ModelStreamEvent;
 
-public sealed record ModelToolCallEvent(ToolCall ToolCall) : ModelStreamEvent;
+/// <summary>仅准备阶段发生可重试错误，撤销旧准备状态后重新等待。</summary>
+public sealed record ModelRetryingEvent : ModelStreamEvent;
+
+/// <summary>只携带稳定展示标识与工具名；参数和可能分片的协议 ID 不进入展示。</summary>
+public sealed record ModelToolCallPreparingEvent(string ToolCallId, string ToolName) : ModelStreamEvent;
+
+public sealed record ModelToolCallEvent(ToolCall ToolCall, string? PreparationId = null) : ModelStreamEvent;
 
 public sealed record ModelCompletedEvent(string FinishReason, ModelTokenUsage? Usage = null, string? ModelId = null) : ModelStreamEvent;
 

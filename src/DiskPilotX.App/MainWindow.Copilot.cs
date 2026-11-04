@@ -59,6 +59,12 @@ public partial class MainWindow
         bool Hidden(string? path)=>matcher.IsExcluded(path,settings.AiConversationWhitelist);
         switch(operation)
         {
+            case "set_recommendations_empty_state":
+            {
+                var applied = _recommendationsViewModel.SetEmptyStatePresentation(args?["title"]?.GetValue<string>(), args?["description"]?.GetValue<string>());
+                return new JsonObject { ["ok"] = true, ["applied"] = applied, ["display_only"] = true,
+                    ["visible"] = applied && !_recommendationsViewModel.IsAnalyzing && !_recommendationsViewModel.HasAnyRecommendations };
+            }
             case "scan_path":
             {
                 var target=ScanPathResolver.Resolve(args?["path"]?.GetValue<string>()??"");
@@ -144,7 +150,7 @@ public partial class MainWindow
                         MissingEntryCount=missing,
                         ProtectedFilteredCount=protectedFiltered
                     };
-                    var final=mergeMode?_recommendationsViewModel.Recommendations.Concat(merged).ToList():merged;
+                    var final=mergeMode?RecommendationEngine.MergeRecommendations(_recommendationsViewModel.Recommendations,merged):merged;
                     for(var index=0;index<final.Count;index++) final[index].Id=(index+1).ToString();
                     _recommendationsViewModel.SetExternalRecommendations(final,diagnostics);
                     _assistantAnalysisSession=batch.ToSession();
@@ -164,7 +170,7 @@ public partial class MainWindow
                 // 确认窗口期间若规则、偏好或隐私条件改变，原列表保留并要求重新分析，避免用旧结论覆盖。
                 if (!App.Services!.GetRequiredService<AssistantWorkspace>().ValidateAnalysisCommit(args)) return AssistantError("确认期间规则、偏好或隐私条件改变，原列表已保留，请重新分析。");
                 ct.ThrowIfCancellationRequested();
-                var published=mergeMode?_recommendationsViewModel.Recommendations.Concat(analysis.Recommendations).ToList():analysis.Recommendations;
+                var published=mergeMode?RecommendationEngine.MergeRecommendations(_recommendationsViewModel.Recommendations,analysis.Recommendations):analysis.Recommendations;
                 for(var index=0;index<published.Count;index++) published[index].Id=(index+1).ToString();
                 _recommendationsViewModel.SetExternalRecommendations(published,analysis.Diagnostics);
                 _assistantAnalysisSession=main.CurrentSession;

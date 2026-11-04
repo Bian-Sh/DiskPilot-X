@@ -34,12 +34,12 @@ public sealed record SavedChatMessage(Guid Id, ChatSender Sender, string Text, s
         foreach (var segment in Segments)
             message.Segments.Add(new ChatSegment(segment.Kind) { Text = segment.Text, Detail = segment.Detail,
                 ToolName = segment.ToolName, ToolCallId = segment.ToolCallId, IsSummary = segment.IsSummary, IsFinal = segment.IsFinal,
-                Status = segment.Status is ChatSegmentStatus.Running or ChatSegmentStatus.WaitingForUser
+                Status = segment.Status is ChatSegmentStatus.Running or ChatSegmentStatus.WaitingForUser or ChatSegmentStatus.Preparing
                     ? ChatSegmentStatus.Cancelled : segment.Status });
         var status = ProcessStatus ?? (IsError ? ChatSegmentStatus.Failed
             : sessionStatus ?? (message.Segments.Any(segment => segment.Status == ChatSegmentStatus.Cancelled)
                 ? ChatSegmentStatus.Cancelled : ChatSegmentStatus.Completed));
-        message.RestoreCompletion(CompletedAt, status is ChatSegmentStatus.Running or ChatSegmentStatus.WaitingForUser
+        message.RestoreCompletion(CompletedAt, status is ChatSegmentStatus.Running or ChatSegmentStatus.WaitingForUser or ChatSegmentStatus.Preparing
             ? ChatSegmentStatus.Cancelled : status);
         return message;
     }

@@ -482,6 +482,7 @@ public sealed class OpenAiModelClient : IModelClient
                             if (Str(function, "name") is { } name) builder.Name.Append(name);
                             if (Str(function, "arguments") is { } arguments) builder.Arguments.Append(arguments);
                         }
+                        if (builder.Preparation() is { } preparing) yield return preparing;
                     }
                 }
             }
@@ -499,7 +500,7 @@ public sealed class OpenAiModelClient : IModelClient
                 var arguments = builder.Arguments.Length > 0 ? builder.Arguments.ToString() : "{}";
                 if (JsonNode.Parse(arguments) is not JsonObject)
                     throw Fail("invalid-tool-arguments", $"tool={builder.Name}, bytes={builder.Arguments.Length}");
-                yield return new ModelToolCallEvent(new ToolCall(builder.Id.ToString(), builder.Name.ToString(), arguments));
+                yield return new ModelToolCallEvent(new ToolCall(builder.Id.ToString(), builder.Name.ToString(), arguments), builder.PreparationId);
             }
             yield return new ModelCompletedEvent(calls.Count > 0 ? "tool_use" : "end_turn", usage, modelId);
         }
@@ -526,6 +527,7 @@ public sealed class OpenAiModelClient : IModelClient
                         if (Str(added, "call_id") is { } callId) builder.Id.Append(callId);
                         if (Str(added, "name") is { } name) builder.Name.Append(name);
                         if (Str(added, "arguments") is { } arguments && arguments.Length > 0) builder.Arguments.Append(arguments);
+                        if (builder.Preparation() is { } preparing) yield return preparing;
                     }
                     yield break;
                 case "response.output_text.delta":
@@ -556,7 +558,7 @@ public sealed class OpenAiModelClient : IModelClient
                         var arguments = builder.Arguments.Length > 0 ? builder.Arguments.ToString() : "{}";
                         if (JsonNode.Parse(arguments) is not JsonObject || builder.Id.Length == 0 || builder.Name.Length == 0)
                             throw Fail("tool-block-finish", $"index={index}, tool={builder.Name}, id={builder.Id.Length > 0}, bytes={builder.Arguments.Length}");
-                        yield return new ModelToolCallEvent(new ToolCall(builder.Id.ToString(), builder.Name.ToString(), arguments));
+                        yield return new ModelToolCallEvent(new ToolCall(builder.Id.ToString(), builder.Name.ToString(), arguments), builder.PreparationId);
                     }
                     else if (Str(done, "type") == "reasoning" && Str(done, "id") is { } id && Str(done, "encrypted_content") is { Length: > 0 } encrypted)
                     {
@@ -609,5 +611,15 @@ public sealed class OpenAiModelClient : IModelClient
         public StringBuilder Id { get; } = new();
         public StringBuilder Name { get; } = new();
         public StringBuilder Arguments { get; } = new();
+        private string? announcedName;
+        public string PreparationId { get; } = "preparing:" + Guid.NewGuid().ToString("N");
+
+        public ModelToolCallPreparingEvent? Preparation()
+        {
+            var name = Name.ToString();
+            if (Id.Length == 0 || string.IsNullOrWhiteSpace(name) || name == announcedName) return null;
+            announcedName = name;
+            return new(PreparationId, name);
+        }
     }
 }
