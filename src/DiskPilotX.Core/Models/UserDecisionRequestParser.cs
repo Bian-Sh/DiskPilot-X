@@ -112,7 +112,12 @@ internal static class UserDecisionRequestParser
     {
         if (source.Any(property => !allowedProperties.Contains(property.Key)))
         {
-            throw InvalidRequest("用户决策请求包含未知属性。");
+            var example=ReferenceEquals(allowedProperties,RequestProperties)
+                ? "{\"title\":\"选择范围\",\"question\":\"请提供目录\"}"
+                : ReferenceEquals(allowedProperties,FieldProperties)
+                    ? "{\"id\":\"roots\",\"label\":\"目录\",\"type\":\"text\"}"
+                    : "{\"id\":\"option1\",\"label\":\"选项\"}";
+            throw InvalidRequest("位置 "+source.GetPath()+" 的用户决策请求包含未知属性："+string.Join("、",source.Select(p=>p.Key).Where(key=>!allowedProperties.Contains(key)))+"。本层允许字段："+string.Join("、",allowedProperties.OrderBy(key=>key))+"。请删除未知字段，按允许字段重新提交；形态示例："+example+"。不要重新请求相同无效表单。");
         }
     }
 

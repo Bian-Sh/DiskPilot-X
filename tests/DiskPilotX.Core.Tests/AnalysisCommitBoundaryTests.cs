@@ -91,6 +91,7 @@ public sealed class AnalysisCommitBoundaryTests : IDisposable
         else
         {
             Assert.False(allowed.Value);
+            Assert.Equal(change=="规则"?"rules_changed":"preferences_changed",workspace.DescribeAnalysisCommitFailure(payload));
             Assert.Same(original, recommendations);
             Assert.Equal(originalJson, recommendations.ToJsonString());
             Assert.Null(run.Analysis);

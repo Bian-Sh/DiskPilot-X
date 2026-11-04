@@ -63,18 +63,17 @@ public sealed partial class DiskAssistantService
         （回传继续分析）动作，操作终点就是卡片上的卸载。
         【卸载结果汇报】用户卸载完成后你会收到宿主给出的确定性事实。请按这些事实给一两句收尾总结
         （卸载了什么、释放了多少、是否需要重新扫描才能看到最新占用），不要调用任何工具，也不要趁机推销别的清理。
-        【多选必须一次性处理】用户在视图里可以一次勾选多个条目并回传，回传内容里会有多行「- 名称 → 路径」。
-        收到多个条目时：先把所有路径收集起来，调用一次 analyze_paths 传入全部路径（最多 6 个），
-        拿到全部证据后再调用一次 publish_recommendations 发布全部候选。
-        绝对禁止「分析第 1 个 → 发布 → 再分析第 2 个 → 再发布」：推荐清理面板只有一份清单，
-        第二次发布会把第一次的结果覆盖掉，用户会看到诡异的「覆盖提示」。
-        候选的 path 必须是证据里出现的真实绝对路径（可以是范围内的子目录），不要凭空编造。
+        【多范围必须逐批推进但不遗漏】保留用户选择的全部范围。先查询 get_scan_budget，按实时预算用 analyze_paths 串行分批（每次最多6个路径），不改主视图。
+        每批完成后，依据成功范围按需读取 get_analysis_evidence，分析后分批 publish_recommendations（建议每批25项，上限100项）。
+        新任务首批要替换旧清单时明确使用replace并等待宿主确认；后续使用merge或append追加，保留旧勾选。未确认替换时默认追加。
+        每次等待实际工具回执后再继续。容量被保护证据占满时停止并说明未完成范围，禁止自动清空推荐或释放保护来继续。
+        只对实际成功范围报告完成；路径超限、证据截断、扫描失败和发布失败都不能说整轮完成。
         """;
 
     private const string RenderViewSchema = """{"type":"object","properties":{"localizations":{"type":"object","additionalProperties":{"type":"object","additionalProperties":{"type":"string"}}},"title":{"type":"string"},"subtitle":{"type":"string"},"surface":{"type":"string","enum":["entry","auto"]},"entry_title":{"type":"string"},"entry_summary":{"type":"string"},"sections":{"type":"array","maxItems":8,"items":{"type":"object","properties":{"kind":{"type":"string","enum":["poster_grid","stat_row","table","bar_chart","pie_chart","donut_chart","text"]},"title":{"type":"string"},"subtitle":{"type":"string"},"columns":{"type":"integer"},"headers":{"type":"array","maxItems":6,"items":{"type":"string"}},"table_columns":{"type":"array","maxItems":6,"items":{"type":"object","properties":{"header":{"type":"string"},"width":{"type":"string","description":"auto、固定像素数值字符串或比例宽度（如 2*）"},"min_width":{"type":"number","minimum":32,"maximum":1600},"max_width":{"type":"number","minimum":32,"maximum":1600},"align":{"type":"string","enum":["left","center","right"]},"wrap":{"type":"boolean"}}}},"items":{"type":"array","maxItems":60,"items":{"type":"object","properties":{"title":{"type":"string"},"subtitle":{"type":"string"},"value":{"type":"string"},"value_label":{"type":"string"},"badge":{"type":"string"},"path":{"type":"string"},"appid":{"type":"string"},"metric":{"type":"number"},"selectable":{"type":"boolean"},"cells":{"type":"array","items":{"type":"string"}},"action":{"type":"object","properties":{"kind":{"type":"string","enum":["uninstall","open_path"]},"label":{"type":"string"},"target":{"type":"string"},"confirm":{"type":"boolean"}},"required":["kind"]}}}}},"required":["kind"]}},"actions":{"type":"array","maxItems":3,"items":{"type":"object","properties":{"kind":{"type":"string","enum":["preview","continue","close"]},"label":{"type":"string"}},"required":["kind"]}}},"required":["sections"]}""";
     private const string RenderViewDescription = "支持 localizations={文化:{key:文案}}，显示文字使用 {loc key}，首次显示和语言切换均自动刷新且保留勾选。按需把分析结果渲染为宿主原生视图（继承 VisionPro 主题）。规则已返回 view 时不要用本工具（宿主已呈现，再调只会多出一张入口卡）。气泡保留一张入口卡，并直接绘制明确声明的 bar_chart/pie_chart/donut_chart；表格/海报等完整界面在新窗口打开。sections 为区块数组，kind 决定布局：poster_grid 海报网格（items 每项 title/subtitle/value/badge/appid 或 image_url，columns 每行列数 1-6）、stat_row 大数字统计卡（items 每项 title/value/value_label/badge）、table 内置表格（兼容 headers 列头 + items 每行 cells；可用 table_columns 声明 header/width/min_width/max_width/align/wrap；width 为 auto、固定像素字符串或 2* 比例，最多 6 列；宿主自动提供三态全选、反选、选择汇总与主题样式，不要自写 UI）、bar_chart 条形图、pie_chart 饼图、donut_chart 环形图（items 每项 title/value/metric；metric为同单位真实有限正数，value为带单位显示文字；饼环提供图例与百分比提示，环中心显示metric合计，单位在subtitle说明；全无效时空态，聊天与窗口复用宿主组件；只有显式声明才绘制，海报含metric不等于声明图表，禁止自动堆砌图表）、text 纯文本（items 每项 title/subtitle）。surface 取 entry（默认：气泡放入口卡及显式图表，用户点击才开完整窗口）/ auto（放入口卡并立即自动开窗）。入口卡文案用 entry_title 与 entry_summary。actions 为窗口底部按钮，kind 取 preview（预览清理候选）/ continue（回传选中项并交助手继续）/ close（关闭）；continue 仅在用户明确要继续清理分析时使用，应用盘点/卸载类视图禁止使用。每个条目还可以带 action：kind 取 uninstall（宿主调用应用自身的卸载程序，Steam 游戏一律走 Steam 原生卸载，target 填 appid，宿主会先弹强确认并在完成后向你汇报结果）/ open_path（在资源管理器里定位 target 或 path）。带上 uninstall 动作的视图就不要再对这些目录做清理分析。";
-    private const string AnalyzePathsSchema = """{"type":"object","properties":{"paths":{"type":"array","minItems":1,"maxItems":6,"items":{"type":"string"},"description":"要分析的本地绝对路径，多选时一次性全部传入"},"note":{"type":"string","maxLength":400}},"required":["paths"]}""";
-    private const string AnalyzePathsDescription = "一次性对多个路径做无头扫描（不替换主工作区视图），返回每个路径的真实分析证据；随后用 publish_recommendations 一次性发布全部范围的候选。用户勾选了多个条目时，必须用这个工具一次性传入所有路径，再一次性发布，禁止逐个路径扫描、逐个发布——逐个发布会覆盖上一次的清单。";
+    private const string AnalyzePathsSchema = """{"type":"object","properties":{"paths":{"type":"array","minItems":1,"maxItems":6,"items":{"type":"string"},"description":"要分析的本地绝对路径，本批本地绝对路径；超过6项必须拆批，保留剩余待办"},"note":{"type":"string","maxLength":400}},"required":["paths"]}""";
+    private const string AnalyzePathsDescription = "对本批最多6个路径做串行无头扫描，不替换主工作区。先用get_scan_budget核对实时容量，成功范围累积在当前会话批次中。随后按成功范围取证分析，再分批发布推荐（建议25项，上限100项），后续用merge或append追加并等待回执。达到保护证据预算时暂停，不得自动清空清单；错误和未执行范围必须报告。";
 
 
     private readonly Func<AssistantRunOptions, IModelClient> modelFactory;
@@ -92,6 +91,10 @@ public sealed partial class DiskAssistantService
     private string? currentConversationId;
     public string? CurrentConversationId => currentConversationId;
     public string? ConversationTitle { get; private set; }
+    public bool ConversationTitleIsFallback { get; private set; }
+    public int ConversationTitleAttempts { get; private set; }
+    private DateTimeOffset conversationUpdatedAt;
+    private string? savedContentFingerprint;
     private string? conversationPrivacySignature;
     private CancellationTokenSource? activeCancellation;
     public event Action<AgentEvent>? Activity;
@@ -113,6 +116,7 @@ public sealed partial class DiskAssistantService
         this.queryTools = queryTools.Select(tool => tool switch { FindByNameTool => (IAgentTool)new FindByNameTool(query), FindByPathTool => new FindByPathTool(query), ListChildrenTool => new ListChildrenTool(query), SummarizeSubtreeTool => new SummarizeSubtreeTool(query), FindLargeFilesTool => new FindLargeFilesTool(query), _ => tool }).ToArray();
         this.workspace = workspace;
         this.workspace.ValidateAnalysisCommit = CanCommitAnalysis;
+        this.workspace.DescribeAnalysisCommitFailure = AnalysisCommitFailure;
         this.settings = settings;
         this.policy = policy ?? new RecommendationEngine(settings);
         this.loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
@@ -124,6 +128,7 @@ public sealed partial class DiskAssistantService
         session = null;
         currentConversationId = null;
         ConversationTitle = null;
+        ConversationTitleIsFallback=false; ConversationTitleAttempts=0; savedContentFingerprint=null; conversationUpdatedAt=default;
         conversationPrivacySignature = null;
         LastAnalysisResult = null;
     }
@@ -143,9 +148,23 @@ public sealed partial class DiskAssistantService
         if (saved.Length == 0) return;
         currentConversationId ??= Guid.NewGuid().ToString("N");
         if (conversationStore is null) return;
-        conversationStore.Save(new(currentConversationId, DateTimeOffset.UtcNow, conversationPrivacySignature,
-            session?.State ?? AgentSessionState.Created, session?.Messages.ToArray() ?? [], saved) { Title = ConversationTitle });
+        if(string.IsNullOrWhiteSpace(ConversationTitle))
+        {
+            var first=saved.FirstOrDefault(m=>m.Sender==ChatSender.User)?.Text??saved[0].Text;
+            ConversationTitle=string.Join(' ',first.Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries));
+            if(string.IsNullOrWhiteSpace(ConversationTitle))ConversationTitle="未命名对话";
+            ConversationTitleIsFallback=true;
+        }
+        var fingerprint=ContentFingerprint(saved);
+        var updated=fingerprint==savedContentFingerprint?conversationUpdatedAt:DateTimeOffset.UtcNow;
+        conversationStore.Save(new(currentConversationId, updated, conversationPrivacySignature,
+            session?.State ?? AgentSessionState.Created, session?.Messages.ToArray() ?? [], saved) { Title = ConversationTitle,
+                TitleIsFallback=ConversationTitleIsFallback,TitleAttempts=ConversationTitleAttempts });
+        conversationUpdatedAt=updated; savedContentFingerprint=fingerprint;
     }
+
+    private static string ContentFingerprint(IReadOnlyList<SavedChatMessage> messages) => JsonSerializer.Serialize(messages.Select(m=>new
+    { m.Id,m.Sender,m.Text,m.Thinking,m.IsError,m.Segments,m.CompletedAt,m.ProcessStatus,m.Usage,m.ModelId,m.HasIncompleteCacheUsage,m.ScanSnapshots }),UserDataJson.Options);
 
     public ConversationSnapshot ReadConversation(string id) => conversationStore?.Load(id)
         ?? throw new InvalidDataException("历史对话不可用。");
@@ -173,6 +192,10 @@ public sealed partial class DiskAssistantService
         session = restored;
         currentConversationId = snapshot.Id;
         ConversationTitle = snapshot.Title;
+        ConversationTitleIsFallback=snapshot.TitleIsFallback;
+        ConversationTitleAttempts=Math.Clamp(snapshot.TitleAttempts,0,2);
+        conversationUpdatedAt=snapshot.UpdatedAt;
+        savedContentFingerprint=ContentFingerprint(messages.Select(SavedChatMessage.Capture).ToArray());
         conversationPrivacySignature = NormalizePrivacySignature(snapshot.PrivacySignature);
         LastAnalysisResult = null;
         return messages;
@@ -271,10 +294,10 @@ public sealed partial class DiskAssistantService
                     if (args is not JsonObject) return ToolResult.SafeFail("工具参数必须是 JSON 对象。");
                     try
                     {
-                        if (options.IsAnalysis && !await CheckAnalysisBoundaryAsync(args, ct).ConfigureAwait(false)) return ToolResult.SafeFail("{\"ok\":false,\"error\":\"扫描、隐私条件已变化或请求超出本轮范围，请重新分析。\"}");
+                        if (options.IsAnalysis && !await CheckAnalysisBoundaryAsync(args, ct).ConfigureAwait(false)) return ToolResult.SafeFail(AnalysisBoundaryError().ToJsonString());
                         var result = await handler(args, ct).ConfigureAwait(false);
-                        if (options.IsAnalysis && !await CheckAnalysisBoundaryAsync(args, ct).ConfigureAwait(false)) return ToolResult.SafeFail("{\"ok\":false,\"error\":\"操作期间条件发生变化，结果不再属于当前分析，请重新分析。\"}");
-                        if (result["ok"]?.GetValue<bool>() == false) runHadToolFailure = true;
+                        if (options.IsAnalysis && !await CheckAnalysisBoundaryAsync(args, ct).ConfigureAwait(false)) return ToolResult.SafeFail(AnalysisBoundaryError().ToJsonString());
+                        if (result["ok"]?.GetValue<bool>() == false && result["validation_rejected"]?.GetValue<bool>()!=true) runHadToolFailure = true;
                         if (result["cancelled"]?.GetValue<bool>() == true) { declinedOperations.Add(name); DeferAnalysis("用户取消了本轮部分操作。"); }
                         return result["ok"]?.GetValue<bool>() == false ? ToolResult.SafeFail(result.ToJsonString(AgentJson.Options)) : ToolResult.Ok(result.ToJsonString(AgentJson.Options));
                     }
@@ -371,12 +394,22 @@ public sealed partial class DiskAssistantService
         Add("focus_path", "把 treemap 视图定位（focus）到指定文件夹或文件并高亮，方便在地图上精确指向某个点位。目录会钻取定位，文件会定位到其所在层级并高亮该文件。", """{"type":"object","properties":{"path":{"type":"string"},"highlight":{"type":"boolean","default":true}},"required":["path"]}""",
             async (a, ct) => await ExecuteVisible("focus_path", a, ct).ConfigureAwait(false));
         Add("set_view", "切换磁盘视图，treemap 为矩形树图，tree 为文件树。", """{"type":"object","properties":{"view":{"type":"string","enum":["treemap","tree"]}},"required":["view"]}""", (a, ct) => workspace.Execute("set_view", a, ct));
-        Add("get_analysis_evidence", "读取当前范围的有界元数据、内容指纹和清理证据。", """{"type":"object","properties":{"path":{"type":"string"}}}""", async (a, ct) =>
+        Add("get_analysis_evidence", "按需读取当前扫描或无头批次中指定范围的有界证据，不需要先展示到磁盘地图。", """{"type":"object","properties":{"path":{"type":"string"},"scan_id":{"type":"string"}}}""", async (a, ct) =>
         {
+            if (!options.IsAnalysis && a?["scan_id"]?.GetValue<string>() is { } requestedId && Guid.TryParse(requestedId,out var requestedBatch) && workspace.IsAnalysisBatch(requestedBatch))
+                return await workspace.Execute("get_analysis_evidence",a,ct).ConfigureAwait(false);
             var c = await GetVisibleContext(ct, options.IsAnalysis).ConfigureAwait(false);
-            if (c.Session?.RootEntry is null) return Error("尚无允许分析的扫描结果。");
+            if(a?["scan_id"]?.GetValue<string>() is {} explicitId && explicitId!=c.Session?.Id.ToString())
+            {
+                var expired=await workspace.Execute("describe_analysis_batch",a,ct).ConfigureAwait(false) as JsonObject??new JsonObject();
+                expired["current_scan_id"]=c.Session?.RootEntry is not null?c.Session.Id.ToString():null;
+                expired["ok"]=false;expired["code"]="scan_expired";expired["error"]="所提供的扫描标识无效或已过期，不能改用当前主扫描。";
+                expired["next_step"]="请使用返回的当前允许标识，或重新扫描目标范围后再读取证据。";
+                return expired;
+            }
+            if (c.Session?.RootEntry is null) return Error("尚无允许分析的扫描结果。","scan_required","先扫描目标范围；无头批次请携带对应scan_id。");
             var focus = ResolveFocus(c, a?["path"]?.GetValue<string>() ?? options.FocusPath);
-            if (focus is null) return Error("分析范围不在当前扫描树中。");
+            if (focus is null) return Error("分析范围不在当前扫描树中。","scope_not_scanned","请扫描确切范围，或缩小到已登记路径后再取证。");
             if (analysisTask is not null && analysisTask.ScanId == c.Session.Id && !analysisTask.Contains(focus.Path))
                 return Error("证据路径超出本轮已确定的分析范围，请在目标范围开始新的分析。");
             var evidence = policy.BuildEvidence(c.Session, focus);
@@ -393,8 +426,10 @@ public sealed partial class DiskAssistantService
             PublishAnalysisState();
             return new JsonObject { ["ok"] = true, ["scan_id"] = c.Session.Id.ToString(), ["scope_path"] = evidenceScope, ["evidence_path"] = focus.Path, ["evidence"] = evidence };
         });
-        Add("publish_recommendations", "校验并发布清理建议，大小和安全限制由本地核验。scan_id 取自 get_copilot_context 或 analyze_paths 的返回；一次调用即可发布多个范围的候选。mode 取 replace（默认，用本轮结果替换面板）/ merge（追加到现有清单，保留已勾选状态）。", """{"type":"object","properties":{"scan_id":{"type":"string"},"mode":{"type":"string","enum":["replace","merge"]},"recommendations":{"type":"array","maxItems":100,"items":{"type":"object","properties":{"path":{"type":"string"},"category":{"type":"string"},"safety_rating":{"type":"string"},"explanation":{"type":"string"}},"required":["path","category","safety_rating","explanation"]}}},"required":["scan_id","recommendations"]}""", async (a, ct) =>
+        Add("publish_recommendations", "校验并发布清理建议，大小和安全限制由本地核验。scan_id 取自 get_copilot_context 或 analyze_paths 的返回；一次调用即可发布多个范围的候选。新任务首批明确replace，后续分批使用merge（append为兼容别名），保留已有勾选；每批最多100项，等待实际回执再继续。", """{"type":"object","properties":{"scan_id":{"type":"string"},"mode":{"type":"string","enum":["append","replace","merge"]},"recommendations":{"type":"array","maxItems":100,"items":{"type":"object","properties":{"path":{"type":"string"},"category":{"type":"string"},"safety_rating":{"type":"string"},"explanation":{"type":"string"}},"required":["path","category","safety_rating","explanation"]}}},"required":["scan_id","recommendations"]}""", async (a, ct) =>
         {
+            if (a?["recommendations"] is not JsonArray input || input.Count > 100)
+                return Error("每批最多100条推荐，本次未执行；请拆批并等待每批回执。", "batch_too_large");
             // 技能视图的无头批次不替换 Treemap。仅宿主登记的批次可交回宿主按各自范围校验，
             // 不能把跨盘候选塞进单盘 focus，也不能信任模型传入的 batch 标志。
             if (!options.IsAnalysis && Guid.TryParse(a?["scan_id"]?.GetValue<string>(), out var batchId) && workspace.IsAnalysisBatch(batchId))
@@ -405,13 +440,13 @@ public sealed partial class DiskAssistantService
             }
             var c = await GetVisibleContext(ct, options.IsAnalysis).ConfigureAwait(false);
             if (c.Session?.RootEntry is null || a?["scan_id"]?.GetValue<string>() != c.Session.Id.ToString()) return Error("扫描结果已改变，请重新读取上下文。");
-            if (evidenceScanId != c.Session.Id) return Error("请先读取本次扫描的分析证据。");
+            if (evidenceScanId != c.Session.Id) return Error("请先读取本次扫描的分析证据。","evidence_required","请先读取get_analysis_evidence，再发布候选。");
             if (!await CheckAnalysisBoundaryAsync(null, ct).ConfigureAwait(false)) return Error("分析期间扫描或安全条件已变化，请重新分析。");
             var focus = ResolveFocus(c, options.FocusPath ?? evidenceScope);
             if (focus is null) return Error("分析范围失效。");
             if (options.IsAnalysis && lastRejectedPublish == a?.ToJsonString()) return Error("相同候选已因保护或限制被过滤，请说明限制，不要重复提交。");
             var analysis = policy.ValidateCandidates(c.Session, JsonSerializer.SerializeToElement(a), focus);
-            var payload = new JsonObject { ["scan_id"] = c.Session.Id.ToString(), ["mode"] = a?["mode"]?.GetValue<string>() ?? "replace", ["focus_path"] = focus.Path, ["analysis_mode"] = options.IsAnalysis, ["task_id"] = analysisTask?.Id.ToString(), ["recommendations"] = JsonSerializer.SerializeToNode(analysis.Recommendations.Select(r => new
+            var payload = new JsonObject { ["scan_id"] = c.Session.Id.ToString(), ["mode"] = a?["mode"]?.GetValue<string>() ?? "append", ["focus_path"] = focus.Path, ["analysis_mode"] = options.IsAnalysis, ["task_id"] = analysisTask?.Id.ToString(), ["recommendations"] = JsonSerializer.SerializeToNode(analysis.Recommendations.Select(r => new
                 { id = r.Id, path = r.TargetPath, size_bytes = r.Size, category = r.Category.ToString(), safety_rating = r.SafetyRating.ToString(), explanation = r.Explanation })) };
             var published = await workspace.Execute("publish_recommendations", payload, ct).ConfigureAwait(false);
             var acceptedThisBatch = 0;
@@ -435,7 +470,7 @@ public sealed partial class DiskAssistantService
                 AccumulateDiagnostics(analysis.Diagnostics);
                 foreach (var candidate in analysis.Recommendations) recommendationTopics[candidate.TargetPath] = observedTopics.Concat(readRuleDigests.Keys).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 
-                if (a?["mode"]?.GetValue<string>() == "merge" && LastAnalysisResult is { } previous)
+                if (a?["mode"]?.GetValue<string>() is "merge" or "append" && LastAnalysisResult is { } previous)
                 {
                     analysis.Diagnostics.InputRecommendationCount += previous.Diagnostics.InputRecommendationCount;
                     var retained = published["recommendations"] is JsonArray all
@@ -464,6 +499,7 @@ public sealed partial class DiskAssistantService
         Add("get_localization_state", "读取宿主当前语言偏好、有效文化、实际资源语言及支持列表。构建 skill UI 前先读取；动态 UI 使用 localizations 与 {loc key} 自动响应语言变更，不能修改宿主语言。", """{"type":"object","properties":{}}""", (a,ct)=>workspace.Execute("get_localization_state",a,ct));
         Add("show_skill_panel", "为已保存的用户清理规则发布可重开的任务面板卡片，用户点击后打开。", """{"type":"object","properties":{"id":{"type":"string"},"summary":{"type":"string"}},"required":["id"]}""", (a,ct)=>workspace.Execute("show_skill_panel",a,ct));
         Add("render_view", RenderViewDescription, RenderViewSchema, (a,ct)=>workspace.Execute("render_view",a,ct));
+        Add("get_scan_budget", "查询实时无头扫描快照数量/条目预算、保护占用与可回收容量，以及扫描和推荐单批上限；不释放快照或修改清单。", """{"type":"object","properties":{}}""", (a,ct)=>workspace.Execute("get_scan_budget",a,ct));
         Add("analyze_paths", AnalyzePathsDescription, AnalyzePathsSchema, (a,ct)=>workspace.Execute("analyze_paths",a,ct), timeoutSeconds:Timeout.Infinite);
         Add("set_recommendations_empty_state", "仅设置推荐清理面板无建议时的中心标题和说明，纯文本；不改变任务结论、建议、勾选或清理权限。已有建议时不更新。标题最多80字符，说明最多1200字符；均传空字符串恢复默认。受限、失败或未完成的宿主提示仍保留。", """{"type":"object","properties":{"title":{"type":"string","maxLength":80},"description":{"type":"string","maxLength":1200}},"required":["title","description"],"additionalProperties":false}""", (a, ct) =>
         {
@@ -474,10 +510,10 @@ public sealed partial class DiskAssistantService
         });
         Add("list_recommendations", "读取本地已发布建议及其当前 ID、清单版本和选中状态。", """{"type":"object","properties":{}}""", (a, ct) => workspace.Execute("list_recommendations", a, ct));
         Add("select_recommendations", "按当前建议 ID 选择或取消建议，不删除文件。", """{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string"}},"selected":{"type":"boolean"}},"required":["ids","selected"]}""", (a, ct) => workspace.Execute("select_recommendations", a, ct), ToolRiskLevel.Write);
-        Add("cleanup_recommendations", "请求用户确认当前版本的具体清理清单；只有确认后才执行并返回实际结果。", """{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string"},"minItems":1},"version":{"type":"string"}},"required":["ids","version"]}""", (a, ct) => workspace.Execute("cleanup_recommendations", a, ct), ToolRiskLevel.Destructive, 1800);
+        Add("cleanup_recommendations", "请求用户确认当前版本的完整具体清理清单；清理项数不受推荐发布单批100项限制，可以一次确认当前全部所选项。只有最终确认后才逐项核验执行并返回实际结果。", """{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string"},"minItems":1},"version":{"type":"string"}},"required":["ids","version"]}""", (a, ct) => workspace.Execute("cleanup_recommendations", a, ct), ToolRiskLevel.Destructive, 1800);
         RegisterAnalysisTools(Add, options);
         if (!options.IsAnalysis) return registry;
-        var allowed = new HashSet<string>(StringComparer.Ordinal) { "get_copilot_context", "get_analysis_evidence", "publish_recommendations", "set_recommendations_empty_state", "find_by_name", "find_by_path", "list_children", "summarize_subtree", "find_large_files", "list_analysis_rules", "read_analysis_rule", "preview_analysis_rule", "ask_user", "complete_analysis", "get_analysis_context", "report_task_topics", "read_analysis_history", "request_rule_creation", "web_search" };
+        var allowed = new HashSet<string>(StringComparer.Ordinal) { "get_copilot_context", "get_scan_budget", "get_analysis_evidence", "publish_recommendations", "set_recommendations_empty_state", "find_by_name", "find_by_path", "list_children", "summarize_subtree", "find_large_files", "list_analysis_rules", "read_analysis_rule", "preview_analysis_rule", "ask_user", "complete_analysis", "get_analysis_context", "report_task_topics", "read_analysis_history", "request_rule_creation", "web_search" };
         var analysisRegistry = new ToolRegistry(); foreach (var tool in registry.All.Where(tool => allowed.Contains(tool.Name))) analysisRegistry.Register(tool); return analysisRegistry;
     }
 
@@ -558,11 +594,33 @@ public sealed partial class DiskAssistantService
             foreach (var prop in props) if (obj.TryGetPropertyValue(prop.Key, out var value)) result[prop.Key] = value?.DeepClone();
         return result;
     }
-    private static JsonNode Error(string message) => new JsonObject { ["ok"] = false, ["error"] = message };
-    private static string FormatFailure(Exception exception) => exception switch
+    private static JsonNode Error(string message,string? code=null,string? nextStep=null)
+    {
+        var error=new JsonObject {["ok"]=false,["error"]=message};
+        if(code is not null)error["code"]=code;
+        if(nextStep is not null)error["next_step"]=nextStep;
+        return error;
+    }
+    private static JsonNode MergePublishedValidation(JsonNode? host,AnalysisDiagnostics d,int accepted)
+    {
+        var result=(host?.DeepClone() as JsonObject)??new JsonObject();
+        int Read(string name,string? legacy=null)=>result[name]?.GetValue<int>()??(legacy is null?0:result[legacy]?.GetValue<int>()??0);
+        var missing=d.MissingEntryCount+Read("not_scanned");
+        var protectedCount=d.ProtectedFilteredCount+Read("protected_count","protected");
+        var excluded=d.ExcludedFilteredCount+Read("excluded_count","excluded");
+        var hostFiltered=Math.Max(d.HostFilteredCount,Read("host_filtered"));
+        result["input_count"]=d.InputRecommendationCount;result["input"]=d.InputRecommendationCount;
+        result["accepted_count"]=accepted;result["accepted"]=accepted;
+        result["not_scanned"]=missing;result["protected_count"]=protectedCount;result["protected"]=protectedCount;
+        result["excluded_count"]=excluded;result["excluded"]=excluded;result["host_filtered"]=hostFiltered;
+        result["overlapping"]=d.OverlapFilteredCount;result["invalid"]=d.MalformedRecommendationCount+d.MissingFieldRecommendationCount;
+        result["reason"]=d.ParseError;result["meaning"]="计数保留原始提交及宿主复核结果；过滤或未完成不等于没有可处理内容。";
+        return result;
+    }
+    private static string FormatFailure(Exception exception) => (exception switch
     {
         ModelClientException e => (e.Kind switch { ModelErrorKind.Authentication => "API Key 无效或已过期，请检查模型配置。", ModelErrorKind.PermissionDenied => "当前凭据没有访问此模型的权限。", ModelErrorKind.ModelNotFound => "所选模型不可用，请检查模型名称。", ModelErrorKind.ContextLengthExceeded => "本次会话内容过长，请新建会话后继续。", ModelErrorKind.InsufficientQuota => "模型服务额度不足，请检查账户状态。", ModelErrorKind.RateLimited => "模型服务请求频繁，请稍后重试。", ModelErrorKind.Timeout => "模型响应超时，请稍后重试。", ModelErrorKind.ConnectionFailed => "无法连接模型服务，请检查地址和网络。", ModelErrorKind.ServerError or ModelErrorKind.ServerOverloaded => "模型服务暂时不可用，请稍后重试。", _ => "模型响应未能完成，请检查配置或重试。" }) + (e.StatusCode is { } status ? $"（HTTP {status}）" : ""),
         OperationCanceledException => "任务已停止。",
         _ => "任务执行失败，请检查工作区状态后重试。"
-    };
+    }) + (exception.Data["ModelAttempts"] is int attempts ? $"（本步骤已尝试 {attempts} 次；已完成内容保留）" : "");
 }

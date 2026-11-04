@@ -174,6 +174,31 @@ public sealed class ConversationTitleTests : IDisposable
         new ConversationStore(directory).List().Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task 同会话标题失败允许后续一次重试但不无限尝试()
+    {
+        var client=new TitleClient(); var vm=Create(client);
+        vm.InputText="第一轮"; await vm.SubmitOrStopCommand.ExecuteAsync(null);
+        client.FailTitle(); await TitleTask(vm);
+        vm.InputText="第二轮"; await vm.SubmitOrStopCommand.ExecuteAsync(null);
+        client.TitleRequests.Should().Be(2);
+        client.FailTitle(1); await TitleTask(vm);
+        vm.InputText="第三轮"; await vm.SubmitOrStopCommand.ExecuteAsync(null);
+        client.TitleRequests.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task 本地操作期间不启动模型且保留待发送输入()
+    {
+        var client=new TitleClient();var vm=Create(client);vm.IsOperationRunning=true;vm.InputText="本地扫描尚未完成";
+        try
+        {
+            await vm.SubmitOrStopCommand.ExecuteAsync(null);
+            client.LastChatRequest.Should().BeNull();vm.InputText.Should().Be("本地扫描尚未完成");
+        }
+        finally {if(client.TitleRequests>0){client.FailTitle();await TitleTask(vm);}}
+    }
+
     private static Task TitleTask(ChatViewModel vm) => (Task)typeof(ChatViewModel)
         .GetField("titleGenerationTask", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(vm)!;
 
@@ -199,7 +224,7 @@ public sealed class ConversationTitleTests : IDisposable
         public ModelRequest? LastChatRequest { get; private set; }
         public int TitleRequests { get; private set; }
         public void CompleteTitle(string value, int index = 0) => titles[index].TrySetResult(value);
-        public void FailTitle() => titles[0].TrySetException(new ModelClientException("标题服务失败"));
+        public void FailTitle(int index = 0) => titles[index].TrySetException(new ModelClientException("标题服务失败"));
         public async IAsyncEnumerable<ModelStreamEvent> StreamAsync(ModelRequest request, [EnumeratorCancellation] CancellationToken ct)
         {
             if (request.Messages.First().Content?.StartsWith("请为对话生成标题") == true)

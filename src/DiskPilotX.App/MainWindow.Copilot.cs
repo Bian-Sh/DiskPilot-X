@@ -43,10 +43,12 @@ public partial class MainWindow
         if (_chatViewModel is not null)
         {
             _chatViewModel.SkillTaskRequested += OpenSkillTask;
+            _chatViewModel.ScanSnapshotAction = OpenScanSnapshotAsync;
+            _chatViewModel.ConversationReset += ResetAssistantBatch;
             _chatViewModel.SkillWindowRequested += OpenSkillWindow;
         }
         if (_chatViewModel is not null && DataContext is MainViewModel vm)
-            _chatViewModel.PropertyChanged += (_, e) => { if(e.PropertyName == nameof(ChatViewModel.IsOperationRunning)) vm.IsCopilotBusy=_chatViewModel.IsOperationRunning||_cleanupRunning; };
+            _chatViewModel.PropertyChanged += (_, e) => { if(e.PropertyName == nameof(ChatViewModel.IsOperationRunning)) { vm.IsCopilotBusy=_chatViewModel.IsOperationRunning||_cleanupRunning; RefreshScanSnapshotEntries(); } };
     }
 
     private async Task<JsonNode> ExecuteAssistantOperationAsync(string operation, JsonNode? args, CancellationToken ct)
@@ -69,11 +71,11 @@ public partial class MainWindow
             {
                 var target=ScanPathResolver.Resolve(args?["path"]?.GetValue<string>()??"");
                 if(string.IsNullOrWhiteSpace(target)||Hidden(target)||matcher.IsExcluded(target,settings.ScanWhitelist)) return AssistantError("扫描路径为空或已排除。");
-                if(main.IsScanning || _cleanupRunning) return AssistantError("当前磁盘操作尚未完成。");
+                if(main.IsScanning || _cleanupRunning || _recommendationPublishing) return AssistantError("当前磁盘操作尚未完成。");
                 if (_chatViewModel is null) return AssistantError("扫描确认界面尚未准备好。");
                 if (!await main.ConfirmAssistantScanAsync(target, ProcessPrivileges.IsElevated,
                     (title, description, impact, token) => _chatViewModel.ConfirmAsync(title, description, impact, token), ct))
-                    return new JsonObject { ["ok"] = false, ["cancelled"] = true, ["started"] = false, ["scan_execution"] = JsonSerializer.SerializeToNode(main.LastScanExecution?.ToPublicData()) };
+                    return new JsonObject { ["ok"] = false, ["cancelled"] = true, ["started"] = false, ["unexecuted"]=JsonSerializer.SerializeToNode(new[]{target}.Where(IsSkillScopeAllowed)), ["scan_execution"] = JsonSerializer.SerializeToNode(main.LastScanExecution?.ToPublicData()) };
                 var session=await main.ScanForAssistantAsync(target,ct);
                 session.Provenance = new(args?["source_rule_id"] is null ? "chat" : "rule", args?["conversation_id"]?.GetValue<string>(),
                     args?["message_id"]?.GetValue<string>(), args?["purpose"]?.GetValue<string>() ?? "用户请求扫描指定范围", args?["source_rule_id"]?.GetValue<string>());
@@ -106,77 +108,26 @@ public partial class MainWindow
             }
             case "set_view":
                 return new JsonObject{["ok"]=SetAssistantView(args?["view"]?.GetValue<string>()),["view"]=TreeViewControl.Visibility==Visibility.Visible?"tree":"treemap"};
+            case "describe_analysis_batch":
+                return AnalysisBatchError("scan_expired", "扫描标识无效或批次已失效，请使用当前在册批次，或重新扫描所需范围。");
+            case "get_analysis_evidence":
+            {
+                if (_analysisBatch is not { } active || active.Id.ToString() != args?["scan_id"]?.GetValue<string>())
+                    return AnalysisBatchError("scan_expired", "批次已失效，请重新扫描范围。");
+                var requested=args?["path"]?.GetValue<string>();
+                var scope=string.IsNullOrWhiteSpace(requested)?active.Scopes.FirstOrDefault():active.FindScope(requested);
+                if (scope is null || !IsSkillScopeAllowed(scope.Path)) return AnalysisBatchError("scope_unavailable", "该范围无有效证据或当前设置不允许访问，请缩小范围或重新扫描。");
+                var focus=new FileTreeQueryService().FindByPath(scope.Session,requested??scope.Path);
+                if(focus is null) return AnalysisBatchError("not_scanned", "路径不在该范围的扫描树中，请扫描确切目标后再分析。");
+                var evidence=App.Services!.GetRequiredService<RecommendationEngine>().BuildEvidence(scope.Session,focus);
+                return new JsonObject { ["ok"]=true,["scan_id"]=active.Id.ToString(),["snapshot_id"]=scope.Session.Id.ToString(),["evidence"]=evidence.Length>12000?evidence[..12000]+"\n（证据已截断，请缩小范围继续读取）":evidence };
+            }
+            case "get_scan_budget":
+                return new JsonObject { ["ok"]=true, ["limits"]=ScanBudgetData() };
             case "analyze_paths":
                 return await AnalyzePathsAsync(args,ct,main,settings,matcher,Hidden);
             case "publish_recommendations":
-            {
-                if(main.IsScanning || _cleanupRunning) return AssistantError("扫描结果已改变或磁盘正在操作。");
-                var requestedScanId=args?["scan_id"]?.GetValue<string>();
-                var mergeMode=string.Equals(args?["mode"]?.GetValue<string>(),"merge",StringComparison.OrdinalIgnoreCase);
-                var analysisMode=args?["analysis_mode"]?.GetValue<bool>()==true;
-                var raw=JsonSerializer.SerializeToElement(args);
-                var engine=App.Services!.GetRequiredService<RecommendationEngine>();
-                // 命中无头批次：每个范围用自己的会话校验，再合并成一份清单，避免逐个发布互相覆盖。
-                var batch=_analysisBatch is { } pending && pending.Id.ToString()==requestedScanId ? pending : null;
-                if(batch is not null)
-                {
-                    if(batch.Scopes.Count==0) return AssistantError("分析批次里没有可发布的范围。");
-                    var merged=new List<CleanupRecommendation>();
-                    var missing=0;
-                    var protectedFiltered=0;
-                    foreach(var scope in batch.Scopes)
-                    {
-                        ct.ThrowIfCancellationRequested();
-                        var owned=OwnedCandidates(raw,scope.Root.Path);
-                        var scoped=engine.ValidateCandidates(scope.Session,owned,scope.Root);
-                        missing+=scoped.Diagnostics.MissingEntryCount;
-                        protectedFiltered+=scoped.Diagnostics.ProtectedFilteredCount;
-                        foreach(var item in scoped.Recommendations)
-                        {
-                            item.SourceScope=scope.Label;
-                            merged.Add(item);
-                        }
-                    }
-                    merged=DeduplicateByPath(merged);
-                    if(!analysisMode)
-                        merged=merged.Where(item=>!WouldAffectExcludedPath(item.TargetPath,settings.AiConversationWhitelist)).ToList();
-                    if(merged.Count==0) return AssistantError("没有通过校验的清理候选。");
-                    var diagnostics=new AnalysisDiagnostics
-                    {
-                        TargetPath=batch.Scopes.Count==1?batch.Scopes[0].Path:batch.Note??"多个位置",
-                        ScopePath=string.Join(" ; ",batch.Scopes.Select(scope=>scope.Path)),
-                        IsFocusedScope=true,
-                        ParsedRecommendationCount=merged.Count,
-                        MissingEntryCount=missing,
-                        ProtectedFilteredCount=protectedFiltered
-                    };
-                    var final=mergeMode?RecommendationEngine.MergeRecommendations(_recommendationsViewModel.Recommendations,merged):merged;
-                    for(var index=0;index<final.Count;index++) final[index].Id=(index+1).ToString();
-                    _recommendationsViewModel.SetExternalRecommendations(final,diagnostics);
-                    _assistantAnalysisSession=batch.ToSession();
-                    EnsureBottomPanelVisible(); ShowRecommendationsPanel();
-                    return RecommendationState(_assistantAnalysisSession,settings,analysisMode,originLabel:batch.Note??(batch.Scopes.Count==1?batch.Scopes[0].Label:$"{batch.Scopes.Count} 个位置"));
-                }
-                if(main.CurrentSession?.Id.ToString()!=requestedScanId) return AssistantError("扫描结果已改变，请重新读取上下文。");
-                var originalId=main.CurrentSession!.Id;
-                if(!mergeMode && _recommendationsViewModel.HasAnyRecommendations && _chatViewModel is not null
-                    && !await _chatViewModel.ConfirmAsync("替换当前清理建议","将用本轮校验后的建议替换列表。","此操作不会删除文件。",ct)) return new JsonObject{["ok"]=false,["cancelled"]=true};
-                if(main.CurrentSession?.Id!=originalId) return AssistantError("扫描结果已改变，请重新分析。");
-                var focusPath=args?["focus_path"]?.GetValue<string>();
-                var localFocus=new FileTreeQueryService().FindByPath(main.CurrentSession!,focusPath??main.CurrentSession!.RootEntry!.Path);
-                if(localFocus is null)return AssistantError("分析范围已失效。");
-                var analysis=engine.ValidateCandidates(main.CurrentSession!,raw,localFocus);
-                analysis.Recommendations=analysis.Recommendations.Where(r=>analysisMode||!WouldAffectExcludedPath(r.TargetPath,settings.AiConversationWhitelist)).ToList();
-                // 确认窗口期间若规则、偏好或隐私条件改变，原列表保留并要求重新分析，避免用旧结论覆盖。
-                if (!App.Services!.GetRequiredService<AssistantWorkspace>().ValidateAnalysisCommit(args)) return AssistantError("确认期间规则、偏好或隐私条件改变，原列表已保留，请重新分析。");
-                ct.ThrowIfCancellationRequested();
-                var published=mergeMode?RecommendationEngine.MergeRecommendations(_recommendationsViewModel.Recommendations,analysis.Recommendations):analysis.Recommendations;
-                for(var index=0;index<published.Count;index++) published[index].Id=(index+1).ToString();
-                _recommendationsViewModel.SetExternalRecommendations(published,analysis.Diagnostics);
-                _assistantAnalysisSession=main.CurrentSession;
-                EnsureBottomPanelVisible(); ShowRecommendationsPanel();
-                return RecommendationState(main.CurrentSession!,settings,analysisMode);
-            }
+                return await PublishRecommendationsAsync(args, ct, main, settings);
             case "list_recommendations":
             {
                 // 清单可能建立在无头批次会话上（多范围分析），此时读它而不是工作区会话。
@@ -191,7 +142,8 @@ public partial class MainWindow
                 if(items.Count!=ids.Count)return AssistantError("建议 ID 不存在或已被排除。");
                 foreach(var item in items){item.IsAccepted=selected;item.IsDismissed=!selected;}
                 _recommendationsViewModel.RefreshFilteredRecommendations();
-                return main.CurrentSession is null?AssistantError("扫描结果失效。"):RecommendationState(main.CurrentSession,settings);
+                var source=_assistantAnalysisSession??main.CurrentSession;
+                return source is null?AssistantError("扫描结果失效。"):RecommendationState(source,settings);
             }
             case "cleanup_recommendations":
                 return await ExecuteSharedCleanupAsync(ReadIds(args),args?["version"]?.GetValue<string>(),true,ct);
@@ -259,11 +211,13 @@ public partial class MainWindow
 
     /// <summary>
     /// 多范围无头分析：一次性扫描多个用户选定的路径，各范围保有自己的扫描会话，
-    /// 返回按范围分段的真实证据，供模型一次性给出全部候选。主工作区视图不受影响。
+    /// 返回按范围分段的真实证据，供模型按批取证并分批追加候选。主工作区视图不受影响。
     /// </summary>
     private async Task<JsonNode> AnalyzePathsAsync(JsonNode? args,CancellationToken ct,MainViewModel main,AppSettings settings,
         IPathWhitelistMatcher matcher,Func<string?,bool> hidden)
     {
+        if(args?["paths"] is JsonArray input && input.Count>6)
+            return new JsonObject { ["ok"]=false, ["code"]="batch_too_large", ["error"]="每次最多扫描6个路径；本次未执行，请拆批。", ["limits"]=ScanBudgetData() };
         var paths=ReadPaths(args);
         if(paths.Count==0) return AssistantError("请提供至少一个本地绝对路径。");
         var rejected=paths.FirstOrDefault(path=>hidden(path)||matcher.IsExcluded(path,settings.ScanWhitelist));
@@ -274,49 +228,79 @@ public partial class MainWindow
             if (!await main.ConfirmAssistantScanAsync(paths[0], false,
                 (title, description, impact, token) => _chatViewModel.ConfirmAsync(title,
                     description + "\n本次只读范围：" + string.Join("；", paths), impact, token), ct, replacesWorkspace: false))
-                return new JsonObject { ["ok"] = false, ["cancelled"] = true, ["started"] = false, ["scan_execution"] = JsonSerializer.SerializeToNode(main.LastScanExecution?.ToPublicData()) };
+                return new JsonObject { ["ok"] = false, ["cancelled"] = true, ["started"] = false, ["unexecuted"]=JsonSerializer.SerializeToNode(paths.Where(IsSkillScopeAllowed)), ["scan_execution"] = JsonSerializer.SerializeToNode(main.LastScanExecution?.ToPublicData()) };
         }
-        var batch=new AssistantAnalysisBatch { Note=TrimTo(args?["note"]?.GetValue<string>(),400) };
+        if(main.IsScanning || _cleanupRunning || _recommendationPublishing) return AssistantError("已有磁盘操作正在进行，请完成后重试。");
+        using var scanCancellation=CancellationTokenSource.CreateLinkedTokenSource(ct);
+        using var scanActivity=main.BeginExternalScan("无头扫描（结果仅保留在内存）",null,scanCancellation.Cancel);
+        var scanToken=scanCancellation.Token;
+        var batch=_analysisBatch ??= new AssistantAnalysisBatch { Note=TrimTo(args?["note"]?.GetValue<string>(),400) };
+        var requestPolicy = PublishPolicyStamp();
+        var ownerConversation=_chatViewModel?.CurrentConversationId;
+        batch.Errors.Clear();
+        var unexecuted = new JsonArray();
+        var completedPaths=new List<string>();
+        var cancelled = false;
+        var queue = paths.ToDictionary(path => path, path => new ScanSnapshotReference(Guid.NewGuid(), _scanSnapshots.Epoch,
+            path, DateTimeOffset.Now, 0, 0, 0), StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in queue.Values) { entry.SetState("pending"); _chatViewModel?.AddScanSnapshot(entry); }
         foreach(var path in paths)
         {
-            ct.ThrowIfCancellationRequested();
+            var row = queue[path];
+            if (scanToken.IsCancellationRequested) { cancelled = true; row.SetState("cancelled"); unexecuted.Add(path); continue; }
             var resolved=ScanPathResolver.Resolve(path);
             try
             {
-                var progress=new Progress<ScanProgress>(p=>main.ScanProgressText=ScanProgressFormatter.Format(p));
-                var session=await main.ScanHeadlessAsync(resolved,ct,progress);
-                batch.Scopes.Add(new AssistantAnalysisScope { Path=resolved, Label=ScopeLabel(resolved), Session=session });
+                if (!IsSkillScopeAllowed(resolved)) throw new InvalidOperationException("当前范围已受隐私或扫描设置限制。");
+                var budget = _scanSnapshots.GetBudget();
+                if (budget.ProtectedSnapshots >= budget.MaximumSnapshots)
+                    throw new InvalidOperationException("快照容量被活动证据占满；请暂停分批任务，不要自动释放清单。");
+                row.SetState("scanning");
+                var progress=new Progress<ScanProgress>(p =>
+                {
+                    if (row.State != "scanning") return;
+                    var text = ScanProgressFormatter.Format(p);
+                    main.ScanProgressText = text;
+                    row.SetProgress(text);
+                });
+                var session=await main.ScanHeadlessAsync(resolved,scanToken,progress);
+                if(!ReferenceEquals(_analysisBatch,batch) || ownerConversation is not null && _chatViewModel?.CurrentConversationId!=ownerConversation)
+                { scanCancellation.Cancel(); throw new OperationCanceledException(scanToken); }
+                if (requestPolicy != PublishPolicyStamp() || !IsSkillScopeAllowed(resolved))
+                    throw new InvalidOperationException("扫描期间隐私或保护条件变化，请重新确认范围。");
+                var previous=batch.Scopes.FirstOrDefault(scope=>string.Equals(scope.Path,resolved,StringComparison.OrdinalIgnoreCase));
+                RegisterScanSnapshot(session,analysis:true);
+                ownerConversation??=_chatViewModel?.CurrentConversationId;
+                batch.AddOrReplace(new AssistantAnalysisScope { Path=resolved, Label=ScopeLabel(resolved), Session=session });
+                completedPaths.Add(resolved);
+                if (previous is not null) _scanSnapshots.Unprotect(previous.Session.Id,"analysis");
             }
-            catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
-            { batch.Errors.Add($"{resolved}：{ex.Message}"); }
+            catch(OperationCanceledException) { cancelled = true; row.SetState("cancelled"); unexecuted.Add(path); }
+            catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or TimeoutException)
+            { row.SetState("failed"); row.SetProgress(ex.Message); batch.Errors.Add($"{resolved}：{ex.Message}"); }
         }
-        if(batch.Scopes.Count==0)
-            return AssistantError("这些路径都没能完成扫描：" + string.Join("；", batch.Errors));
-        _analysisBatch=batch;
-        main.ScanProgressText=$"无头扫描完成：{batch.Scopes.Count} 个范围，共 {FileSizeConverter.FormatSize(batch.Scopes.Sum(scope=>scope.Session.TotalSize))}";
+        RefreshScanSnapshotEntries();
+        main.ScanProgressText=$"无头扫描批次结束：{batch.Scopes.Count} 个范围，共 {FileSizeConverter.FormatSize(batch.Scopes.Sum(scope=>scope.Session.TotalSize))}";
         var scopes=new JsonArray();
-        foreach(var scope in batch.Scopes)
-            scopes.Add(new JsonObject { ["path"]=scope.Path,["label"]=scope.Label,
+        foreach(var scope in batch.Scopes.Where(scope=>IsSkillScopeAllowed(scope.Path)))
+            scopes.Add(new JsonObject { ["path"]=scope.Path,["label"]=scope.Label,["snapshot_id"]=scope.Session.Id.ToString(),
                 ["files"]=scope.Session.TotalFiles,["folders"]=scope.Session.TotalFolders,["size_bytes"]=scope.Session.TotalSize });
-        var errors=new JsonArray();
-        foreach(var error in batch.Errors) errors.Add(error);
         return new JsonObject
         {
-            ["ok"]=true,["scan_id"]=batch.Id.ToString(),["batch"]=true,["scope_count"]=batch.Scopes.Count,
-            ["scopes"]=scopes,["errors"]=errors,
-            // 回显给工具的一面保留完整证据长度（有上限，多个范围时自动收敛）。
-            ["evidence"]=AssistantAnalysisEvidence.Build(App.Services!.GetRequiredService<RecommendationEngine>(),batch,12_000,36_000)
+            ["ok"]=completedPaths.Count>0 && !cancelled && batch.Errors.Count==0,["partial"]=completedPaths.Count>0 && (cancelled || batch.Errors.Count>0),["limits"]=ScanBudgetData(),["registered_this_call"]=completedPaths.Count,["cancelled"]=cancelled,["scan_id"]=batch.Id.ToString(),["batch"]=true,["scope_count"]=scopes.Count,
+            ["scopes"]=scopes,["errors"]=JsonSerializer.SerializeToNode(batch.Errors.Where(error=>paths.Any(path=>error.StartsWith(path,StringComparison.OrdinalIgnoreCase)&&IsSkillScopeAllowed(path)))),["unexecuted"]=JsonSerializer.SerializeToNode(unexecuted.Select(n=>n!.GetValue<string>()).Where(IsSkillScopeAllowed)),
+            ["next_step"]="仅对本批成功范围取证分析，随后分批发布推荐；首批明确replace，后续merge，等待实际回执再继续。容量不足时停止并报告未完成范围，禁止自动清空清单。"
         };
     }
 
     /// <summary>把候选按路径前缀归属到某个范围；范围之间互不重叠。</summary>
-    private static JsonElement OwnedCandidates(JsonElement raw,string rootPath)
+    private static JsonElement OwnedCandidates(JsonElement raw,string rootPath,AssistantAnalysisBatch batch)
     {
         var array=new JsonArray();
         if(raw.ValueKind==JsonValueKind.Object && raw.TryGetProperty("recommendations",out var items) && items.ValueKind==JsonValueKind.Array)
             foreach(var item in items.EnumerateArray())
                 if(item.ValueKind==JsonValueKind.Object && item.TryGetProperty("path",out var pathNode)
-                    && pathNode.ValueKind==JsonValueKind.String && IsUnder(pathNode.GetString(),rootPath))
+                    && pathNode.ValueKind==JsonValueKind.String && IsUnder(pathNode.GetString(),rootPath) && batch.FindScope(pathNode.GetString()!)?.Path == rootPath)
                     array.Add(JsonNode.Parse(item.GetRawText()));
         return JsonSerializer.SerializeToElement(new JsonObject { ["recommendations"]=array });
     }
@@ -347,11 +331,11 @@ public partial class MainWindow
         foreach(var entry in array)
         {
             var value=entry?.GetValue<string>();
-            if(string.IsNullOrWhiteSpace(value)) continue;
+            if(string.IsNullOrWhiteSpace(value)||!Path.IsPathFullyQualified(value.Trim())) continue;
             string full;
             try { full=Path.GetFullPath(value.Trim()); } catch(Exception ex) when(ex is ArgumentException or IOException or NotSupportedException) { continue; }
             if(!result.Any(existing=>string.Equals(existing,full,StringComparison.OrdinalIgnoreCase))) result.Add(full);
-            if(result.Count>=6) break;
+
         }
         return result;
     }

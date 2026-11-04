@@ -17,9 +17,16 @@ public sealed class AssistantAnalysisBatch
     public string? Note { get; init; }
     public List<AssistantAnalysisScope> Scopes { get; } = [];
     public List<string> Errors { get; } = [];
+    public void AddOrReplace(AssistantAnalysisScope scope)
+    {
+        Scopes.RemoveAll(item => string.Equals(Path.GetFullPath(item.Path).TrimEnd('\\', '/'), Path.GetFullPath(scope.Path).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase));
+        Scopes.Add(scope);
+    }
+    public AssistantAnalysisScope? FindScope(string path) => Scopes.Where(scope => IsPrefixOf(Path.GetFullPath(scope.Path), Path.GetFullPath(path)))
+        .OrderByDescending(scope => scope.Path.Length).FirstOrDefault();
 
     /// <summary>各范围根挂在一个批次根下，供清理前按路径定位条目（FindByPath 是逐条比对，不依赖公共前缀）。</summary>
-    public ScanSession ToSession()
+    public ScanSession ToSession(Guid? sessionId = null)
     {
         var root = new FileEntry
         {
@@ -33,12 +40,11 @@ public sealed class AssistantAnalysisBatch
         };
         foreach (var scope in Scopes)
         {
-            scope.Root.Parent = root;
             root.Children.Add(scope.Root);
         }
         return new ScanSession
         {
-            Id = Id,
+            Id = sessionId ?? Id,
             TargetPath = root.Path,
             RootEntry = root,
             TotalFiles = root.SubtreeFileCount,

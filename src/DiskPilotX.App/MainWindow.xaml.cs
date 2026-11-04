@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -47,7 +47,7 @@ public partial class MainWindow : Window
     private ChatViewModel? _chatViewModel;
     private UpdateViewModel? _updateViewModel;
     private AcceptanceAutomationServer? _acceptanceAutomationServer;
-    private readonly Dictionary<string, ScanSession> _aiScanSessionsByRoot = new(StringComparer.OrdinalIgnoreCase);
+    private readonly DiskPilotX.Core.Services.Scanning.ScanSnapshotCache _scanSnapshots = new();
     /// <summary>最近一次多范围无头分析的批次（analyze_paths 产出，publish_recommendations 消费）。</summary>
     private AssistantAnalysisBatch? _analysisBatch;
     /// <summary>

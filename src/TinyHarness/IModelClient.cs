@@ -17,6 +17,9 @@ public sealed record ModelRequest(
 /// </summary>
 public abstract record ModelStreamEvent;
 
+/// <summary>循环生成的安全重试状态，不属于模型输出或模型上下文。</summary>
+public sealed record ModelRetryEvent(int Attempt,int MaximumAttempts,TimeSpan Delay,ModelErrorKind Kind,bool Waiting) : ModelStreamEvent;
+
 public sealed record TextDeltaEvent(string Text) : ModelStreamEvent;
 
 public sealed record ReasoningDeltaEvent(string Text, bool IsSummary = false) : ModelStreamEvent;

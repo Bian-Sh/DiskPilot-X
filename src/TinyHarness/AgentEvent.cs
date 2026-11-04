@@ -32,6 +32,7 @@ public enum AgentEventKind
     TestCompleted,
     ToolCallPreparing,
     ModelRetrying,
+    ModelRetryStatus,
 }
 
 /// <summary>

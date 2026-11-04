@@ -18,6 +18,7 @@ public sealed partial class DiskAssistantService
     private readonly AnalysisContextStore? analysisContexts;
     private AnalysisTaskContext? analysisTask;
     private readonly HashSet<string> pendingAnalysisLimitations = new(StringComparer.Ordinal);
+    private string? lastBoundaryFailureCode;
     private string? analysisPrivacy;
     private string? analysisScanPolicy;
     private string? analysisPreferences;
@@ -110,24 +111,35 @@ public sealed partial class DiskAssistantService
 
     private async Task<bool> CheckAnalysisBoundaryAsync(JsonNode? args, CancellationToken ct)
     {
+        lastBoundaryFailureCode=null;
         if (analysisTask is null) return true;
-        if (analysisPrivacy != CurrentPrivacy() || analysisScanPolicy != JsonSerializer.Serialize(settings.LoadSettings().ScanWhitelist)) { analysisTask.Defer("分析期间隐私条件发生变化。"); return false; }
+        if(analysisPrivacy!=CurrentPrivacy()) {lastBoundaryFailureCode="privacy_changed";analysisTask.Defer("分析期间隐私条件发生变化。");return false;}
+        if(analysisScanPolicy!=JsonSerializer.Serialize(settings.LoadSettings().ScanWhitelist)) {lastBoundaryFailureCode="scan_policy_changed";analysisTask.Defer("分析期间扫描排除条件发生变化。");return false;}
         if (analysisTask.ScanId != Guid.Empty)
         {
             var current = await workspace.ReadContext(ct).ConfigureAwait(false);
-            if (current.Session?.Id != analysisTask.ScanId) { analysisTask.Defer("分析期间扫描结果发生变化。"); return false; }
+            if (current.Session?.Id != analysisTask.ScanId) { lastBoundaryFailureCode="scan_changed"; analysisTask.Defer("分析期间扫描结果发生变化。"); return false; }
         }
         foreach (var key in new[] { "path", "under_path", "scope_path" })
-            if (args?[key] is JsonValue value && value.TryGetValue<string>(out var target) && !analysisTask.Contains(target)) return false;
+            if (args?[key] is JsonValue value && value.TryGetValue<string>(out var target) && !analysisTask.Contains(target)) {lastBoundaryFailureCode="scope_not_allowed";return false;}
         if (analysisContexts is not null && analysisPreferences != JsonSerializer.Serialize(analysisContexts.GetPreferences(analysisTask.ScopePath)))
-        { analysisTask.Defer("分析期间适用偏好发生变化。"); return false; }
+        { lastBoundaryFailureCode="preferences_changed";analysisTask.Defer("分析期间适用偏好发生变化。"); return false; }
         if (readRuleDigests.Count > 0 && analysisRules is not null)
         {
             var current = analysisRules.GetCatalog();
             if (readRuleDigests.Any(item => !current.Any(rule => rule.Id.Equals(item.Key, StringComparison.OrdinalIgnoreCase) && rule.Digest == item.Value)))
-            { analysisTask.Defer("分析期间已读取的规则发生变化或不再可用。"); return false; }
+            { lastBoundaryFailureCode="rules_changed";analysisTask.Defer("分析期间已读取的规则发生变化或不再可用。"); return false; }
         }
         return true;
+    }
+
+    private JsonNode AnalysisBoundaryError()
+    {
+        var code=lastBoundaryFailureCode??"analysis_conditions_changed";
+        var message=code switch {"privacy_changed"=>"分析期间隐私条件发生变化。","scan_policy_changed"=>"分析期间扫描排除条件发生变化。",
+            "scan_changed"=>"分析使用的扫描版本已变化。","scope_not_allowed"=>"请求路径不在本轮允许范围内。","preferences_changed"=>"当前范围的偏好已变化。",
+            "rules_changed"=>"本轮读取的规则已变化或不再可用。",_=>"本轮分析条件已变化。"};
+        return Error(message,code,code=="scope_not_allowed"?"请缩小到本轮已允许的范围，不要自动扩大。":code=="rules_changed"?"请重新读取相关规则并重新分析。":code=="preferences_changed"?"请读取当前偏好并重新评估。":"请重新读取上下文和允许范围，再取证分析，不要重复旧请求。");
     }
 
     private AgentContext ScopeAnalysisContext(AgentContext context, bool analysisMode)

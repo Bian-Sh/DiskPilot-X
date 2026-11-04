@@ -24,6 +24,11 @@ public class CleanupRecommendation : INotifyPropertyChanged
     /// </summary>
     public FileEntry? Entry { get; set; }
 
+    /// <summary>宿主扫描来源，仅供精确版本导航，不是删除授权。</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Guid? SourceScanId { get; set; }
+
+
     // 批准时的完整目标签名，仅供清理执行前校验。
     internal string? ExpectedCleanupFingerprint { get; set; }
 

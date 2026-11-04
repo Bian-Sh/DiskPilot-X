@@ -1,0 +1,695 @@
+schema: comet.native.v4
+name: headless-cleanup-batch-flow-20261030
+language: zh-CN
+phase: verify
+status: await-user
+state_version: 13
+brief: brief.md
+document_constraints_version: 3
+shape_confirmation_hash: 5eec3e03ee65859d70d628b506c1f70acb5df768f92ed5e0dd66376ab835d8a9
+spec_changes:
+  - capability: assistant-cleanup-flow
+    operation: create
+    source: specs/assistant-cleanup-flow/spec.md
+  - capability: assistant-failure-recovery
+    operation: create
+    source: specs/assistant-failure-recovery/spec.md
+  - capability: cleanup-skills
+    operation: modify
+    source: specs/cleanup-skills/spec.md
+  - capability: conversation-history
+    operation: modify
+    source: specs/conversation-history/spec.md
+  - capability: scan-snapshot-navigation
+    operation: create
+    source: specs/scan-snapshot-navigation/spec.md
+workspace:
+  isolation: current
+  change_branch: codex/headless-cleanup-batch-flow-20261030
+  target_branch: codex/headless-cleanup-batch-flow-20261030
+  finish: null
+loop:
+  stage: await-user
+  goal_cycle: 3
+  iteration: 2
+  attempt: 1
+  retry_epoch: 0
+  failed_iteration_count: 1
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: confirm-skill-coordinated-pass
+acceptance:
+  - id: A1
+    source: brief.md
+    text: A1：一次分析至少三个互不重叠目录，在扫描器延迟就绪的可控条件下都能登记；等待可取消、有上限，超时报告耗时及具体路径，不替换主工作区扫描视图。
+    result: passed
+    reason:
+      text: 独立审查 AnalyzePathsAsync 与
+        ScanHeadlessAsync：逐范围扫描登记、扫描器等待可取消且上限30秒，超时经宿主附具体路径和耗时；不赋值主工作区会话。复用当前Runtime核心/应用全量、HeadlessReadinessTests及真实三范围证据。
+      truncated: false
+  - id: A2
+    source: brief.md
+    text: A2：同会话分两次分析不同目录后统一发布，早先范围仍有效；重复/重叠路径按明确归属去重，不产生重复候选或错误跨范围匹配。
+    result: passed
+    reason:
+      text: AssistantAnalysisBatch
+        按规范根去重和替换，FindScope按分隔符边界及最长根归属；final-first-three/accumulated-six证明同一批次3→6累积，重复发布保持幂等。新增树复制不破坏范围所有权。
+      truncated: false
+  - id: A3
+    source: brief.md
+    text: A3：部分范围失败或用户取消后，返回成功范围、失败/未执行范围及原因；保留完成范围，取消后不自动发布。切换、新建会话、清空清单后旧批次不能使用，重启不恢复旧授权。
+    result: passed
+    reason:
+      text: 逐路径保留已完成范围，失败与未执行分别返回；取消不进入发布。ConversationReset/清单清空撤销批次，恢复只还原入口元数据不恢复旧许可。结合现有取消、历史及重扫记录，未执行真实删除。
+      truncated: false
+  - id: A4
+    source: brief.md
+    text: A4：普通发布和批次发布中，空候选或候选全部被过滤均不清空原清单；返回失败、原清单不变、接受数和拒绝原因可读；清空仅由显式清空动作完成。
+    result: passed
+    reason:
+      text: 普通发布在Core首次过滤为零时直接返回
+        no_accepted_candidates，MergePublishedValidation保留原始input_count与拒绝数，不再把空数组交宿主丢失统计；批次宿主同样零接受即失败且不写清单。AssistantDiagnosticRepairTests真实工具往返断言10个未扫描输入及10个拒绝，当前核心753项覆盖；原清单保留。
+      truncated: false
+  - id: A5
+    source: brief.md
+    text: A5：默认追加保留已有建议，按规范路径去重且重复发布幂等；未声明模式也不默认覆盖。
+    result: passed
+    reason:
+      text: 未声明模式默认append，merge兼容；MergePublishedRecommendations按规范路径保留旧建议并替换同路径项，重复发布不新增重复项。当前真实发布记录显示6项清单及重复发布相同版本/标识。
+      truncated: false
+  - id: A6
+    source: brief.md
+    text: A6：用户显式选择覆盖时只确认一次，同一有效清单修订内不反复弹窗；取消、上下文变化或清单变化不复用旧覆盖许可，未授权覆盖保留原清单。
+    result: passed
+    reason:
+      text: 只有replace且已有清单才进入一次确认，拒绝/取消先返回；许可不缓存到后续事务，确认后复核会话批次、清单修订、偏好及安全签名。追加不额外提问，旧授权不能跨变化复用。
+      truncated: false
+  - id: A7
+    source: brief.md
+    text: A7：无效或过期 `scan_id` 返回可操作错误，携带当前允许公开的批次标识、范围数和下一步；不泄漏已被排除的路径或其他会话数据。
+    result: passed
+    reason:
+      text: get_analysis_evidence先识别有效宿主批次；显式ID与可见当前扫描不一致时返回scan_expired，不回落主扫描，无主扫描也不提前吞掉ID诊断。错误经describe_analysis_batch仅暴露允许范围的批次Id/范围数及next_step；有/无主扫描的新增回归均纳入当前核心通过记录。
+      truncated: false
+  - id: A8
+    source: brief.md
+    text: A8：批次和普通发布都覆盖确认等待期间及提交前的扫描、规则、偏好、隐私和保护变化；相关变化安全重校验或失败保留，无关显示变化不误伤；最终删除仍需要当前清单版本和用户确认。
+    result: passed
+    reason:
+      text: 普通与批次都在写清单前经过ValidatePublishBoundaryAsync及核心ValidateAnalysisCommit；确认后重核清单/批次/规则/偏好/隐私/扫描/保护/删除方式，相关变化失败保留，无关显示变化不纳入签名。Cleanup链仍在最终确认、异步校验后复核清单版本与目标，不以发布替代删除确认。
+      truncated: false
+  - id: A9
+    source: brief.md
+    text: A9：直接修改 Unity skill 流程，在对话内收集 roots/depth，并删除其首个纯参数 UI
+      与引用，不依赖新增通用表单推断；不注入多余的 scope_path，取消不执行，空/非法 roots 不扩盘且明确说明原因。
+    result: passed
+    reason:
+      text: Unity使用ask_user对话参数，ui.xaml实际不存在且无首个参数面板依赖；Provider只读取roots/depth，空/非法范围返回空且不回退主图或全盘，取消保持授权边界。当前FactoryUnitySkillTests及源码发布执行覆盖此路径。
+      truncated: false
+  - id: A10
+    source: brief.md
+    text: A10：确需复杂表单的技能仍能使用面板，结果表格/筛选/清理确认不丢失；已有技能的创建、只读预览、资料、可信源码与结构化提问能力保持。
+    result: passed
+    reason:
+      text: 宿主SkillTaskWindow及受约束XAML、复杂技能结果视图/筛选/勾选仍保留；provider路径不强制scope_path，可信源码仍先验证和逐次确认。核心/应用当前全量及真实Steam/Unity等价只读源码执行证据共同支持兼容行为。
+      truncated: false
+  - id: A11
+    source: brief.md
+    text: A11：模拟 429 耗尽、断网、流中断和用户停止，当前会话明确展示错误类别、原因、重试情况及部分进度；保存恢复后仍可见，不含密钥或原始敏感响应。
+    result: passed
+    reason:
+      text: 实际查看repair-retry-wait.png：当前会话可见请求频繁429、等待10秒、2/5次尝试。AgentLoop等待前yield状态，ChatMessage保存摘要过程段，正文不混入重试；wait/complete
+        JSON及新增Save/Restore回归相互印证。既有失败持久化/错误分类回归覆盖耗尽、断网、流中断、停止与敏感信息边界。
+      truncated: false
+  - id: A12
+    source: brief.md
+    text: A12：可重试错误有明确次数与等待上限并遵从取消；凭据/权限/余额错误不自动重试；流中断后安全继续不重复完成工具，未完成工具调用能被修复，不误报已完成。
+    result: passed
+    reason:
+      text: 请求最多5次，Retry-After限制0–60秒、取消优先；认证/权限/额度不重试，收到首个事件后不透明重放。失败保留已有片段，恢复修复悬空工具调用、不重放已完成工具。复用当前相关核心回归；没有借重试状态事件放宽副作用边界。
+      truncated: false
+  - id: A13
+    source: brief.md
+    text: A13：ask_user
+      未知字段错误指出字段、允许集合和修正示例；无证据、范围失效与安全条件变化分别给出具体类别和下一步，不用一个笼统错误覆盖所有情况。
+    result: passed
+    reason:
+      text: ask_user未知属性错误有位置、字段、该层允许集合与合法示例且不回显原敏感值。普通证据路径分别给scan_required/scope_not_scanned/scan_expired/evidence_required及next_step；提交边界区分rules_changed/preferences_changed/隐私/保护等。新增AssistantDiagnosticRepairTests及AnalysisCommitBoundaryTests原因断言纳入当前Runtime通过记录。
+      truncated: false
+  - id: A14
+    source: brief.md
+    text: A14：同轮同工具同规范化参数同错误，第三次失败后停止自动循环、不发起第四次重复调用；键重排不能绕过，实际进展和新轮次按约定重置，并持久化终止原因。
+    result: passed
+    reason:
+      text: RepeatedToolFailureGuard递归规范化对象键、保留数组顺序；同工具同参数同稳定错误第三次即由AgentLoop停止，不能发第四次。真实新增成功结果才重置，新轮次新守卫；终止事件保存原因。复用当前RepeatedToolFailureTests及会话失败回归。
+      truncated: false
+  - id: A15
+    source: brief.md
+    text: A15：成功、失败、取消首轮都及时得到非空回退标题；模型标题失败后允许后续一次重试且总计不超过两次，切会话后的旧请求不得写入新会话。
+    result: passed
+    reason:
+      text: SaveConversation在首轮即生成非空回退标题，模型标题次数持久化并限制总计2次，成功后不重试；ViewModel请求绑定原会话Id及CancellationToken。当前ConversationTitleTests覆盖失败/取消、后续有限重试及本地操作防重入。
+      truncated: false
+  - id: A16
+    source: brief.md
+    text: A16：仅打开、恢复、重放、标题更新和退出保存不会改变内容更新时间及历史排序；只有真实新增或推进消息内容时更新时间，恢复继续提问后可正常排序。
+    result: passed
+    reason:
+      text: 保存用内容指纹决定UpdatedAt，标题不计入；恢复建立原内容指纹，仅浏览、重放、标题更新或退出保存不推进排序，真实内容增加正常推进。当前ConversationSummaryReadTests与标题/历史回归提供有效证据。
+      truncated: false
+  - id: A17
+    source: brief.md
+    text: A17：用合成的 46 个会话、约 11.4MB
+      正文构造历史列表测试：摘要建立后的常规读取不逐份反序列化正文；缺失、损坏、陈旧摘要可局部回退/重建且不丢正文，不损害现有授权元数据核验。
+    result: passed
+    reason:
+      text: ConversationStore.List读取独立summary并核对源文件属性，只有缺失/损坏/陈旧项Load重建；摘要与授权metadata分离，写失败不破坏正文。当前46×247000字符合成回归以独占所有正文仍能列出46项，并验证损坏摘要局部修复及授权元数据。
+      truncated: false
+  - id: A18
+    source: brief.md
+    text: A18：相关回归、Release 构建通过，并在完整自包含文件夹测试包中验收三范围分析、发布及 validate_skill_source/经授权的
+      run_skill_source；使用非提权测试进程进行应用窗口 UI 验收；分别从实际 EXE 核验 asInvoker 与
+      requireAdministrator 清单和依赖内容。未经执行的项目明确标为待验，不宣称通过。
+    result: passed
+    reason:
+      text: 复用当前候选7项Runtime记录：核心753通过、应用587通过/1环境跳过；Release产物和源码摘要绑定，04:12:39双包451文件，实际EXE提取清单为asInvoker/requireAdministrator，Core/TinyHarness/skills一致。真实三/六范围发布、源码编译/授权只读运行及失败行列诊断、非提权原生UI均有绑定证据。未将UAC交互或提权后UI算作已验收。
+      truncated: false
+  - id: A19
+    source: brief.md
+    text: A19：一次无头扫描至少三个目录，主 Treemap
+      不变，各成功范围对应稳定版本的扫描入口；部分失败保留成功入口，卡片标注范围、时间、大小及快照性质，默认模型返回不含完整扫描树或自动大段证据。
+    result: passed
+    reason:
+      text: IncrementalFileScanner.ApplyChanges入口先DetachCachedState复制整树并重建FRN索引，更新不再共享旧快照树；外层创建新ScanSession标识。SnapshotRepairRegressionTests调用真实私有ApplyChanges验证旧树/旧缓存及新索引。三/六范围无头记录保持主图未替换；入口只含元数据，有界摘要不回传整树。
+      truncated: false
+  - id: A20
+    source: brief.md
+    text: A20：点击任一可用扫描入口，仅复用对应快照切换 Treemap、TreeView
+      和扫描状态；可在不同快照间往返，同路径不同版本不得串用。扫描器/模型调用计数不增加，不隐式发布或删除，不自动恢复旧授权。
+    result: passed
+    reason:
+      text: 推荐SourceScanId由RecommendationEngine在真实证据校验后写入；导航使用FindById再从同版本树查Entry，不用路径/MRU选择已标来源项，文件定位到父目录。repair-version-proof与原生点击记录证明旧卡1文件256字节、新推荐2文件12288字节且无错误，Treemap/TreeView/扫描Id一致；扫描34→34、模型0。未重跑旧routing假设探针。
+      truncated: false
+  - id: A21
+    source: brief.md
+    text: A21：同进程切换离开会话再恢复历史，扫描入口仍显示；内存命中、当前访问允许时可查看。入口只保存元数据，旧记录无此字段也正常恢复，不能序列化整个
+      ScanSession 或依赖恢复技能窗口。
+    result: passed
+    reason:
+      text: SavedChatMessage仅保存ScanSnapshotReference元数据，不含ScanSession/控件或旧授权，缺字段旧记录默认空集合。当前同进程历史记录恢复7张available卡、batch_id为空；存储与入口回归通过，恢复不依赖旧技能窗口或工具重放。
+      truncated: false
+  - id: A22
+    source: brief.md
+    text: A22：重启应用后历史入口仍显示，但标为“内存结果已释放，需要重新扫描”，不能假装可用。用户点重新扫描才启动受当前安全约束的扫描，新结果采用新标识/时间，取消保留旧记录，不自动请求模型。
+    result: passed
+    reason:
+      text: 缓存Epoch与历史纯元数据实现仍区分重启失效；重扫必须由用户显式动作确认，产生新Id/时间，不请求模型，取消保留旧入口。复用此前非空released历史卡及重扫/取消记录，MainWindow.ScanSnapshots、ScanSnapshotReference和ConversationStore与上一轮摘要哈希相同，并结合当前存储/缓存回归。未以本轮空卡片final-restarted记录的空集合断言充当证明。
+      truncated: false
+  - id: A23
+    source: brief.md
+    text: A23：缓存预算回收、路径失效、当前隐私/扫描限制、任务繁忙分别有准确状态；不越权、不抢占、不把已失效快照冒充当前磁盘或执行授权；回收不丢历史元数据，必要活动证据不能被静默回收。
+    result: passed
+    reason:
+      text: 缓存具有12份/500万条预算及LRU，具名view/analysis/recommendations保护活动结果，安全准入失败保留已有结果；元数据不随回收丢失。当前可用性分别判断restricted/missing/busy/released/evicted，动作前重判；本地重扫期间禁止会话切换及模型重入。复用当前缓存预算/保护回归与既有忙碌/取消证据。
+      truncated: false
+  - id: A24
+    source: brief.md
+    text: A24：宿主 app-guide、disk-management 与路径清理 skill
+      都记录同一通用契约：多路径可无头扫描，按需取证，用户通过对话入口显示快照，历史失效需显式重扫；不再声称必须先替换主视图或默认覆盖。其他技能亦可复用，不局限
+      Unity。
+    result: passed
+    reason:
+      text: 逐份核对app-guide、disk-management和path-cleanup-recommendation：统一多路径无头累积、按需取证、宿主生成快照入口、历史失效需用户显式重扫、默认追加。没有要求先替换主图，不让模型伪造按钮或把旧快照当清理授权，能力不限定Unity。
+      truncated: false
+  - id: A25
+    source: brief.md
+    text: A25：Unity 只提交真实 Library 目录作为清理候选，不再把 Temp/obj/Logs 混入本次目标，项目本体与 Build(s)
+      等用户产物仍受保护。默认给 AI 的结果仅必要 Library 路径和有界摘要，不回传完整文件树/完整表格；本地结果视图可保留，最终删除仍
+      ReviewFirst 并经用户确认。
+    result: passed
+    reason:
+      text: Unity
+        CacheFolders仅Library，以Assets+ProjectSettings识别项目，跳过Build(s)/录制等用户产物；默认Entries只返回真实Library路径及有界占用，完整视图留本地，保持BuildCache/ReviewFirst及宿主最终确认。当前FactoryUnitySkillTests及真实发布源码执行支持，旧Library整目录根探针仅作仍适用的补充定位证据。
+      truncated: false
+  - id: A26
+    source: brief.md
+    text: A26：AI 按需查询近期项目内容变化与 Hub 在册线索，返回有来源的有限字段，不传整份 Hub
+      清单/项目正文；不存在、无权读、版本不支持都如实标未知。未在 Hub 或时间较旧都不能单独证明可删除，不能猜真实最近开发时间。
+    result: passed
+    reason:
+      text: 只有mode=inspect才最多读取6个已发现Library的活动/Hub线索，字段有来源与近似局限；仅支持明确本地记录结构，缺失/拒绝/不支持降级unknown，不返回完整清单或项目正文。当前合成Hub及未知结构回归有效；未在册或时间旧不能作为可删除证明或真实最后开发时间。
+      truncated: false
+builder_handoff:
+  candidate_id: c3266f05-420b-494a-a58b-69c0810ed099
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:1e5b5c68-136a-4f50-b6f5-f58ea16fca11
+  iteration: 2
+  summary:
+    text: 第二轮完整候选：修复正式验收的A4/A7/A11/A13/A19/A20，保留其余20项行为；已做失败定向回归和真实新旧版本/重试UI复验，重新生成独立双清单文件夹包。未接受结果或执行Git交付。
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+    - A4
+    - A5
+    - A6
+    - A7
+    - A8
+    - A9
+    - A10
+    - A11
+    - A12
+    - A13
+    - A14
+    - A15
+    - A16
+    - A17
+    - A18
+    - A19
+    - A20
+    - A21
+    - A22
+    - A23
+    - A24
+    - A25
+    - A26
+  acceptance_review:
+    - id: A1
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.App/ViewModels/MainViewModel.cs
+        - tests/DiskPilotX.App.Tests/HeadlessReadinessTests.cs
+        - .planning\headless-cleanup-batch-flow-20261031\gui-evidence\final-first-three.json
+      note: 扫描器就绪有30秒上限与取消，真实发布包三范围成功且主视图未变。
+    - id: A2
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.App/Services/AssistantAnalysisBatch.cs
+        - tests/DiskPilotX.App.Tests/AssistantBatchFlowTests.cs
+        - .planning\headless-cleanup-batch-flow-20261031\gui-evidence\final-accumulated-six.json
+      note: 两次扫描同批次累积六范围，最具体范围归属与重复根更新有回归。
+    - id: A3
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.App/MainWindow.Copilot.cs
+        - src/DiskPilotX.App/MainWindow.ScanSnapshots.cs
+        - .planning\headless-cleanup-batch-flow-20261031\gui-evidence\final-same-process-history.json
+      note: 取消保留成功范围并列未执行范围，历史切换撤销分析批次而不伪造旧授权。
+    - id: A4
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.Core/Services/Assistant/DiskAssistantService.cs
+        - tests/DiskPilotX.Core.Tests/AssistantDiagnosticRepairTests.cs
+      note: 原始提交/拒绝计数跨Core和宿主保留；全部被过滤时返回验证拒绝而非空覆盖；真实无推荐/受限结论回归保持。
+    - id: A5
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.App/MainWindow.RecommendationPublish.cs
+        - .planning\headless-cleanup-batch-flow-20261031\gui-evidence\final-repeat-publish.json
+      note: 默认append，路径去重保持选择；重复发布数量、扫描聚合Id和版本均稳定。
+    - id: A6
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.App/MainWindow.RecommendationPublish.cs
+        - .planning\headless-cleanup-batch-flow-20261031\gui-evidence\cua-replace.json
+      note: 覆盖仅在当前调用确认，无许可字段跨请求续签；确认后检查清单和相关条件，取消保留。
+    - id: A7
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.Core/Services/Assistant/DiskAssistantService.cs
+        - tests/DiskPilotX.Core.Tests/AssistantDiagnosticRepairTests.cs
+      note: 显式错误证据Id严格返回scan_expired，不得降级到当前主扫描；同时验证主扫描有/无的情况。
+    - id: A8
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.App/MainWindow.RecommendationPublish.cs
+        - src/DiskPilotX.Core/Services/Assistant/DiskAssistantService.AnalysisSafety.cs
+        - tests/DiskPilotX.Core.Tests/AnalysisCommitBoundaryTests.cs
+      note: 统一提交边界，相关策略修订单调推进、确认期间偏好再校验；读过的规则摘要变化拒绝；保留最终删除确认。
+    - id: A9
+      status: implemented-with-evidence
+      evidence:
+        - skills/unity-cache-check/SKILL.md
+        - tests/DiskPilotX.Core.Tests/FactoryUnitySkillTests.cs
+      note: Unity删除首个ui.xaml并改skill内ask_user流程，空roots无兜底扩盘，无通用表单推断。
+    - id: A10
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.App/MainWindow.Skills.cs
+        - tests/DiskPilotX.Core.Tests/FactoryUnitySkillTests.cs
+        - .planning\headless-cleanup-batch-flow-20261031\gui-evidence\csharp_skill_probe_state-final-steam.json
+      note: 其他技能复杂面板、只读源码、结构化提问与结果窗口保留，忙碌提交不丢选择。
+    - id: A11
+      status: implemented-with-evidence
+      evidence:
+        - src/TinyHarness/AgentLoop.cs
+        - src/DiskPilotX.Core/Models/ChatMessage.cs
+        - tests/DiskPilotX.Core.Tests/SnapshotRepairRegressionTests.cs
+        - .planning\headless-cleanup-batch-flow-20261031\gui-evidence\repair-retry-wait.png
+        - .planning\headless-cleanup-batch-flow-20261031\gui-evidence\retry_status-repair-complete.json
+      note: 专用重试状态在等待前及重试开始发出，可保存到过程段；原生窗口观测10秒等待/第2次/原因，最终正文不混入状态。
+    - id: A12
+      status: implemented-with-evidence
+      evidence:
+        - src/TinyHarness/AgentLoop.cs
+        - tests/DiskPilotX.Core.Tests/ModelIdleTimeoutTests.cs
+      note: 保留原有五次请求重试、服务端等待和取消；首事件后不透明重放，悬空工具调用在停止/恢复修复。
+    - id: A13
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.Core/Services/Assistant/DiskAssistantService.Analysis.cs
+        - src/DiskPilotX.Core/Services/Assistant/DiskAssistantService.AnalysisSafety.cs
+        - src/DiskPilotX.App/MainWindow.RecommendationPublish.cs
+        - tests/DiskPilotX.Core.Tests/AssistantDiagnosticRepairTests.cs
+        - tests/DiskPilotX.Core.Tests/AnalysisCommitBoundaryTests.cs
+      note: 参数位置/允许字段/示例；证据、范围、规则、偏好、隐私、扫描策略及清单变化分别有稳定类别和具体下一步，包括前后边界拦截。
+    - id: A14
+      status: implemented-with-evidence
+      evidence:
+        - src/TinyHarness/RepeatedToolFailureGuard.cs
+        - tests/DiskPilotX.Core.Tests/RepeatedToolFailureTests.cs
+      note: 规范化对象键，第三次重复失败停止真实循环，不发起第四次请求；重复成功查询不假装新进展。
+    - id: A15
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.Core/Services/Assistant/DiskAssistantService.Title.cs
+        - src/DiskPilotX.App/ViewModels/ChatViewModel.History.cs
+        - tests/DiskPilotX.App.Tests/ConversationTitleTests.cs
+      note: 首条保存即回退标题，标题请求次数持久化最多两次，旧会话请求不能写新会话。
+    - id: A16
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.Core/Services/Assistant/DiskAssistantService.cs
+        - tests/DiskPilotX.Core.Tests/ConversationSummaryReadTests.cs
+      note: 内容指纹区分消息进展与浏览/标题保存，恢复使用原内容时间。
+    - id: A17
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.Core/Services/Assistant/ConversationStore.Summary.cs
+        - tests/DiskPilotX.Core.Tests/ConversationSummaryReadTests.cs
+      note: 46份约11.4MB正文被独占时仍能列摘要；损坏摘要局部重建，授权metadata独立。
+    - id: A18
+      status: implemented-with-evidence
+      evidence:
+        - .planning\headless-cleanup-batch-flow-20261031\manifests.json
+        - .planning\headless-cleanup-batch-flow-20261031\process-token.json
+        - .planning\headless-cleanup-batch-flow-20261031\package-consistency.json
+        - .planning\headless-cleanup-batch-flow-20261031\verify-delivery-evidence.py
+        - .planning\headless-cleanup-batch-flow-20261031\gui-evidence\repair-session-lifetime.json
+        - .planning\headless-cleanup-batch-flow-20261031\source-binding.json
+      note: 实际双EXE资源核验、非提权进程路径/Token、真实目录源码执行与失败行列诊断、原生窗口卡片验收；未声称UAC交互及提权后UI已验收。
+    - id: A19
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.Core/Services/Scanning/IncrementalFileScanner.Changes.cs
+        - tests/DiskPilotX.Core.Tests/SnapshotRepairRegressionTests.cs
+      note: 增量写时复制完整树及FRN索引；取消/失败还原旧状态，无变化也不改旧会话时间；真实ApplyChanges合成树删除后旧树仍有原文件。
+    - id: A20
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.Core/Models/CleanupRecommendation.cs
+        - src/DiskPilotX.App/MainWindow.ViewModels.cs
+        - tests/DiskPilotX.Core.Tests/SnapshotRepairRegressionTests.cs
+        - .planning\headless-cleanup-batch-flow-20261031\gui-evidence\repair-version-proof.json
+      note: 宿主设置SourceScanId，按Id导航，不由路径/MRU猜版本；文件定位用所选树的Entry；实际旧卡1文件256字节→新版推荐2文件12288字节、无误报、无额外扫描。
+    - id: A21
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.Core/Services/Assistant/ConversationStore.cs
+        - .planning\headless-cleanup-batch-flow-20261031\gui-evidence\final-same-process-history.json
+      note: 同进程历史恢复保留七份版本（六范围和一个旧版本），对应缓存仍可用，旧分析批次失效；入口仅保存元数据。
+    - id: A22
+      status: implemented-with-evidence
+      evidence:
+        - .planning\headless-cleanup-batch-flow-20261031\gui-evidence\final-restarted.json
+        - .planning\headless-cleanup-batch-flow-20261031\gui-evidence\scan_snapshot_state-after-rescan.json
+      note: 实际重启后入口保留且released；显式重扫生成新Id/时间，不自动展示或请求模型；取消保留。
+    - id: A23
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.Core/Services/Scanning/ScanSnapshotCache.cs
+        - tests/DiskPilotX.Core.Tests/ScanSnapshotCacheTests.cs
+        - .planning\headless-cleanup-batch-flow-20261031\gui-evidence\scan_snapshot_state-rescan-busy.json
+      note: 预算拒绝/回收、具名活动保护，路径/隐私/忙碌分类；本地重扫忙碌期间禁止会话切换并复核归属。
+    - id: A24
+      status: implemented-with-evidence
+      evidence:
+        - skills/app-guide/SKILL.md
+        - skills/disk-management/SKILL.md
+        - skills/path-cleanup-recommendation/SKILL.md
+      note: 宿主三份skill统一无头扫描、按需取证、对话入口和历史失效契约，不要求预先换图或默认覆盖。
+    - id: A25
+      status: implemented-with-evidence
+      evidence:
+        - skills/unity-cache-check/src/Provider.cs
+        - tests/DiskPilotX.Core.Tests/FactoryUnitySkillTests.cs
+      note: 仅真实Library回传路径与占用；完整视图留本地，不包含其他缓存或用户产物，保持ReviewFirst。
+    - id: A26
+      status: implemented-with-evidence
+      evidence:
+        - skills/unity-cache-check/src/Provider.cs
+        - tests/DiskPilotX.Core.Tests/FactoryUnitySkillTests.cs
+      note: inspect才读有限活动与Hub匹配状态，来源与局限明确，缺失/不支持unknown，不上传整份清单或猜可删除性。
+  checks:
+    - name:
+        text: 六个失败路径定向回归
+        truncated: false
+      result: passed
+      note:
+        text: 先红后绿，增量副本、精确路由、重试状态、失效Id与统计/分类均验证；核心753、应用586及新增文件定位定向回归通过。
+        truncated: false
+    - name:
+        text: 第二轮真实发布/版本/重试证据
+        truncated: false
+      result: passed
+      note:
+        text: 实际451文件双包、原生清单与只读源码执行、同路径旧新版本导航及等待UI已验证；严格由脚本核对保存数据。
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: 用户交付包仅核验内嵌requireAdministrator清单与内容一致性，未实际操作UAC或验收提权后UI。
+      truncated: false
+    - text: 应用回归中既有国家旗帜彩色像素用例因环境条件跳过，不计为通过。
+      truncated: false
+    - text: Unity Hub只识别受支持的本地记录结构，缺失/无权限/不支持如实unknown；不把目录时间当真实开发时间。
+      truncated: false
+    - text: 源码仍在独立分支的未提交工作树，未合并main、提交或推送。
+      truncated: false
+    - text: 旧routing探针检查路径/MRU本身，新实现不再用它定位已标来源的推荐项；请以精确来源Id路径及实际原生UI回归验证。
+      truncated: false
+    - text: 验收动作在同一控制会话内完成并记录末尾进程存活；曾观察到控制会话结束后连接断开，没有本轮托管崩溃记录，外部生命周期原因不作为产品修复结论。
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-10-30T20:45:47.700Z
+blockers:
+  - owner: user
+    reason:
+      text: The generic Skill bridge cannot prove an independent Verifier execution;
+        user confirmation is required before Archive.
+      truncated: false
+    acceptance_ids: []
+    resolution_action: await-user
+verification:
+  candidate_id: c3266f05-420b-494a-a58b-69c0810ed099
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:163adc7a-1ace-4d7c-94ca-be3c3abcb626
+  iteration: 2
+  attempt: 1
+  assurance: skill-coordinated
+  verdict: pass
+  checks:
+    - id: check-1
+      name:
+        text: 核心回归
+        truncated: false
+      argv_display:
+        - text: test
+          truncated: false
+        - text: tests/DiskPilotX.Core.Tests/DiskPilotX.Core.Tests.csproj
+          truncated: false
+        - text: -c
+          truncated: false
+        - text: Release
+          truncated: false
+        - text: --no-restore
+          truncated: false
+        - text: --nologo
+          truncated: false
+        - text: --verbosity
+          truncated: false
+        - text: minimal
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 14762
+    - id: check-2
+      name:
+        text: 应用回归
+        truncated: false
+      argv_display:
+        - text: test
+          truncated: false
+        - text: tests/DiskPilotX.App.Tests/DiskPilotX.App.Tests.csproj
+          truncated: false
+        - text: -c
+          truncated: false
+        - text: Release
+          truncated: false
+        - text: --no-restore
+          truncated: false
+        - text: --nologo
+          truncated: false
+        - text: --verbosity
+          truncated: false
+        - text: minimal
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 41537
+    - id: check-3
+      name:
+        text: 发布源码绑定
+        truncated: false
+      argv_display:
+        - text: .planning/headless-cleanup-batch-flow-20261031/verify-source-binding.py
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 254
+    - id: check-4
+      name:
+        text: 真实发布证据
+        truncated: false
+      argv_display:
+        - text: .planning/headless-cleanup-batch-flow-20261031/verify-delivery-evidence.py
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 90
+    - id: check-5
+      name:
+        text: 原生UI证据
+        truncated: false
+      argv_display:
+        - text: .planning/headless-cleanup-batch-flow-20261031/verify-ui-evidence.py
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 87
+    - id: check-6
+      name:
+        text: 差异检查
+        truncated: false
+      argv_display:
+        - text: diff
+          truncated: false
+        - text: --check
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 115
+    - id: repair-evidence
+      name:
+        text: 第二轮修复证据
+        truncated: false
+      argv_display:
+        - text: .planning\headless-cleanup-batch-flow-20261031\verify-repair-evidence.py
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 169
+  summary:
+    text: 第二轮新独立正式Verifier已逐项评估全部26项：26 passed、0 failed、0
+      blocked。复用匹配当前候选的7项Runtime检查及适用证据，独立核查六项修复与受影响不变量，实际查看429等待截图；未发现范围内残留阻塞缺陷。保留环境跳过、UAC/提权UI未验、重启证据复用及合成增量边界，不重跑全套、不修改实现或正式规格。请Runtime记录结果并返回下一步；未代用户接受或交付。
+    truncated: false
+  risks:
+    - text: 用户交付包只核验实际EXE requireAdministrator清单及发布内容；未实际操作UAC，也未验收提权后UI，不能声称这些交互已通过。
+      truncated: false
+    - text: 当前Runtime应用回归587通过、1个既有国家旗帜彩色像素用例因环境跳过；跳过不计为通过。
+      truncated: false
+    - text: 本轮final-restarted.json没有历史卡片，不作为非空历史失效证明；A22复用上一轮非空released/重扫取消记录，并核对对应实现哈希不变及当前回归。
+      truncated: false
+    - text: 增量树隔离由真实私有ApplyChanges合成树回归验证；未执行需要提权的实盘USN双扫。原生UI操作复用受控测试会话证据，本轮未另启进程或会话。
+      truncated: false
+    - text: 控制会话结束时测试进程存活且响应；命令生命周期后可能结束，没有证据将其判断为产品崩溃。本轮未安装工具或访问真实用户AppData。
+      truncated: false
+    - text: 源码来自独立分支未提交工作树，基础40147bae797c7744140201873ec0f9509f23e9fe，不是最新main；本角色不接受结果、不归档、不做Git交付。
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-10-30T21:07:07.667Z
+history:
+  - goal_cycle: 1
+    iteration: 0
+    attempt: 0
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: Native Shape artifacts changed
+      truncated: false
+    completed_at: 2026-10-30T14:21:38.799Z
+  - goal_cycle: 2
+    iteration: 0
+    attempt: 0
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: Native target specification declarations changed
+      truncated: false
+    completed_at: 2026-10-30T16:21:47.580Z
+  - goal_cycle: 3
+    iteration: 1
+    attempt: 1
+    outcome: fail
+    unresolved_ids:
+      - A4
+      - A7
+      - A11
+      - A13
+      - A19
+      - A20
+    summary:
+      text: 独立正式验证完成全部26项：20 passed、6 failed（A4/A7/A11/A13/A19/A20）、0
+        blocked。复用匹配候选的6项Runtime检查，仅执行定向补证；发现共享可变扫描树、按路径误选版本、重试等待不可见及三个可确证错误契约缺陷。Library整目录根候选及聚合定位通过。候选不可接受，应回Build修复，未经用户接受、不归档或Git交付。
+      truncated: false
+    completed_at: 2026-10-30T19:05:48.599Z
+  - goal_cycle: 3
+    iteration: 2
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 第二轮新独立正式Verifier已逐项评估全部26项：26 passed、0 failed、0
+        blocked。复用匹配当前候选的7项Runtime检查及适用证据，独立核查六项修复与受影响不变量，实际查看429等待截图；未发现范围内残留阻塞缺陷。保留环境跳过、UAC/提权UI未验、重启证据复用及合成增量边界，不重跑全套、不修改实现或正式规格。请Runtime记录结果并返回下一步；未代用户接受或交付。
+      truncated: false
+    completed_at: 2026-10-30T21:07:07.667Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pass
+verification_report: verification.md
+archived: false
+created_at: 2026-10-30T14:04:14.199Z

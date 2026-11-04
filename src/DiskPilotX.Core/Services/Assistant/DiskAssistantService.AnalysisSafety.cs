@@ -37,19 +37,22 @@ public sealed partial class DiskAssistantService
         return text.Length > 500 ? text[..500] : text;
     }
 
-    private bool CanCommitAnalysis(JsonNode? args)
+    private bool CanCommitAnalysis(JsonNode? args) => AnalysisCommitFailure(args) is null;
+
+    private string? AnalysisCommitFailure(JsonNode? args)
     {
-        if (args?["analysis_mode"]?.GetValue<bool>() != true && args?["task_id"] is null) return true;
-        if (analysisTask is null || args?["task_id"]?.GetValue<string>() != analysisTask.Id.ToString()
-            || args?["scan_id"]?.GetValue<string>() != analysisTask.ScanId.ToString()
-            || analysisPrivacy != CurrentPrivacy() || analysisScanPolicy != JsonSerializer.Serialize(settings.LoadSettings().ScanWhitelist)) return false;
-        if (analysisContexts is not null && analysisPreferences != JsonSerializer.Serialize(analysisContexts.GetPreferences(analysisTask.ScopePath))) return false;
-        if (analysisRules is not null)
+        if (analysisRules is not null && readRuleDigests.Count > 0)
         {
-            var rules = analysisRules.GetCatalog();
-            if (readRuleDigests.Any(x => !rules.Any(rule => rule.Id.Equals(x.Key, StringComparison.OrdinalIgnoreCase) && rule.Digest == x.Value))) return false;
+            var catalog=analysisRules.GetCatalog();
+            if(readRuleDigests.Any(x=>!catalog.Any(rule=>rule.Id.Equals(x.Key,StringComparison.OrdinalIgnoreCase)&&rule.Digest==x.Value)))return "rules_changed";
         }
-        return true;
+        if(args?["analysis_mode"]?.GetValue<bool>()!=true && args?["task_id"] is null)return null;
+        if(analysisTask is null || args?["task_id"]?.GetValue<string>()!=analysisTask.Id.ToString())return "task_expired";
+        if(args?["scan_id"]?.GetValue<string>()!=analysisTask.ScanId.ToString())return "scan_changed";
+        if(analysisPrivacy!=CurrentPrivacy())return "privacy_changed";
+        if(analysisScanPolicy!=JsonSerializer.Serialize(settings.LoadSettings().ScanWhitelist))return "scan_policy_changed";
+        if(analysisContexts is not null && analysisPreferences!=JsonSerializer.Serialize(analysisContexts.GetPreferences(analysisTask.ScopePath)))return "preferences_changed";
+        return null;
     }
 
     private void AccumulateDiagnostics(AnalysisDiagnostics d)
