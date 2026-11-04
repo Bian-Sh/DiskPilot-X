@@ -1192,4 +1192,7 @@
   <data name="SettingsConnectionErrorContextLengthExceeded" xml:space="preserve"><value>請求超過模型的上下文限制。</value></data>
   <data name="SettingsConnectionErrorContentFiltered" xml:space="preserve"><value>請求遭上游內容政策攔截。</value></data>
   <data name="SettingsConnectionSettingsUnavailable" xml:space="preserve"><value>無法讀取本機設定，驗證已停止。請檢查檔案權限後重試。</value></data>
+  <data name="TreemapContainsDeletedItems" xml:space="preserve">
+    <value>內含已刪除項目；放大可定位具體項目。</value>
+  </data>
 </root>

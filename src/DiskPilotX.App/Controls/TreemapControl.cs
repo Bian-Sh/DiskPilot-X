@@ -37,6 +37,9 @@ public class TreemapControl : SKElement
     private static readonly Lazy<SKTypeface> TreemapTypeface = new(CreateTreemapTypeface);
 
     private List<TreemapNode>? _nodes;
+    private List<FileEntry>? _deletedEntries;
+    private HashSet<FileEntry>? _deletionHintEntries;
+    private static readonly SKColor DeletedColor = new(229, 72, 77);
     private readonly ToolTip _toolTip;
     private TreemapNode? _lastHoveredNode;
     private TreemapNode? _selectedNode;
@@ -82,6 +85,8 @@ public class TreemapControl : SKElement
         set
         {
             _nodes = value;
+            _deletionHintEntries = null;
+            if (_scanRoot is null) _deletedEntries = null;
             SelectedNode = null;
             ClearMultiSelection();
             ClearHover();
@@ -121,7 +126,9 @@ public class TreemapControl : SKElement
     /// <summary>切换层级时同步视口；普通导航清除滚轮历史，滚轮导航保留返回位置。</summary>
     internal void SetViewRoot(FileEntry? root, FileEntry? scanRoot)
     {
+        bool scanChanged = !ReferenceEquals(_scanRoot, scanRoot);
         _scanRoot = scanRoot;
+        if (scanChanged) RefreshDeletionMarks();
         if (ReferenceEquals(root, _viewRoot)) return;
         _viewRoot = root;
         _zoom = MinZoom;
@@ -246,8 +253,13 @@ public class TreemapControl : SKElement
         if (_lastHoveredNode != SelectedNode) DrawOutline(canvas, _lastHoveredNode, Spec(1f), SKColors.White);
         DrawOutline(canvas, SelectedNode, Spec(2.5f), SKColors.White);
         // 删除标记最后绘制，选中和悬停不能覆盖红框。
+        var deletionHints = GetDeletionHintEntries();
         foreach (var node in sortedNodes)
-            if (node.Entry.IsDeleted) DrawOutline(canvas, node, Spec(2.5f), new SKColor(229, 72, 77));
+        {
+            if (node.Entry.IsDeleted) DrawOutline(canvas, node, Spec(2.5f), DeletedColor);
+            else if (node.AggregatedCount == 0 && deletionHints.Contains(node.Entry))
+                DrawDeletionHint(canvas, node);
+        }
 
     }
 
@@ -359,6 +371,71 @@ public class TreemapControl : SKElement
     {
         if (!node.Entry.IsDirectory || node.AggregatedCount > 0 || node.Label is null) return 0f;
         return TreemapLabelPolicy.DirectoryHeaderHeight(node.Width, node.Height, node.Depth, _zoom);
+    }
+
+    /// <summary>删除或清除标记后刷新索引，不重置选中、缩放和平移。</summary>
+    internal void RefreshDeletionMarks()
+    {
+        _deletedEntries = null;
+        _deletionHintEntries = null;
+        if (_toolTip.IsOpen && _lastHoveredNode is not null) UpdateToolTipContent(_lastHoveredNode);
+        InvalidateVisual();
+    }
+
+    private HashSet<FileEntry> GetDeletionHintEntries()
+    {
+        if (_deletionHintEntries is not null) return _deletionHintEntries;
+        // 文件树只在扫描或删除状态变化时遍历，悬停重绘和缩放复用删除项索引。
+        if (_deletedEntries is null)
+        {
+            _deletedEntries = new List<FileEntry>();
+            var roots = new HashSet<FileEntry>();
+            if (_scanRoot is not null) roots.Add(_scanRoot);
+            else if (_nodes is not null)
+                foreach (var node in _nodes)
+                {
+                    var root = node.Entry;
+                    while (root.Parent is not null) root = root.Parent;
+                    roots.Add(root);
+                }
+            var pending = new Stack<FileEntry>(roots);
+            while (pending.TryPop(out var entry))
+            {
+                if (entry.IsDeleted)
+                {
+                    _deletedEntries.Add(entry);
+                    // 整个目录已删除时，自身红框或承接角标已能代表其全部后代。
+                    continue;
+                }
+                foreach (var child in entry.Children) pending.Push(child);
+            }
+        }
+
+        // 使用完整布局而非视口：子项移出屏幕，不应被误判为折叠而点亮父块。
+        var drawnEntries = _nodes?.Where(n => n.IsVisible && n.AggregatedCount == 0)
+            .Select(n => n.Entry).ToHashSet() ?? new HashSet<FileEntry>();
+        var hints = new HashSet<FileEntry>();
+        foreach (var deleted in _deletedEntries)
+        {
+            if (drawnEntries.Contains(deleted)) continue;
+            var parent = deleted.Parent;
+            while (parent is not null && !drawnEntries.Contains(parent)) parent = parent.Parent;
+            if (parent is not null && !parent.IsDeleted) hints.Add(parent);
+        }
+        return _deletionHintEntries = hints;
+    }
+
+    private void DrawDeletionHint(SKCanvas canvas, TreemapNode node)
+    {
+        var rect = NodeRect(node);
+        float side = Math.Min(Spec(8f), Math.Min(rect.Width, rect.Height));
+        using var corner = new SKPath();
+        corner.MoveTo(rect.Right - side, rect.Top);
+        corner.LineTo(rect.Right, rect.Top);
+        corner.LineTo(rect.Right, rect.Top + side);
+        corner.Close();
+        using var paint = new SKPaint { Color = DeletedColor, IsAntialias = false };
+        canvas.DrawPath(corner, paint);
     }
 
     private void DrawOutline(SKCanvas canvas, TreemapNode? node, float width, SKColor color)
@@ -896,6 +973,18 @@ public class TreemapControl : SKElement
             Text = L.Format("TooltipModified", modified),
             Margin = new Thickness(0, 2, 0, 0),
         });
+
+        if (!entry.IsDeleted && node.AggregatedCount == 0 && GetDeletionHintEntries().Contains(entry))
+        {
+            var deletionText = new TextBlock
+            {
+                Text = L.Text("TreemapContainsDeletedItems"),
+                FontWeight = FontWeights.Bold,
+                Margin = new Thickness(0, 2, 0, 0),
+            };
+            deletionText.SetResourceReference(TextBlock.ForegroundProperty, "VP.DangerTextBrush");
+            panel.Children.Add(deletionText);
+        }
 
         if (entry.IsAccessDenied)
         {

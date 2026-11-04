@@ -1192,4 +1192,7 @@ This cannot be undone.</value></data>
   <data name="SettingsConnectionErrorContextLengthExceeded" xml:space="preserve"><value>The request exceeded the model context limit.</value></data>
   <data name="SettingsConnectionErrorContentFiltered" xml:space="preserve"><value>The upstream content policy blocked the request.</value></data>
   <data name="SettingsConnectionSettingsUnavailable" xml:space="preserve"><value>Local settings could not be read; validation was stopped. Check file access and retry.</value></data>
+  <data name="TreemapContainsDeletedItems" xml:space="preserve">
+    <value>Contains deleted items; zoom in to locate them.</value>
+  </data>
 </root>

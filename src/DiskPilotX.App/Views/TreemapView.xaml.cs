@@ -91,7 +91,7 @@ public partial class TreemapView : UserControl
         switch (e.PropertyName)
         {
             case nameof(TreemapViewModel.DeletionRevision):
-                Treemap.InvalidateVisual();
+                Treemap.RefreshDeletionMarks();
                 break;
             case nameof(TreemapViewModel.CurrentRoot):
                 Treemap.SetViewRoot(_viewModel?.CurrentRoot, _viewModel?.ScanRoot);
