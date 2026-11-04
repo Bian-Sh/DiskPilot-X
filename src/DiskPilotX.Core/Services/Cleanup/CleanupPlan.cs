@@ -34,18 +34,21 @@ public sealed class CleanupPlan
         IReadOnlyList<string> ids, DeletionMode mode, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        if (ids.Count is 0 or > 100 || ids.Distinct(StringComparer.Ordinal).Count() != ids.Count)
-            throw new InvalidOperationException("清理清单为空、重复或过大。");
+        // 推荐发布的单批上限不是清理上限；全部选择仍由完整快照、最终确认和逐项执行保护。
+        if (ids.Count == 0)
+            throw new CleanupPlanValidationException("cleanup_selection_empty", "清理清单为空，请先选择具体项目。");
+        if (ids.Distinct(StringComparer.Ordinal).Count() != ids.Count)
+            throw new CleanupPlanValidationException("cleanup_selection_duplicate", "清理项ID重复，请重新读取清单并选择。");
         var recommendationVersion = ComputeVersion(session, all, mode);
         var selected = ids.Select(id => all.SingleOrDefault(item => item.Id == id)
-            ?? throw new InvalidOperationException("清理项已失效。")).ToList();
+            ?? throw new CleanupPlanValidationException("cleanup_item_expired", "清理项已失效，请重新读取当前清单并选择。")).ToList();
         var paths = selected.Select(item => Path.TrimEndingDirectorySeparator(Path.GetFullPath(item.TargetPath))).ToArray();
         if (paths.Any(path => string.Equals(path, Path.TrimEndingDirectorySeparator(Path.GetPathRoot(path)!), StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException("禁止清理磁盘根目录。");
         for (var i = 0; i < paths.Length; i++)
             for (var j = i + 1; j < paths.Length; j++)
                 if (IsSameOrChild(paths[i], paths[j]) || IsSameOrChild(paths[j], paths[i]))
-                    throw new InvalidOperationException("清理清单存在重复或父子路径。");
+                    throw new CleanupPlanValidationException("cleanup_paths_overlap", "清理清单存在重复或父子路径，请去除重叠后重新确认。");
 
         var items = new List<CleanupRecommendation>();
         foreach (var item in selected)
@@ -62,7 +65,7 @@ public sealed class CleanupPlan
         }
         ct.ThrowIfCancellationRequested();
         if (recommendationVersion != ComputeVersion(session, all, mode))
-            throw new InvalidOperationException("采集批准快照期间清理清单发生变化。");
+            throw new CleanupPlanValidationException("cleanup_list_changed", "采集批准快照期间清理清单发生变化，请重新读取并确认。");
         return new(recommendationVersion, session.Id, mode, items);
     }
 
@@ -104,4 +107,10 @@ public sealed class CleanupPlan
 
     private static bool IsSameOrChild(string path, string root) => string.Equals(path, root, StringComparison.OrdinalIgnoreCase)
         || path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>确认前清单输入错误，不得误报为目录变化，也不代表已执行删除。</summary>
+public sealed class CleanupPlanValidationException(string code, string message) : InvalidOperationException(message)
+{
+    public string Code { get; } = code;
 }

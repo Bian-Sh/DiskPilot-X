@@ -12,6 +12,15 @@ public sealed class ScanSnapshotCache(int maximumSnapshots = 12, long maximumEnt
     public Guid Epoch { get; } = Guid.NewGuid();
     public IReadOnlyList<ScanSession> Sessions => items.Values.Select(item => item.Session).ToArray();
 
+    public ScanSnapshotBudget GetBudget()
+    {
+        var protectedIds = protectedItems.Select(item => item.Id).ToHashSet();
+        var used = items.Values.Sum(item => item.Weight);
+        return new(maximumSnapshots, maximumEntries, items.Count, used,
+            items.Keys.Count(protectedIds.Contains), items.Keys.Count(id => !protectedIds.Contains(id)),
+            Math.Max(0, maximumSnapshots - items.Count), Math.Max(0, maximumEntries - used));
+    }
+
     public ScanSnapshotReference Add(ScanSession session)
     {
         if (session.RootEntry is null || session.IsCancelled) throw new InvalidOperationException("扫描未完成，不能登记快照。");
@@ -55,3 +64,7 @@ public sealed class ScanSnapshotCache(int maximumSnapshots = 12, long maximumEnt
     private static bool IsUnder(string path, string root) => string.Equals(path.TrimEnd('\\', '/'), root.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase)
         || path.StartsWith(root.TrimEnd('\\', '/') + System.IO.Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 }
+
+/// <summary>当前预算回执；剩余数量不包含可回收项，保护项不能由AI自动释放。</summary>
+public sealed record ScanSnapshotBudget(int MaximumSnapshots, long MaximumEntries, int UsedSnapshots, long UsedEntries,
+    int ProtectedSnapshots, int ReclaimableSnapshots, int RemainingSnapshots, long RemainingEntries);

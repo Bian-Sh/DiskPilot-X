@@ -7,6 +7,14 @@ using FluentAssertions;
 namespace DiskPilotX.App.Tests;
 public class RejectedPublishDiagnosticsTests
 {
+    [Fact] public void 真实空批不冒充发布失败也不清空旧清单()
+    {
+        var window=(MainWindow)RuntimeHelpers.GetUninitializedObject(typeof(MainWindow));
+        var method=typeof(MainWindow).GetMethod("RejectedPublish",BindingFlags.Instance|BindingFlags.NonPublic)!;
+        var result=(JsonObject)method.Invoke(window,[new AnalysisDiagnostics { InputRecommendationCount=0 }])!;
+        Assert.True(result["ok"]!.GetValue<bool>());Assert.False(result["applied"]!.GetValue<bool>());
+        Assert.Equal(0,result["accepted_count"]!.GetValue<int>());
+    }
     [Fact] public void 全部未扫描候选返回准确计数且不伪装成功()
     {
         // 无批次时该只读格式化路径不访问控件或服务，避免为诊断测试构造整套WPF窗口。

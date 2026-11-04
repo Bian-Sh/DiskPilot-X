@@ -215,7 +215,7 @@ public partial class RecommendationsViewModel : ObservableObject
         AnalysisError = null;
         IsWaitingForExternalRecommendations = false;
         LastDiagnostics = diagnostics;
-        Recommendations = new ObservableCollection<CleanupRecommendation>(indexedRecommendations);
+        SynchronizeItems(Recommendations, indexedRecommendations);
         ApplyFilters();
         UpdateTotals();
         HasRecommendations = Recommendations.Count > 0;
@@ -342,7 +342,22 @@ public partial class RecommendationsViewModel : ObservableObject
             filtered = filtered.Where(r => r.SafetyRating == safetyRating);
         }
 
-        FilteredRecommendations = new ObservableCollection<CleanupRecommendation>(GroupByScope(filtered));
+        SynchronizeItems(FilteredRecommendations, GroupByScope(filtered).ToList());
+    }
+
+    private static void SynchronizeItems(ObservableCollection<CleanupRecommendation> target, IList<CleanupRecommendation> desired)
+    {
+        // 追加的常见路径只触发新cell；替换时同样不Clear，避免Reset重置视口。
+        var retained = desired.ToHashSet();
+        for (var i = target.Count - 1; i >= 0; i--)
+            if (!retained.Contains(target[i])) target.RemoveAt(i);
+        for (var i = 0; i < desired.Count; i++)
+        {
+            if (i < target.Count && ReferenceEquals(target[i], desired[i])) continue;
+            var previous = target.IndexOf(desired[i]);
+            if (previous >= 0) target.Move(previous, i);
+            else target.Insert(i, desired[i]);
+        }
     }
 
     /// <summary>

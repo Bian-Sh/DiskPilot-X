@@ -24,9 +24,11 @@ public partial class MainWindow
         if (_chatViewModel is null) return;
         foreach (var reference in _chatViewModel.Messages.SelectMany(message => message.ScanSnapshots))
         {
+            if (!IsSkillScopeAllowed(reference.Path)) { reference.SetState("restricted"); continue; }
+            if (reference.IsPending || reference.State is "failed" or "cancelled") continue;
             var state = !IsSkillScopeAllowed(reference.Path) ? "restricted"
                 : !Directory.Exists(reference.Path) ? "missing"
-                : _cleanupRunning || _chatViewModel.IsOperationRunning || (DataContext as MainViewModel)?.IsScanning == true ? "busy"
+                : _cleanupRunning || _recommendationPublishing || _chatViewModel.IsOperationRunning || (DataContext as MainViewModel)?.IsScanning == true ? "busy"
                 : reference.CacheEpoch != _scanSnapshots.Epoch ? "released"
                 : _scanSnapshots.TryGet(reference, out _) ? "available" : "evicted";
             reference.SetState(state);

@@ -93,7 +93,7 @@ public sealed class ChatProgressTests
         message.ApplyActivity(AgentEvent.Create("fixture", AgentEventKind.ToolCallPreparing) with
         { ToolCallId = "call", ToolName = "publish_recommendations" });
         message.ApplyActivity(AgentEvent.Create("fixture", terminal));
-        Assert.Equal(expected, Assert.Single(message.Segments).Status);
+        Assert.Equal(expected, Assert.Single(message.Segments.Where(segment => segment.IsTool)).Status);
         Assert.False(message.IsStreaming);
     }
 

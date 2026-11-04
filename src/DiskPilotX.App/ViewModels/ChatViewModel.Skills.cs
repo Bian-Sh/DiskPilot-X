@@ -44,9 +44,15 @@ public partial class ChatViewModel
     public Func<ScanSnapshotReference, Task>? ScanSnapshotAction { get; set; }
     public void AddScanSnapshot(ScanSnapshotReference reference)
     {
-        var target = displayMessage ?? Messages.LastOrDefault(m => m.Sender == ChatSender.Assistant);
+        var target = displayMessage ?? (Messages.LastOrDefault() is { Sender: ChatSender.Assistant } latest ? latest : null);
         if (target is null) { target = new() { Sender = ChatSender.Assistant, Timestamp = DateTime.Now }; Messages.Add(target); }
-        if (!target.ScanSnapshots.Any(item => item.Id == reference.Id)) target.ScanSnapshots.Add(reference);
+        if (!target.ScanSnapshots.Any(item => item.Id == reference.Id))
+        {
+            var pending = target.ScanSnapshots.FirstOrDefault(item => item.IsPending &&
+                string.Equals(item.Path, reference.Path, StringComparison.OrdinalIgnoreCase));
+            if (pending is not null) target.ScanSnapshots[target.ScanSnapshots.IndexOf(pending)] = reference;
+            else target.ScanSnapshots.Add(reference);
+        }
         SaveCurrentConversation();
     }
     public Task OpenScanSnapshotAsync(ScanSnapshotReference reference) => ScanSnapshotAction?.Invoke(reference) ?? Task.CompletedTask;

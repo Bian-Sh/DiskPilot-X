@@ -114,7 +114,7 @@ public static class AssistantAnalysisEvidence
     private static string BuildCore(RecommendationEngine engine, AssistantAnalysisBatch batch, int maxPerScope, int maxTotal)
     {
         var builder = new StringBuilder();
-        builder.Append("本次共 ").Append(batch.Scopes.Count).Append(" 个分析范围，逐范围给出清理候选，最后一次性发布全部候选。\n\n");
+        builder.Append("本次共 ").Append(batch.Scopes.Count).Append(" 个分析范围，逐范围给出清理候选，按批读取证据并分批发布候选；后续使用merge追加并等待回执，不把本批完成误报为整轮完成。\n\n");
         var budget = maxTotal;
         for (var index = 0; index < batch.Scopes.Count; index++)
         {

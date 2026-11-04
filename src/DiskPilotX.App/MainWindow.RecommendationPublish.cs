@@ -6,12 +6,142 @@ using DiskPilotX.App.Services;
 using DiskPilotX.App.ViewModels;
 using DiskPilotX.Core.Models;
 using DiskPilotX.Core.Services.Assistant;
+using DiskPilotX.Core.Services.Analysis;
+using DiskPilotX.Core.Services.FileTree;
 using DiskPilotX.Core.Services.Settings;
 
 namespace DiskPilotX.App;
 
 public partial class MainWindow
 {
+    private bool _recommendationPublishing;
+    private readonly Dictionary<string,double> _publishTimings = [];
+    private async Task<JsonNode> PublishRecommendationsAsync(JsonNode? args, CancellationToken ct, MainViewModel main, AppSettings settings)
+    {
+        if (_recommendationPublishing) return new JsonObject { ["ok"]=false, ["code"]="publish_busy", ["error"]="上一批推荐尚未提交完成，请等待回执。" };
+        _recommendationPublishing = true;
+        _publishTimings.Clear();
+        var timing = System.Diagnostics.Stopwatch.StartNew();
+        void Mark(string stage) { _publishTimings[stage] = timing.Elapsed.TotalMilliseconds; timing.Restart(); }
+        try
+        {
+
+                if(main.IsScanning || _cleanupRunning) return CommitBoundaryError("scan_busy");
+                if (args?["recommendations"] is not JsonArray candidates || candidates.Count > 100)
+                    return new JsonObject { ["ok"]=false, ["code"]="batch_too_large", ["error"]="每批最多100项，请分批发布；本次未修改清单。", ["limits"]=ScanBudgetData() };
+                var initialPolicy = PublishPolicyStamp();
+                var initialList = RecommendationStamp();
+                var initialBatch = _analysisBatch;
+                var initialSession = main.CurrentSession?.Id;
+                string Preferences() => JsonSerializer.Serialize((_analysisBatch?.Scopes.Select(scope=>scope.Path)
+                    ?? new[]{main.CurrentSession?.TargetPath??""}).Select(path=>App.Services!.GetRequiredService<AnalysisContextStore>().GetPreferences(path)));
+                var initialPreferences = Preferences(); Mark("capture");
+                JsonNode? Changed() => initialBatch != _analysisBatch ? CommitBoundaryError("batch_changed")
+                    : initialSession != main.CurrentSession?.Id ? CommitBoundaryError("scan_changed")
+                    : initialPolicy != PublishPolicyStamp() ? CommitBoundaryError(_lastPolicyChange)
+                    : initialList != RecommendationStamp() ? CommitBoundaryError("recommendations_changed")
+                    : initialPreferences != Preferences() ? CommitBoundaryError("preferences_changed") : null;
+                var requestedScanId=args?["scan_id"]?.GetValue<string>();
+                var mergeMode=!string.Equals(args?["mode"]?.GetValue<string>(),"replace",StringComparison.OrdinalIgnoreCase);
+                var analysisMode=args?["analysis_mode"]?.GetValue<bool>()==true;
+                var raw=JsonSerializer.SerializeToElement(args);
+                var engine=App.Services!.GetRequiredService<RecommendationEngine>();
+                // 命中无头批次：每个范围用自己的会话校验，再合并成一份清单，避免逐个发布互相覆盖。
+                var batch=_analysisBatch is { } pending && pending.Id.ToString()==requestedScanId ? pending : null;
+                if(batch is not null)
+                {
+                    if(batch.Scopes.Count==0) return AssistantError("分析批次里没有可发布的范围。");
+                    var merged=new List<CleanupRecommendation>();
+                    var missing=0;
+                    var protectedFiltered=0;
+                    foreach(var scope in batch.Scopes)
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        var owned=OwnedCandidates(raw,scope.Root.Path,batch);
+                        if (owned.GetProperty("recommendations").GetArrayLength() == 0) continue;
+                        var scoped=await Task.Run(() => engine.ValidateCandidates(scope.Session,owned,scope.Root),ct);
+                        Mark("validate_background");
+                        if (Changed() is { } changedScope) return changedScope;
+                        missing+=scoped.Diagnostics.MissingEntryCount;
+                        protectedFiltered+=scoped.Diagnostics.ProtectedFilteredCount;
+                        foreach(var item in scoped.Recommendations)
+                        {
+                            item.SourceScope=scope.Label;
+                            merged.Add(item);
+                        }
+                    }
+                    merged=DeduplicateByPath(merged);
+                    var beforePrivacy=merged.Count;
+                    if(!analysisMode)
+                        merged=merged.Where(item=>!WouldAffectExcludedPath(item.TargetPath,settings.AiConversationWhitelist)).ToList();
+                    var submitted=raw.TryGetProperty("recommendations",out var inputCandidates)&&inputCandidates.ValueKind==JsonValueKind.Array?inputCandidates.GetArrayLength():0;
+                    var unowned=inputCandidates.ValueKind==JsonValueKind.Array?inputCandidates.EnumerateArray().Count(item=>!item.TryGetProperty("path",out var path)||path.ValueKind!=JsonValueKind.String||batch.FindScope(path.GetString()!) is null):0;
+                    var diagnostics=new AnalysisDiagnostics
+                    {
+                        TargetPath=batch.Scopes.Count==1?batch.Scopes[0].Path:batch.Note??"多个位置",
+                        ScopePath=string.Join(" ; ",batch.Scopes.Select(scope=>scope.Path)),
+                        IsFocusedScope=true,
+                        ParsedRecommendationCount=merged.Count,
+                        InputRecommendationCount=submitted,
+                        MissingEntryCount=missing+unowned,
+                        ProtectedFilteredCount=protectedFiltered,
+                        HostFilteredCount=beforePrivacy-merged.Count
+                    };
+                    if(merged.Count==0) return RejectedPublish(diagnostics);
+                    if (await ValidatePublishBoundaryAsync(args, mergeMode, ct) is { } batchFailure) return batchFailure;
+                    if (Changed() is { } changedBatch) return changedBatch;
+                    Mark("boundary");
+                    var final=mergeMode?MergePublishedRecommendations(merged):merged;
+                    var nextBatchSession=RegisterRecommendationScopes(batch.Scopes.Select(scope=>scope.Session),mergeMode);
+                    for(var index=0;index<final.Count;index++) final[index].Id=(index+1).ToString();
+                    Mark("merge_and_register");
+                    _recommendationRevision++;
+                    _recommendationsViewModel!.SetExternalRecommendations(final,diagnostics);
+                    Mark("apply_cells");
+                    _assistantAnalysisSession=nextBatchSession;
+                    EnsureBottomPanelVisible(); ShowRecommendationsPanel();
+                    var receipt = RecommendationState(_assistantAnalysisSession,settings,analysisMode,originLabel:batch.Note??(batch.Scopes.Count==1?batch.Scopes[0].Label:$"{batch.Scopes.Count} 个位置"));
+                    Mark("receipt");
+                    return receipt;
+                }
+                if(main.CurrentSession?.Id.ToString()!=requestedScanId) return AnalysisBatchError("scan_expired", "扫描标识无效，请使用在册批次或重新扫描。");
+                var originalId=main.CurrentSession!.Id;
+                if(main.CurrentSession?.Id!=originalId) return CommitBoundaryError("scan_changed");
+                var focusPath=args?["focus_path"]?.GetValue<string>();
+                var localFocus=new FileTreeQueryService().FindByPath(main.CurrentSession!,focusPath??main.CurrentSession!.RootEntry!.Path);
+                if(localFocus is null)return AssistantError("分析范围已失效。");
+                var scannedSession = main.CurrentSession!;
+                var analysis=await Task.Run(() => engine.ValidateCandidates(scannedSession,raw,localFocus),ct);
+                if (Changed() is { } changedScan) return changedScan;
+                var beforePrivacyFilter=analysis.Recommendations.Count;
+                analysis.Recommendations=analysis.Recommendations.Where(r=>analysisMode||!WouldAffectExcludedPath(r.TargetPath,settings.AiConversationWhitelist)).ToList();
+                analysis.Diagnostics.HostFilteredCount+=beforePrivacyFilter-analysis.Recommendations.Count;
+                // 确认窗口期间若规则、偏好或隐私条件改变，原列表保留并要求重新分析，避免用旧结论覆盖。
+                ct.ThrowIfCancellationRequested();
+                if (analysis.Recommendations.Count == 0) return RejectedPublish(analysis.Diagnostics);
+                if (await ValidatePublishBoundaryAsync(args, mergeMode, ct) is { } failure) return failure;
+                if (main.CurrentSession?.Id != originalId) return CommitBoundaryError("scan_changed");
+                if (Changed() is { } changedFinal) return changedFinal;
+                var published=mergeMode?MergePublishedRecommendations(analysis.Recommendations):analysis.Recommendations;
+                var nextSession=RegisterRecommendationScopes([main.CurrentSession!],mergeMode);
+                for(var index=0;index<published.Count;index++) published[index].Id=(index+1).ToString();
+                _recommendationRevision++;
+                    _recommendationsViewModel!.SetExternalRecommendations(published,analysis.Diagnostics);
+                _assistantAnalysisSession=nextSession;
+                EnsureBottomPanelVisible(); ShowRecommendationsPanel();
+                return RecommendationState(_assistantAnalysisSession!,settings,analysisMode);
+            
+        }
+        finally { _recommendationPublishing = false; RefreshScanSnapshotEntries(); }
+    }
+
+    private JsonNode ScanBudgetData() => JsonSerializer.SerializeToNode(new
+    {
+        max_paths_per_call=6, max_recommendations_per_call=100, recommended_recommendations_per_call=25,
+        scan_concurrency=1, snapshot_budget=_scanSnapshots.GetBudget(),
+        on_capacity_exhausted="暂停并说明未完成范围；不得自动删除推荐或释放活动证据。"
+    })!;
+
     private readonly Dictionary<string, ScanSession> _publishedScopes = new(StringComparer.OrdinalIgnoreCase);
     private string? _publishedScopeStamp;
     private Guid _publishedCompositeId;
@@ -57,17 +187,8 @@ public partial class MainWindow
             return AnalysisBatchError("privacy_changed", "批次中存在当前不允许的范围，原清单保留，请缩小范围并重新扫描。");
         return null;
     }
-    private List<CleanupRecommendation> MergePublishedRecommendations(IEnumerable<CleanupRecommendation> incoming)
-    {
-        var previous=_recommendationsViewModel!.Recommendations.ToDictionary(r=>Path.GetFullPath(r.TargetPath),StringComparer.OrdinalIgnoreCase);
-        foreach(var item in incoming)
-        {
-            var path=Path.GetFullPath(item.TargetPath);
-            if(previous.TryGetValue(path,out var old)) { item.IsAccepted=old.IsAccepted; item.IsDismissed=old.IsDismissed; }
-            previous[path]=item;
-        }
-        return DeduplicateByPath(previous.Values.ToList());
-    }
+    private List<CleanupRecommendation> MergePublishedRecommendations(IEnumerable<CleanupRecommendation> incoming) =>
+        RecommendationEngine.MergeRecommendations(_recommendationsViewModel!.Recommendations, incoming);
     private ScanSession RegisterRecommendationScopes(IEnumerable<ScanSession> sessions,bool merge)
     {
         var admitted=sessions.ToArray();
@@ -101,6 +222,10 @@ public partial class MainWindow
     }
     private JsonNode RejectedPublish(AnalysisDiagnostics diagnostics)
     {
+        if (diagnostics.InputRecommendationCount == 0 && diagnostics.ParseError is null)
+            return new JsonObject { ["ok"]=true, ["applied"]=false, ["empty_batch"]=true, ["accepted_count"]=0,
+                ["message"]="本批没有候选，原推荐清单保持不变；是否完整分析仍须据实报告。" };
+
         var reason=diagnostics.HostFilteredCount>0?"候选被当前隐私或范围限制过滤，请缩小到允许范围。":diagnostics.MissingEntryCount>0?"候选缺少扫描证据，请扫描缺失的确切范围。":diagnostics.ProtectedFilteredCount>0?"候选被本地保护规则排除，不能通过重试绕过。":diagnostics.InputRecommendationCount==0?"未提交有效候选。":"候选未通过校验。";
         var error=(JsonObject)AnalysisBatchError("no_accepted_candidates",reason+"原清单保留，不要重复提交相同列表。");
         error["validation"]=JsonSerializer.SerializeToNode(new {input_count=diagnostics.InputRecommendationCount,accepted_count=0,
