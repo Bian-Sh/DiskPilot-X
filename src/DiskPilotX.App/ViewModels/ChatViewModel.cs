@@ -59,7 +59,11 @@ public partial class ChatViewModel : ObservableObject
     public string ThinkingPickerLabel => CurrentThinkingLevelLabel;
     private string CurrentThinkingLevelLabel => ThinkingLevelOptions.FirstOrDefault(option => option.Value == SelectedThinkingLevel)?.Label ?? "";
     /// <summary>滑条索引对应当前声明的档位集合，不能直接转换成枚举数值。</summary>
-    public int SelectedThinkingLevelIndex => Math.Max(0, Array.IndexOf(_supportedThinkingLevels.ToArray(), SelectedThinkingLevel));
+    public int SelectedThinkingLevelIndex
+    {
+        get => Math.Max(0, Array.IndexOf(_supportedThinkingLevels.ToArray(), SelectedThinkingLevel));
+        set { if (!_isLoadingSettings) SetThinkingLevelFromSlider(value); }
+    }
     public int ThinkingLevelMaximumIndex => Math.Max(0, _supportedThinkingLevels.Count - 1);
     public bool IsThinkingLevelAdjustable => _supportedThinkingLevels.Count > 1;
     public bool IsChatAvailable => true;

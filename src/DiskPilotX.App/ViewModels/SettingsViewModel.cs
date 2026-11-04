@@ -26,7 +26,8 @@ public enum ValidationState
     None,
     Validating,
     Valid,
-    Invalid
+    Invalid,
+    Failed
 }
 
 public partial class SettingsViewModel : ObservableObject
@@ -56,10 +57,10 @@ public partial class SettingsViewModel : ObservableObject
         if (_isLoadingSettings)
             return;
 
-        InvalidateModelDiscovery();
         _suppressPersistence = true;
         try
         {
+            InvalidateModelDiscovery();
             IsApiKeyValid = false;
             ValidationState = ValidationState.None;
             ValidationMessage = null;
@@ -103,6 +104,7 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnChatModelNameChanged(string? value)
     {
+        if (!_isLoadingSettings) InvalidateConnectionValidation();
         PersistAppSettings(settings =>
             settings.ChatModelName = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
     }
@@ -414,17 +416,6 @@ public partial class SettingsViewModel : ObservableObject
         SettingsChanged?.Invoke();
     }
 
-    private void RefreshValidationStatusText()
-    {
-        ValidationStatusText = ValidationState switch
-        {
-            ValidationState.Validating => L.Text("SettingsValidationValidating"),
-            ValidationState.Valid => L.Text("SettingsValidationValid"),
-            ValidationState.Invalid => L.Text("SettingsValidationInvalid"),
-            _ => string.Empty
-        };
-    }
-
     public static IReadOnlyList<LanguageOption> LanguageOptions { get; } =
     [
         new("zh-CN", "简体中文"),
@@ -473,54 +464,8 @@ public partial class SettingsViewModel : ObservableObject
 
     // ── Existing ──────────────────────────────────────────────────
 
-    [RelayCommand]
-    private async Task ValidateAsync()
-    {
-        if (string.IsNullOrWhiteSpace(ApiKey))
-        {
-            ValidationState = ValidationState.Invalid;
-            ValidationMessage = L.Text("ApiKeyEmptyMessage");
-            IsApiKeyValid = false;
-            return;
-        }
-
-        ValidationState = ValidationState.Validating;
-        ValidationMessage = null;
-        var version = _catalogVersion;
-        var catalogTask = CompleteModelConfigurationAsync(force: true);
-
-        try
-        {
-            var endpoint = BuildEndpoint();
-            var isValid = await _llmClient.ValidateAsync(endpoint, CancellationToken.None);
-            if (version != _catalogVersion) return;
-
-            if (isValid)
-            {
-                ValidationState = ValidationState.Valid;
-                IsApiKeyValid = true;
-                ValidationMessage = null;
-            }
-            else
-            {
-                ValidationState = ValidationState.Invalid;
-                IsApiKeyValid = false;
-                ValidationMessage = L.Text("ApiKeyInvalidMessage");
-            }
-        }
-        catch (Exception ex)
-        {
-            if (version != _catalogVersion) return;
-            ValidationState = ValidationState.Invalid;
-            IsApiKeyValid = false;
-            LogSettingsException("模型连接验证失败", ex);
-            ValidationMessage = L.Format("ValidationFailedMessage", "模型连接验证失败，请检查地址、模型与凭据。");
-        }
-        finally { await catalogTask; }
-    }
-
     /// <summary>用当前编辑中的字段构建端点配置；代理口令优先取输入框，未改动时解密存量值。</summary>
-    private ModelEndpointConfig BuildEndpoint()
+    private ModelEndpointConfig BuildEndpoint(string? validationModel = null)
     {
         EnsureProxyHost();
         var settings = _settingsService.LoadSettings();
@@ -528,8 +473,9 @@ public partial class SettingsViewModel : ObservableObject
             && (!int.TryParse(ProxyPortText?.Trim(), out var port) || port is <= 0 or >= 65536))
             throw new InvalidOperationException("自定义代理端口必须是 1–65535 的整数。");
         var proxyPassword = _proxyPasswordEdited ? ProxyPassword : _settingsService.GetProxyPassword(settings);
+        var model = validationModel ?? ChatModelName?.Trim() ?? string.Empty;
         return ModelEndpointConfig.FromSettings(settings, ApiKey ?? string.Empty,
-            ModelEndpointResolver.ResolveModel(ChatModelName, AnthropicBaseUrl),
+            model,
             proxyPassword) with
         {
             BaseUrl = string.IsNullOrWhiteSpace(AnthropicBaseUrl) ? null : AnthropicBaseUrl.Trim(),
@@ -539,8 +485,8 @@ public partial class SettingsViewModel : ObservableObject
             ProxyUsername = string.IsNullOrWhiteSpace(ProxyUsername) ? null : ProxyUsername.Trim(),
             ApiFormat = SelectedApiFormat,
             CliIdentity = SelectedCliIdentity,
-            ThinkingLevel = ThinkingCapabilities.ResolveSelectedLevel(settings, ModelEndpointResolver.ResolveModel(ChatModelName, AnthropicBaseUrl)),
-            ThinkingControlMode = ThinkingCapabilities.GetControlMode(settings, ModelEndpointResolver.ResolveModel(ChatModelName, AnthropicBaseUrl)),
+            ThinkingLevel = ThinkingCapabilities.ResolveSelectedLevel(settings, model),
+            ThinkingControlMode = ThinkingCapabilities.GetControlMode(settings, model),
             ProxyMode = SelectedProxyKind,
         };
     }
@@ -579,10 +525,6 @@ public partial class SettingsViewModel : ObservableObject
         ProxyPassword = ProxyPassword,
         Model = string.Empty,
     };
-
-    private void LogSettingsException(string operation, Exception exception, ModelEndpointConfig? endpoint = null) =>
-        _logger.LogError("{Operation}：{ExceptionType} {Detail}", operation, exception.GetType().Name,
-            ModelCatalogService.Sanitize(endpoint ?? DiagnosticConfig(), exception.ToString()));
 
     [RelayCommand]
     public void Save()
@@ -956,7 +898,10 @@ public partial class SettingsViewModel : ObservableObject
 
     public void LoadSettings()
     {
-        InvalidateModelDiscovery();
+        var suppress = _suppressPersistence;
+        _suppressPersistence = true;
+        try { InvalidateModelDiscovery(); }
+        finally { _suppressPersistence = suppress; }
         var settings = _settingsService.LoadSettings();
 
         _isLoadingSettings = true;

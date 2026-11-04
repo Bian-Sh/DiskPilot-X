@@ -12,7 +12,7 @@ namespace DiskPilotX.Core.Services.Llm;
 public sealed record DiscoveredModel(string Id, string? DisplayName, string? OwnedBy);
 
 /// <summary>候选目录均已尝试但没有有效模型，宿主应提示用户提供完整目录地址。</summary>
-public sealed class ModelCatalogExhaustedException(int attempts) : Exception($"已尝试 {attempts} 个模型列表地址，仍未获取有效模型。请提供完整的模型获取 URL 后重试。")
+public sealed class ModelCatalogExhaustedException(int attempts, Exception? failure = null) : Exception($"已尝试 {attempts} 个模型列表地址，仍未获取有效模型。请提供完整的模型获取 URL 后重试。", failure)
 {
     public int Attempts { get; } = attempts;
 }
@@ -37,12 +37,19 @@ public sealed class ModelCatalogService(ModelHttpClientFactory httpClients, ILog
         log.LogInformation("开始模型发现：{Provider}，协议 {ApiFormat}，代理 {ProxyMode}，候选 {Count}",
             ModelCatalogEndpoints.Describe(config), config.ApiFormat, config.ProxyMode, candidates.Count);
 
+        ModelClientException Failure(string message, ModelErrorKind kind, Uri uri)
+        {
+            var error = new ModelClientException(message, kind);
+            error.Data["ModelCatalogEndpoint"] = Sanitize(config, uri.AbsoluteUri);
+            return error;
+        }
+        Exception? lastFailure = null;
         for (var index = 0; index < candidates.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (budget.IsCancellationRequested)
-                throw new ModelClientException("模型列表探测已达到总体超时，请检查代理和网络后重试。", ModelErrorKind.Timeout);
             var uri = candidates[index];
+            if (budget.IsCancellationRequested)
+                throw Failure("模型列表探测已达到总体超时，请检查代理和网络后重试。", ModelErrorKind.Timeout, uri);
             var safeUrl = Sanitize(config, uri.AbsoluteUri);
             var watch = Stopwatch.StartNew();
             int? status = null;
@@ -74,7 +81,9 @@ public sealed class ModelCatalogService(ModelHttpClientFactory httpClients, ILog
                 {
                     log.LogWarning("模型目录响应 HTTP {StatusCode}：{Url}；摘要 {Response}", status, safeUrl,
                         preview);
-                    throw new ModelClientException($"模型列表请求失败（HTTP {status}）。", ModelErrorClassifier.Classify(status.Value, null), status);
+                    var (code, message) = ModelErrorClassifier.ParseErrorBody(body);
+                    throw new ModelClientException($"模型列表请求失败（HTTP {status}）。", ModelErrorClassifier.Classify(status.Value, code), status,
+                        code is null ? null : Sanitize(config, code), message is null ? null : Sanitize(config, message));
                 }
                 using var document = JsonDocument.Parse(body);
                 var models = Extract(document.RootElement);
@@ -85,20 +94,24 @@ public sealed class ModelCatalogService(ModelHttpClientFactory httpClients, ILog
             }
             catch (Exception ex) when (ex is ModelClientException or HttpRequestException or IOException or InvalidDataException or JsonException or InvalidOperationException or OperationCanceledException or FormatException)
             {
+                // 记录实际失败的目录端点，避免设置日志把 GET 错写为生成接口。
+                ex.Data["ModelCatalogEndpoint"] = safeUrl;
+                lastFailure = ex;
                 log.LogWarning("模型目录尝试失败：{Url}，HTTP {StatusCode}，耗时 {ElapsedMs} ms，异常 {ExceptionType}：{Detail}；响应摘要 {Response}",
                     safeUrl, status, watch.ElapsedMilliseconds, ex.GetType().Name, Sanitize(config, ex.ToString()), preview);
                 if (cancellationToken.IsCancellationRequested) throw;
                 if (budget.IsCancellationRequested)
-                    throw new ModelClientException("模型列表探测已达到总体超时，请检查代理和网络后重试。", ModelErrorKind.Timeout);
+                    throw Failure("模型列表探测已达到总体超时，请检查代理和网络后重试。", ModelErrorKind.Timeout, uri);
                 // 鉴权、权限、额度、限流或服务故障不是路径缺失，不通过盲目换路径掩盖错误。
                 if (ex is ModelClientException { StatusCode: { } code }
                     && code is not (404 or 405 or 410 or 501) && (code < 300 || code >= 400))
                     throw;
                 if (ex is FormatException)
-                    throw new ModelClientException("模型请求配置格式无效，请检查凭据与地址。", ModelErrorKind.InvalidRequest);
+                    throw Failure("模型请求配置格式无效，请检查凭据与地址。", ModelErrorKind.InvalidRequest, uri);
             }
         }
-        var exhausted = new ModelCatalogExhaustedException(candidates.Count);
+        var exhausted = new ModelCatalogExhaustedException(candidates.Count, lastFailure);
+        exhausted.Data["ModelCatalogEndpoint"] = lastFailure?.Data["ModelCatalogEndpoint"];
         log.LogError("模型发现失败：{Reason}", exhausted.Message);
         throw exhausted;
     }

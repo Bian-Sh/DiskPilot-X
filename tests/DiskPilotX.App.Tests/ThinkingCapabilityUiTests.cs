@@ -1,4 +1,7 @@
 using System.Runtime.CompilerServices;
+using System.Windows.Interop;
+using System.Windows.Input;
+using DiskPilotX.App.Views;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -20,6 +23,50 @@ namespace DiskPilotX.App.Tests;
 [Collection("聊天滚动控件")]
 public class ThinkingCapabilityUiTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void 滑条捕获前跳转拖动及键盘命令同步等级文字和保存(int interaction) => StaHost.Run(() =>
+    {
+        var saved = new AppSettings { ApiFormat = "openai-responses", ChatModelName = "模型甲", DiscoveredModels = ["模型甲", "模型乙"] };
+        var settings = Settings(saved); var chat = Chat(settings);
+        Application.Current.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/DiskPilot-X;component/Themes/VisionProTheme.xaml", UriKind.Relative) });
+        var panel = new ChatPanel();
+        panel.SetViewModel(chat);
+        var slider = (Slider)panel.FindName("ThinkingSlider");
+        ((Panel)slider.Parent).Children.Remove(slider);
+        slider.DataContext = chat;
+        var host = new StackPanel(); host.Children.Add(panel); host.Children.Add(slider);
+        using var source = new HwndSource(new HwndSourceParameters("思考滑条回归") { Width = 400, Height = 600 }) { RootVisual = host };
+        host.Measure(new Size(400,600)); host.Arrange(new Rect(0,0,400,600)); host.UpdateLayout();
+        Dispatcher.CurrentDispatcher.Invoke(() => {}, DispatcherPriority.ApplicationIdle);
+        Assert.True(panel.IsLoaded); Assert.False(slider.IsMouseCaptureWithin); Assert.False(slider.IsKeyboardFocusWithin);
+        Assert.Equal(ThinkingLevel.Default, chat.SelectedThinkingLevel);
+        if (interaction == 1) Slider.IncreaseSmall.Execute(null, slider);
+        else if (interaction == 2)
+        {
+            var track = (Track)slider.Template.FindName("PART_Track", slider);
+            track.Thumb.RaiseEvent(new DragDeltaEventArgs((track.ActualWidth - track.Thumb.ActualWidth) * 5 / 7, 0) { RoutedEvent = Thumb.DragDeltaEvent });
+        }
+        else slider.SetCurrentValue(Slider.ValueProperty, 5.0); // 轨道跳转在取得鼠标捕获之前即改变数值。
+        var expected = interaction == 1 ? ThinkingLevel.Off : ThinkingLevel.High;
+        Assert.Equal(expected, chat.SelectedThinkingLevel);
+        Assert.Equal(AiOptions.ThinkingLevels().Single(option => option.Value == expected).Label, chat.ThinkingPickerLabel);
+        Assert.Equal(expected, ModelEndpointConfig.ResolveThinkingLevel(saved));
+        Assert.Equal(expected, Chat(settings).SelectedThinkingLevel);
+        settings.Received().SaveSettings(saved);
+        Assert.Equal(expected, ModelEndpointConfig.FromSettings(saved, "测试密钥", "模型甲").ThinkingLevel);
+        saved.ModelThinkingConfigurations[ThinkingCapabilities.GetProfileKey(saved, "模型乙")] = new ModelThinkingSettings { SupportedLevels = ["default", "low"], SelectedLevel = "default" };
+        chat.SelectedChatModel = "模型乙";
+        Dispatcher.CurrentDispatcher.Invoke(() => {}, DispatcherPriority.ApplicationIdle);
+        Assert.Equal(ThinkingLevel.Default, chat.SelectedThinkingLevel);
+        Assert.Equal(0, slider.Value);
+        Assert.Equal("default", saved.ModelThinkingConfigurations[ThinkingCapabilities.GetProfileKey(saved, "模型乙")].SelectedLevel);
+        chat.SelectedChatModel = "模型甲";
+        Assert.Equal(expected, chat.SelectedThinkingLevel);
+    });
+
     [Fact]
     public void 设置复选能力过滤对话稀疏档位且切换模型各自恢复()
     {

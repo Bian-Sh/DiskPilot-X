@@ -209,7 +209,7 @@ public partial class TreemapViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(path))
             return;
 
-        if (CurrentRoot?.Path is not null && string.Equals(CurrentRoot.Path, path, StringComparison.OrdinalIgnoreCase))
+        if (CurrentRoot?.Path is not null && PathsEqual(CurrentRoot.Path, path))
             return;
 
         if (CurrentRoot is not null)
@@ -229,7 +229,7 @@ public partial class TreemapViewModel : ObservableObject
 
     private static FileEntry CreateExternalEntry(string path)
     {
-        var normalized = Path.GetFullPath(path.Trim());
+        var normalized = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path.Trim()));
         var parentPath = Directory.GetParent(normalized)?.FullName;
         var parent = parentPath is null ? null : CreateExternalEntry(parentPath);
         var trimmed = normalized.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
@@ -254,7 +254,7 @@ public partial class TreemapViewModel : ObservableObject
     {
         try
         {
-            var normalized = Path.GetFullPath(path);
+            var normalized = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
             var parentPath = Directory.GetParent(normalized)?.FullName;
             return parentPath is null ? null : CreateExternalEntry(parentPath);
         }

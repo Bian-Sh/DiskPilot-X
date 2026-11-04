@@ -7,6 +7,22 @@ namespace DiskPilotX.App.Tests;
 
 public class TreemapViewModelTests
 {
+    [Theory]
+    [InlineData(@"E:\Unity\Work\VR-LAN-MultiPlayer\")]
+    [InlineData(@"E:\Unity\Work\VR-LAN-MultiPlayer")]
+    [InlineData(@"E:\")]
+    public void 外部目录尾分隔符不产生同身份父子节点(string path)
+    {
+        var vm = new TreemapViewModel(new StubTreemapLayoutEngine());
+        vm.NavigateToExternalPath(path);
+        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var entry = vm.CurrentRoot; entry is not null; entry = entry.Parent)
+            Assert.True(paths.Add(entry.Path.TrimEnd('\\', '/')), $"重复目录：{entry.Path}");
+        Assert.Equal(path.Contains("Unity") ? new[] { "E:", "Unity", "Work", "VR-LAN-MultiPlayer" } : new[] { "E:" }, vm.BreadcrumbPath);
+        vm.NavigateToParent();
+        Assert.Equal(path.Contains("Unity") ? "Work" : "E:", vm.CurrentRoot!.Name);
+    }
+
     [Fact]
     public void NavigateToPath_TrailingSeparatorFromBreadcrumb_UsesScannedEntry()
     {

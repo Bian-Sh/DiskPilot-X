@@ -9,6 +9,9 @@ namespace DiskPilotX.App.Views.SettingsSections;
 
 public partial class ApiSettingsSection : UserControl
 {
+    private void ModelOrderScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        => Controls.NestedScrollWheel.Forward((DependencyObject)sender, ModelOrderScroll, e);
+
     private void ModelThinkingEdit_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { DataContext: string model } button || DataContext is not SettingsViewModel vm) return;
