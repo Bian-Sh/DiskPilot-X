@@ -1,6 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:controls="clr-namespace:DiskPilotX.App.Controls">
+                    xmlns:controls="clr-namespace:DiskPilotX.App.Controls"
+                    xmlns:converters="clr-namespace:DiskPilotX.App.Converters">
 
     <!-- ═══════════════════════════════════════════════════════════════
          磁盘工作区与 Copilot 共用的主题语义
@@ -756,6 +757,7 @@
     </Style>
 
     <!-- ── ToolTip (dark glass) ────────────────────────────────────── -->
+    <converters:IsStringToVisibilityConverter x:Key="IsStringToVisibilityConverter" />
     <Style TargetType="ToolTip">
         <Setter Property="Background" Value="{DynamicResource VP.BackgroundAltBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
@@ -765,6 +767,38 @@
         <Setter Property="MaxWidth" Value="360" />
         <Setter Property="FontFamily" Value="{DynamicResource VP.FontFamily}" />
         <Setter Property="FontSize" Value="12" />
+        <!-- 默认模板把字符串内容渲染成不换行的单行 TextBlock，超过 MaxWidth 会被硬裁切；
+             字符串内容改走换行 TextBlock，非字符串内容仍交给 ContentPresenter。 -->
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToolTip">
+                    <Border x:Name="TipBorder"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <Grid>
+                            <ContentPresenter x:Name="TipContent"
+                                              Visibility="{Binding Content, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource IsStringToVisibilityConverter}, ConverterParameter=Invert}" />
+                            <TextBlock x:Name="TipText"
+                                       Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}"
+                                       TextWrapping="Wrap"
+                                       Visibility="{Binding Content, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource IsStringToVisibilityConverter}}" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="HasDropShadow" Value="True">
+                            <Setter TargetName="TipBorder" Property="Effect">
+                                <Setter.Value>
+                                    <DropShadowEffect ShadowDepth="2" BlurRadius="8" Opacity="0.4" Color="Black" Direction="270" />
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- ── ContextMenu (dark glass, full custom template) ──────────────── -->
