@@ -36,11 +36,10 @@ public sealed class TreemapColorContext
         "#E09E87", "#8BBFC9", "#B9A2DA", "#BCD281", "#D791B4", "#85B5E0",
         "#D4BD8C", "#91C4AA", "#BA9F89", "#A0AEDF", "#C3A8C5", "#9ABCB5"
     ];
-    private readonly Dictionary<FileEntry, DirectoryState> _directories = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<FileEntry, int> _directories = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<string, int> _typeSlots = new(StringComparer.OrdinalIgnoreCase);
     private readonly string[] _slotColors;
     private readonly IReadOnlyList<TreemapTypeColor> _fileTypes;
-    private readonly record struct DirectoryState(int DominantSlot, int TailDominantSlot);
     private readonly record struct Totals(long Size, long Count);
 
     private TreemapColorContext(FileEntry root, TreemapColorContext? previous = null)
@@ -57,7 +56,7 @@ public sealed class TreemapColorContext
                 CountFile(entry, types);
                 continue;
             }
-            _directories.Add(entry, new DirectoryState(0, 0));
+            _directories.Add(entry, 0);
             foreach (var child in entry.Children)
             {
                 if (child.IsDirectory) pending.Push(child);
@@ -118,21 +117,17 @@ public sealed class TreemapColorContext
                 {
                     int slot = GetSlot(child);
                     frame.Sizes[slot] += child.Size;
-                    if (frame.IsTail(child.Size, frame.NextChild - 1)) frame.TailSizes![slot] += child.Size;
                 }
                 continue;
             }
             int dominant = Dominant(frame.Sizes, _slotColors.Length - 1);
-            int tail = frame.TailSizes is null ? dominant : Dominant(frame.TailSizes, dominant);
-            _directories[frame.Entry] = new(dominant, tail);
+            _directories[frame.Entry] = dominant;
             frames.Pop();
             if (frames.TryPeek(out var parent))
             {
-                bool tailChild = parent.IsTail(frame.Entry.Size, parent.NextChild - 1);
                 for (int slot = 0; slot < frame.Sizes.Length; slot++)
                 {
                     parent.Sizes[slot] += frame.Sizes[slot];
-                    if (tailChild) parent.TailSizes![slot] += frame.Sizes[slot];
                 }
             }
         }
@@ -163,7 +158,7 @@ public sealed class TreemapColorContext
             bool directoryTile = entry.IsDirectory && node.AggregatedCount == 0;
             string content = entry.IsDirectory
                 ? _directories.TryGetValue(entry, out var directory)
-                    ? _slotColors[node.AggregatedCount > 0 ? directory.TailDominantSlot : directory.DominantSlot] : OtherColor
+                    ? _slotColors[directory] : OtherColor
                 : _slotColors[GetSlot(entry)];
             node.ColorHex = directoryTile ? DirectoryColor : content;
             node.ContentColorHex = content;
@@ -200,38 +195,14 @@ public sealed class TreemapColorContext
         return slot;
     }
 
-    // 与布局的“前128项、同大小保留原顺序”一致；只缓存边界，不复制海量尾部文件引用。
-    private static (long Size, int Index)? TailThreshold(FileEntry entry)
-    {
-        int limit = SquarifiedTreemapLayout.MaxChildrenPerDir;
-        if (entry.Children.Count <= limit) return null;
-        var largest = new PriorityQueue<int, (long Size, int Order)>();
-        bool overflow = false;
-        for (int i = 0; i < entry.Children.Count; i++)
-        {
-            long size = entry.Children[i].Size;
-            if (size <= 0) continue;
-            largest.Enqueue(i, (size, -i));
-            if (largest.Count > limit) { largest.Dequeue(); overflow = true; }
-        }
-        if (!overflow) return null;
-        largest.TryPeek(out int index, out var priority);
-        return (priority.Size, index);
-    }
-
     private sealed class AggregateFrame
     {
         public FileEntry Entry { get; }
         public int NextChild { get; set; }
         public long[] Sizes { get; }
-        public long[]? TailSizes { get; }
-        private (long Size, int Index)? Threshold { get; }
         public AggregateFrame(FileEntry entry, int slots)
         {
-            Entry = entry; Sizes = new long[slots]; Threshold = TailThreshold(entry);
-            if (Threshold is not null) TailSizes = new long[slots];
+            Entry = entry; Sizes = new long[slots];
         }
-        public bool IsTail(long size, int index) => Threshold is { } threshold
-            && (size < threshold.Size || size == threshold.Size && index > threshold.Index);
     }
 }

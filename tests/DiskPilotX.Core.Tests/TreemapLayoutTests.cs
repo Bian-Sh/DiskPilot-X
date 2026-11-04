@@ -75,18 +75,16 @@ public class TreemapLayoutTests
     }
 
     [Fact]
-    public void ManyTinyFiles_KeepVisibleColorAndAccountForTail()
+    public void 大量小文件全部保留真实节点而不伪造父目录()
     {
         var root = Directory("根");
         for (int i = 0; i < 600; i++) File($"文件{i}.js", root, 100);
         root.Size = 60000;
         var nodes = new SquarifiedTreemapLayout().ComputeLayout(root, 1200, 800, 64);
-        // 不能只保留前 20 项并把它们错误放大为全部占用。
-        Assert.True(nodes.Count > 21);
-        var tail = Assert.Single(nodes.Where(n => n.AggregatedCount > 0));
-        Assert.Equal(472, tail.AggregatedCount);
-        Assert.Equal(47200, tail.AggregatedSize);
-        Assert.Same(root, tail.Entry);
+        Assert.Equal(601, nodes.Count);
+        Assert.DoesNotContain(nodes, node => node.AggregatedCount > 0);
+        Assert.Equal(60000, nodes.Where(node => !node.Entry.IsDirectory).Sum(node => node.Entry.Size));
+        Assert.Single(nodes.Where(node => ReferenceEquals(node.Entry, root)));
         var first = nodes.First(n => n.Entry.Name == "文件0.js");
         Assert.True(first.Width * first.Height < 1200 * 800 / 300f);
     }

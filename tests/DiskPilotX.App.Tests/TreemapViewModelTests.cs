@@ -43,6 +43,64 @@ public class TreemapViewModelTests
         viewModel.CurrentRoot!.Parent!.Path.Should().Be(Path.Combine(rootPath!, "Users"));
     }
 
+    [Theory]
+    [InlineData(@"D:\AppData\Visual Studio\Projects\DiskPilot-X\")]
+    [InlineData("D:/AppData/Visual Studio/Projects/DiskPilot-X/")]
+    public void 外部目录带末尾分隔符_面包屑不重复当前目录(string path)
+    {
+        var viewModel = new TreemapViewModel(new StubTreemapLayoutEngine());
+
+        viewModel.NavigateToExternalPath(path);
+
+        viewModel.BreadcrumbPath.Should().Equal("D:", "AppData", "Visual Studio", "Projects", "DiskPilot-X");
+        viewModel.CurrentRoot!.Parent!.Path.Should().Be(@"D:\AppData\Visual Studio\Projects");
+    }
+
+    [Theory]
+    [InlineData(@"D:\AppData\Visual Studio\Projects\DiskPilot-X\")]
+    [InlineData("D:/AppData/Visual Studio/Projects/DiskPilot-X/")]
+    public void 扫描根带末尾分隔符_向上导航进入真正父目录(string path)
+    {
+        var root = Directory(path, "DiskPilot-X");
+        var viewModel = new TreemapViewModel(new StubTreemapLayoutEngine());
+        viewModel.SetRoot(root);
+
+        viewModel.NavigateToParent();
+
+        viewModel.CurrentRoot!.Path.Should().Be(@"D:\AppData\Visual Studio\Projects");
+        viewModel.BreadcrumbPath.Should().Equal("D:", "AppData", "Visual Studio", "Projects");
+    }
+
+    [Fact]
+    public void 外部目录末尾分隔符_向上和历史导航不产生同名伪父级()
+    {
+        var viewModel = new TreemapViewModel(new StubTreemapLayoutEngine());
+        viewModel.NavigateToExternalPath(@"D:\AppData\Visual Studio\Projects\DiskPilot-X\outputs\");
+        viewModel.NavigateToParent();
+        viewModel.BreadcrumbPath.Should().Equal("D:", "AppData", "Visual Studio", "Projects", "DiskPilot-X");
+
+        viewModel.NavigateBack();
+        viewModel.BreadcrumbPath.Should().Equal("D:", "AppData", "Visual Studio", "Projects", "DiskPilot-X", "outputs");
+
+        viewModel.NavigateForward();
+        viewModel.BreadcrumbPath.Should().Equal("D:", "AppData", "Visual Studio", "Projects", "DiskPilot-X");
+    }
+
+    [Theory]
+    [InlineData(@"D:\")]
+    [InlineData("D:/")]
+    [InlineData(@"\\server\share\")]
+    public void 根目录保留有效路径且没有伪父级(string path)
+    {
+        var viewModel = new TreemapViewModel(new StubTreemapLayoutEngine());
+        viewModel.NavigateToExternalPath(path);
+        var root = viewModel.CurrentRoot;
+
+        root!.Path.Should().Be(Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)));
+        root.Parent.Should().BeNull();
+        viewModel.NavigateToParent();
+        viewModel.CurrentRoot.Should().BeSameAs(root);
+    }
     [Fact]
     public void RecomputingLayout_ClearsStaleSelectionAndHover()
     {
