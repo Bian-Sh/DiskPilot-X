@@ -154,13 +154,6 @@ public partial class ChatPanel : UserControl
         ModelPickerToggle.IsChecked=false;
         FocusInput();
     }
-    // 滑条拖动 → 等级回写；等级变化经绑定回流时值相同，WPF 会忽略，不会形成循环。
-    private void ThinkingSlider_ValueChanged(object sender,RoutedPropertyChangedEventArgs<double> e)
-    {
-        if(viewModel is null || !IsLoaded || sender is not Slider slider
-            || (!slider.IsMouseCaptureWithin && !slider.IsKeyboardFocusWithin)) return;
-        viewModel.SetThinkingLevelFromSlider((int)Math.Round(e.NewValue));
-    }
 }
 
 /// <summary>将连续增量合并到短 UI 节奏，避免每个 token 都重建整段 Markdown。</summary>

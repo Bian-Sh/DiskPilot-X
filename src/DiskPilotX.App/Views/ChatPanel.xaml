@@ -509,7 +509,7 @@
                       <TextBlock Text="{loc:Loc CopilotThinkingSelectorLabel}" FontSize="11" Foreground="{DynamicResource VP.TextTertiaryBrush}" VerticalAlignment="Center"/>
                       <TextBlock Text="{Binding ThinkingPickerLabel}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource VP.AccentTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                     </Grid>
-                    <Slider x:Name="ThinkingSlider" Style="{StaticResource ThinkingSlider}" Margin="3,9,3,4" ValueChanged="ThinkingSlider_ValueChanged" Value="{Binding SelectedThinkingLevelIndex,Mode=OneWay}"/>
+                    <Slider x:Name="ThinkingSlider" Style="{StaticResource ThinkingSlider}" Margin="3,9,3,4" Value="{Binding SelectedThinkingLevelIndex,Mode=TwoWay}"/>
                   </StackPanel>
                 </Border>
               </StackPanel>

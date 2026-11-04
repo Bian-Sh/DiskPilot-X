@@ -1171,4 +1171,25 @@ This cannot be undone.</value></data>
   <data name="CopilotActivity_ExecutingTool" xml:space="preserve"><value>Executing tool</value></data>
   <data name="CopilotActivity_WaitingForUser" xml:space="preserve"><value>Waiting for your confirmation</value></data>
   <data name="CopilotTool_set_recommendations_empty_state" xml:space="preserve"><value>Update empty-state hint</value></data>
+  <data name="SettingsConnectionFetchingModels" xml:space="preserve"><value>Fetching available models…</value></data>
+  <data name="SettingsConnectionTestingModel" xml:space="preserve"><value>Testing: {0}…</value></data>
+  <data name="SettingsConnectionPreviouslyValid" xml:space="preserve"><value>✓ A successful connection test was saved</value></data>
+  <data name="SettingsConnectionModelValid" xml:space="preserve"><value>✓ Model {0} responded successfully</value></data>
+  <data name="SettingsConnectionModelFailed" xml:space="preserve"><value>Model {0}: {1}</value></data>
+  <data name="SettingsConnectionNoModels" xml:space="preserve"><value>No available models were retrieved; no test request was sent. Check model discovery and retry.</value></data>
+  <data name="SettingsConnectionErrorIncomplete" xml:space="preserve"><value>The response did not complete. Retry the test.</value></data>
+  <data name="SettingsConnectionErrorUnknown" xml:space="preserve"><value>The model request failed. See the diagnostic details.</value></data>
+  <data name="SettingsConnectionErrorAuthentication" xml:space="preserve"><value>Authentication failed. Check the API Key.</value></data>
+  <data name="SettingsConnectionErrorPermissionDenied" xml:space="preserve"><value>Access to this model was denied. Check permissions or the account group.</value></data>
+  <data name="SettingsConnectionErrorModelNotFound" xml:space="preserve"><value>The model does not exist or is unavailable on this route.</value></data>
+  <data name="SettingsConnectionErrorInvalidRequest" xml:space="preserve"><value>Request parameters or the API format are incompatible.</value></data>
+  <data name="SettingsConnectionErrorRateLimited" xml:space="preserve"><value>The request was rate limited. Retry later.</value></data>
+  <data name="SettingsConnectionErrorInsufficientQuota" xml:space="preserve"><value>Insufficient quota. Check balance and usage limits.</value></data>
+  <data name="SettingsConnectionErrorConnectionFailed" xml:space="preserve"><value>Cannot connect to the service. Check the network and proxy.</value></data>
+  <data name="SettingsConnectionErrorTimeout" xml:space="preserve"><value>The request timed out. Check the network or retry later.</value></data>
+  <data name="SettingsConnectionErrorServerError" xml:space="preserve"><value>The upstream service failed. Retry later.</value></data>
+  <data name="SettingsConnectionErrorServerOverloaded" xml:space="preserve"><value>The upstream service is overloaded. Retry later.</value></data>
+  <data name="SettingsConnectionErrorContextLengthExceeded" xml:space="preserve"><value>The request exceeded the model context limit.</value></data>
+  <data name="SettingsConnectionErrorContentFiltered" xml:space="preserve"><value>The upstream content policy blocked the request.</value></data>
+  <data name="SettingsConnectionSettingsUnavailable" xml:space="preserve"><value>Local settings could not be read; validation was stopped. Check file access and retry.</value></data>
 </root>

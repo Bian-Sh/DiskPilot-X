@@ -157,6 +157,10 @@
                                             <Setter Property="Visibility" Value="Visible" />
                                             <Setter Property="Foreground" Value="{DynamicResource VP.SuccessTextBrush}" />
                                         </DataTrigger>
+                                        <DataTrigger Binding="{Binding ValidationState}" Value="{x:Static vm:ValidationState.Failed}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Setter Property="Foreground" Value="{DynamicResource VP.DangerTextBrush}" />
+                                        </DataTrigger>
                                         <DataTrigger Binding="{Binding ValidationState}"
                                                      Value="{x:Static vm:ValidationState.Invalid}">
                                             <Setter Property="Visibility" Value="Visible" />
@@ -278,7 +282,7 @@
                             <TextBlock Text="{loc:Loc SettingsModelListEmpty}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource VP.TextTertiaryBrush}">
                                 <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding ModelCandidates.Count}" Value="0"/><Condition Binding="{Binding ModelRefreshMessage}" Value="{x:Null}"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></TextBlock.Style>
                             </TextBlock>
-                            <ScrollViewer x:Name="ModelOrderScroll" MaxHeight="200" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <ScrollViewer PreviewMouseWheel="ModelOrderScroll_PreviewMouseWheel" x:Name="ModelOrderScroll" MaxHeight="200" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <ItemsControl x:Name="ModelOrderList" ItemsSource="{Binding ModelCandidates}" AutomationProperties.Name="{loc:Loc SettingsChatModelLabel}">
                                     <ItemsControl.Style><Style TargetType="ItemsControl"><Style.Triggers><DataTrigger Binding="{Binding IsRefreshingModels}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger></Style.Triggers></Style></ItemsControl.Style>
                                     <ItemsControl.ItemTemplate><DataTemplate>

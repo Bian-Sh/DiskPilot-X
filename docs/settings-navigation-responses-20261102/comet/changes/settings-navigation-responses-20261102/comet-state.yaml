@@ -1,0 +1,119 @@
+schema: comet.native.v4
+name: settings-navigation-responses-20261102
+language: zh-CN
+phase: build
+status: active
+state_version: 8
+brief: brief.md
+document_constraints_version: 3
+shape_confirmation_hash: b1519a10942d4d0fdbcd55a60735aee2d52a42c03afd916470b2d7cda7236be0
+spec_changes:
+  - capability: settings-navigation-responses
+    operation: create
+    source: specs/settings-navigation-responses/spec.md
+workspace:
+  isolation: current
+  change_branch: codex/settings-navigation-responses-20261102
+  target_branch: codex/settings-navigation-responses-20261102
+  finish: null
+loop:
+  stage: building
+  goal_cycle: 3
+  iteration: 1
+  attempt: 0
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: submit-builder-candidate
+acceptance:
+  - id: A1
+    source: brief.md
+    text: A1：模型列表在中间位置只滚内部，上下边界和内容不足一屏时按方向滚外层设置页，模型选择、排序和编辑不回归。
+    result: pending
+    reason: null
+  - id: A2
+    source: brief.md
+    text: A2：从带尾部分隔符及无尾部分隔符的同一目录导航父级，不产生同路径重复节点；面包屑名称和路径对应，已有扫描树导航及前进后退保持可用。
+    result: pending
+    reason: null
+  - id: A3
+    source: brief.md
+    text: A3：先以回归复现 reasoning 回传缺失 summary；修复后有摘要时完整保留、无摘要时构造合法空数组，同时保留
+      id、encrypted_content 和工具调用对应关系；多轮工具请求不因本地丢字段产生所示 400，普通 Responses 与 Chat
+      Completions 回归通过。
+    result: pending
+    reason: null
+  - id: A4
+    source: brief.md
+    text: A4：滑条默认位置直接点击轨道、拖动、键盘操作均同步等级文字与
+      ViewModel；保存重载和请求参数与所选等级一致，默认等级沿用原有省略参数语义，模型切换的程序回流不误写配置。
+    result: pending
+    reason: null
+  - id: A5
+    source: brief.md
+    text: A5：相关单元和控件回归通过，非提权真实发布测试包完成针对四项修复的可自动化 UI 验收，独立只读 Verifier
+      逐项评估，不把未执行检查记为通过。
+    result: pending
+    reason: null
+  - id: A6
+    source: brief.md
+    text: A6：真实文件夹发布环境完成 validate_skill_source 及经授权的 run_skill_source
+      等价只读规则执行，并检查错误诊断；两包实际 EXE 清单、运行时 DLL、Core 与 skills 内容满足要求，交付主仓库 outputs
+      下完整用户包文件夹和 EXE，不生成 ZIP。
+    result: pending
+    reason: null
+  - id: A7
+    source: brief.md
+    text: A7：未选、旧模型失效或切换接口时仅在新目录成功后选验证模型；当前有效聊天模型优先；失败、空目录、配置变化期间不发送过期或默认模型请求，不覆盖聊天模型及模型专属思考设置。
+    result: pending
+    reason: null
+  - id: A8
+    source: brief.md
+    text: A8：验证进度、成功与失败实际展示本次模型；目录成功与生成失败独立；401 鉴权、403 权限、404 模型、400/422 参数、429
+      限流、网络/超时/上游故障的文案不混同为密钥无效；日志有结构化诊断且不泄漏 API Key、代理口令、URL 凭据或查询密钥。
+    result: pending
+    reason: null
+  - id: A9
+    source: brief.md
+    text: A9：新增回归先红后绿、重新双清单文件夹发布并验证；完成本次修复后向用户指定的 ERP8 既有对话发送可复用经验，要求其检查 AI 实现相关
+      worktree 后跟进，不代替该对话直接修改 ERP8，也不把未验证推测说成根因。
+    result: pending
+    reason: null
+builder_handoff: null
+blockers: []
+verification: null
+history:
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 0
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: Native Shape artifacts changed
+      truncated: false
+    completed_at: 2026-11-01T18:17:27.040Z
+  - goal_cycle: 2
+    iteration: 0
+    attempt: 0
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: Native confirmed acceptance criteria changed
+      truncated: false
+    completed_at: 2026-11-01T18:18:17.381Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pending
+verification_report: null
+archived: false
+created_at: 2026-11-01T17:07:39.108Z

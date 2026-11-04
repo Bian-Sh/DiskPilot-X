@@ -509,7 +509,7 @@ public sealed class OpenAiModelClient : IModelClient
     private sealed class ResponsesAccumulator(ConcurrentDictionary<string, JsonArray> encryptedReasoning, Func<string, string?, Exception> fail) : Accumulator(fail)
     {
         private readonly SortedDictionary<int, FunctionBuilder> calls = [];
-        private readonly List<(string Id, string Encrypted)> reasoningItems = [];
+        private readonly List<(string Id, string Encrypted, JsonArray Summary)> reasoningItems = [];
         private bool completed;
 
         public override IEnumerable<ModelStreamEvent> Handle(JsonElement frame)
@@ -562,7 +562,10 @@ public sealed class OpenAiModelClient : IModelClient
                     }
                     else if (Str(done, "type") == "reasoning" && Str(done, "id") is { } id && Str(done, "encrypted_content") is { Length: > 0 } encrypted)
                     {
-                        reasoningItems.Add((id, encrypted));
+                        // 摘要属于 reasoning 历史契约；无可见摘要时也必须回传空数组。
+                        var summaryParts = done.TryGetProperty("summary", out var value) && value.ValueKind == JsonValueKind.Array
+                            ? JsonNode.Parse(value.GetRawText())!.AsArray() : new JsonArray();
+                        reasoningItems.Add((id, encrypted, summaryParts));
                     }
                     yield break;
                 }
@@ -576,8 +579,8 @@ public sealed class OpenAiModelClient : IModelClient
                     if (calls.Count > 0 && reasoningItems.Count > 0)
                     {
                         var thoughts = new JsonArray();
-                        foreach (var (id, encrypted) in reasoningItems)
-                            thoughts.Add(new JsonObject { ["type"] = "reasoning", ["id"] = id, ["encrypted_content"] = encrypted });
+                        foreach (var (id, encrypted, summaryParts) in reasoningItems)
+                            thoughts.Add(new JsonObject { ["type"] = "reasoning", ["id"] = id, ["encrypted_content"] = encrypted, ["summary"] = summaryParts.DeepClone() });
                         foreach (var builder in calls.Values)
                             encryptedReasoning[builder.Id.ToString()] = thoughts.DeepClone() as JsonArray ?? thoughts;
                     }

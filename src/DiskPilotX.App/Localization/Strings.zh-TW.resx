@@ -1171,4 +1171,25 @@
   <data name="CopilotActivity_ExecutingTool" xml:space="preserve"><value>正在執行工具</value></data>
   <data name="CopilotActivity_WaitingForUser" xml:space="preserve"><value>等待你的確認</value></data>
   <data name="CopilotTool_set_recommendations_empty_state" xml:space="preserve"><value>更新空態提示</value></data>
+  <data name="SettingsConnectionFetchingModels" xml:space="preserve"><value>正在取得可用模型…</value></data>
+  <data name="SettingsConnectionTestingModel" xml:space="preserve"><value>正在驗證：{0}…</value></data>
+  <data name="SettingsConnectionPreviouslyValid" xml:space="preserve"><value>✓ 已儲存的連線驗證已通過</value></data>
+  <data name="SettingsConnectionModelValid" xml:space="preserve"><value>✓ 模型 {0} 呼叫成功</value></data>
+  <data name="SettingsConnectionModelFailed" xml:space="preserve"><value>模型 {0}：{1}</value></data>
+  <data name="SettingsConnectionNoModels" xml:space="preserve"><value>未取得可用模型，未傳送驗證請求。請檢查模型清單取得結果後重試。</value></data>
+  <data name="SettingsConnectionErrorIncomplete" xml:space="preserve"><value>回應未完整結束，請重試。</value></data>
+  <data name="SettingsConnectionErrorUnknown" xml:space="preserve"><value>模型呼叫失敗，請查看診斷詳情。</value></data>
+  <data name="SettingsConnectionErrorAuthentication" xml:space="preserve"><value>驗證身分失敗，請檢查 API Key。</value></data>
+  <data name="SettingsConnectionErrorPermissionDenied" xml:space="preserve"><value>沒有存取該模型的權限，請檢查權限或群組。</value></data>
+  <data name="SettingsConnectionErrorModelNotFound" xml:space="preserve"><value>模型不存在或目前管道無法使用。</value></data>
+  <data name="SettingsConnectionErrorInvalidRequest" xml:space="preserve"><value>請求參數或介面格式不相容。</value></data>
+  <data name="SettingsConnectionErrorRateLimited" xml:space="preserve"><value>請求受到限制，請稍後重試。</value></data>
+  <data name="SettingsConnectionErrorInsufficientQuota" xml:space="preserve"><value>額度不足，請檢查餘額與配額。</value></data>
+  <data name="SettingsConnectionErrorConnectionFailed" xml:space="preserve"><value>無法連線至服務，請檢查網路與代理。</value></data>
+  <data name="SettingsConnectionErrorTimeout" xml:space="preserve"><value>請求逾時，請檢查網路或稍後重試。</value></data>
+  <data name="SettingsConnectionErrorServerError" xml:space="preserve"><value>上游服務異常，請稍後重試。</value></data>
+  <data name="SettingsConnectionErrorServerOverloaded" xml:space="preserve"><value>上游服務忙碌，請稍後重試。</value></data>
+  <data name="SettingsConnectionErrorContextLengthExceeded" xml:space="preserve"><value>請求超過模型的上下文限制。</value></data>
+  <data name="SettingsConnectionErrorContentFiltered" xml:space="preserve"><value>請求遭上游內容政策攔截。</value></data>
+  <data name="SettingsConnectionSettingsUnavailable" xml:space="preserve"><value>無法讀取本機設定，驗證已停止。請檢查檔案權限後重試。</value></data>
 </root>

@@ -209,7 +209,7 @@ public partial class TreemapViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(path))
             return;
 
-        if (CurrentRoot?.Path is not null && string.Equals(CurrentRoot.Path, path, StringComparison.OrdinalIgnoreCase))
+        if (CurrentRoot?.Path is not null && PathsEqual(CurrentRoot.Path, path))
             return;
 
         if (CurrentRoot is not null)

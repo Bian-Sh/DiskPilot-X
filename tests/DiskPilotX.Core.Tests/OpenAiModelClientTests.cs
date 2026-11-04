@@ -93,8 +93,11 @@ public sealed class OpenAiModelClientTests
         Assert.Equal("call-1", tool.GetProperty("tool_call_id").GetString());
     }
 
-    [Fact]
-    public async Task Responses流式解析并在下一轮回传加密思考()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("[]")]
+    [InlineData("[{\"type\":\"summary_text\",\"text\":\"摘要甲\"},{\"type\":\"summary_text\",\"text\":\"摘要乙\"}]")]
+    public async Task Responses流式解析并在下一轮回传加密思考(string? summary)
     {
         var bodies = new List<JsonElement>();
         var first =
@@ -111,6 +114,7 @@ public sealed class OpenAiModelClientTests
             bodies.Add(JsonDocument.Parse(await request.Content!.ReadAsStringAsync()).RootElement.Clone());
             return Response(bodies.Count == 1 ? first : "data: {\"type\":\"response.completed\"}\n\n");
         }));
+        if (summary is not null) first = first.Replace("\"encrypted_content\":\"ENC\"", "\"encrypted_content\":\"ENC\",\"summary\":" + summary);
         var client = ResponsesClient(http, ThinkingLevel.Medium);
         var events = await Collect(client, Request);
         var call = Assert.Single(events.OfType<ModelToolCallEvent>()).ToolCall;
@@ -124,6 +128,9 @@ public sealed class OpenAiModelClientTests
         Assert.Equal("reasoning", input[1].GetProperty("type").GetString());
         Assert.Equal("rs_1", input[1].GetProperty("id").GetString());
         Assert.Equal("ENC", input[1].GetProperty("encrypted_content").GetString());
+        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(summary ?? "[]"), JsonNode.Parse(input[1].GetProperty("summary").GetRawText())));
+        await Collect(client, new([Message.User("开始"), Message.AssistantToolCalls([call]), Message.ToolResult(call, "结果")], []));
+        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(summary ?? "[]"), JsonNode.Parse(bodies[2].GetProperty("input")[1].GetProperty("summary").GetRawText())));
         Assert.Equal("function_call", input[2].GetProperty("type").GetString());
         Assert.Equal("function_call_output", input[3].GetProperty("type").GetString());
         Assert.Equal("medium", bodies[0].GetProperty("reasoning").GetProperty("effort").GetString());

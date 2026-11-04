@@ -13,12 +13,16 @@ public partial class SettingsViewModel
     private ModelEndpointConfig? _lastCatalogFailure;
     private long _catalogVersion;
     private long _catalogFailureTime;
+    private IReadOnlyList<string> _lastDiscoveredModels = [];
+    private Exception? _lastCatalogError;
 
     /// <summary>字符修改只使旧结果失效；请求必须由完成编辑事件发起。</summary>
     private void InvalidateModelDiscovery()
     {
         if (_isLoadingSettings) return;
+        InvalidateConnectionValidation();
         _catalogVersion++;
+        _lastCatalogError = null;
         if (ValidationState == ValidationState.Validating)
         {
             ValidationState = ValidationState.None;
@@ -83,6 +87,7 @@ public partial class SettingsViewModel
         }
         catch (Exception ex)
         {
+            _lastCatalogError = ex;
             LogSettingsException("模型列表获取失败", ex);
             ModelRefreshMessage = automatic ? L.Text("SettingsModelAutoFetchFailed")
                 : L.Format("SettingsModelRefreshFailedDetailFormat", ModelCatalogService.Sanitize(DiagnosticConfig(), ex.Message));
@@ -107,6 +112,7 @@ public partial class SettingsViewModel
         var cancellation = new CancellationTokenSource();
         _catalogCancellation = cancellation;
         _catalogEndpoint = endpoint;
+        _lastCatalogError = null;
         IsRefreshingModels = true;
         ModelRefreshMessage = L.Text("SettingsModelRefreshRunning");
         return _catalogTask = LoadModelCatalogAsync(endpoint, cancellation, _catalogVersion, automatic);
@@ -129,6 +135,8 @@ public partial class SettingsViewModel
             ModelCandidates.Clear();
             foreach (var id in ids) ModelCandidates.Add(id);
             RefreshThinkingModels();
+            _lastDiscoveredModels = discovered;
+            _lastCatalogError = null;
             _lastCatalogSuccess = endpoint;
             _lastCatalogFailure = null;
             ModelRefreshMessage = L.Format("SettingsModelRefreshSuccessFormat", $"{ids.Count}");
@@ -137,6 +145,7 @@ public partial class SettingsViewModel
         catch (Exception ex)
         {
             if (!IsCurrent()) return;
+            _lastCatalogError = ex;
             LogSettingsException("模型列表获取失败", ex, endpoint);
             _lastCatalogSuccess = null;
             _lastCatalogFailure = endpoint;
