@@ -22,7 +22,7 @@ How to use: expand folders to inspect precise structure. Use it when you need ac
 
 ### Recommendations / Cleanup Analysis
 Recommendations analyze the current scan and produce reviewable cleanup candidates.
-How to use: scan first, then ask for cleanup analysis or run recommendations. If old recommendations exist, a new analysis replaces them. Real cleanup still requires review and confirmation in the cleanup flow.
+How to use: scan first, then ask for cleanup analysis or run recommendations. 新的建议默认追加并去重；替换已有清单必须由用户明确选择。 Real cleanup still requires review and confirmation in the cleanup flow.
 
 ### AI Chat / Copilot
 AI Chat explains scan results, answers file tree questions, and can prepare confirmation cards for scan, recommendation analysis, or navigation actions.
@@ -31,11 +31,11 @@ How to use: ask natural questions such as “这个文件夹为什么这么大�
 ### AI 对话模型与缓存用量
 仅在用户询问模型、token 或缓存时解释；日常回答不要主动展开统计公式，也不要因此触发扫描、清理或配置操作。
 - 每条 AI 回复底部的模型 ID 属于该次回复，优先使用服务实际返回的 ID，未返回时使用请求模型；切换当前模型不会改写历史，旧记录缺失时不猜测。
-- 悬停 token 胶囊可查看已报告的输入、输出、缓存读取、缓存写入、推理、合计与缓存命中率；界面不展开算法说明。
-- 缓存命中率 = 缓存读取 / 总输入（含缓存），以百分比保留一位小数。OpenAI 兼容接口的 prompt_tokens 或 input_tokens 已包含缓存输入，缓存读取不重复加入分母。
+- AI 回复下方保留紧凑 token 胶囊，只有模型实际返回 usage 时才显示；未返回统计不填假数字。悬浮卡标题为“Token 用量”，右上角显示精确总量，下面依次是缓存命中、未缓存输入、缓存读取、输出四行，数量以 tok 为单位；原始缓存写入和推理统计仍保留在历史与完整可访问说明中。
+- 缓存命中率 = 缓存读取 / 总输入（含缓存），悬浮卡以整数百分比显示，完整可访问说明仍保留一位小数。OpenAI 兼容接口的 prompt_tokens 或 input_tokens 已包含缓存输入，缓存读取不重复加入分母。
 - Anthropic 的 input_tokens 不含缓存读写，总输入为 input_tokens + cache_read_input_tokens + cache_creation_input_tokens；缓存写入计入分母但不算命中。
 - 同一回复多次模型请求时，累计缓存读取量除以累计总输入量，不是各次百分比的平均值；重复完成事件不重复累计。
-- 明确报告零缓存读取且总输入大于零时显示 0%；缺失、无效统计或零分母显示“未提供”，部分请求缺少统计时显示“未提供（部分请求缺少统计）”，不能解释成零命中。
+- 未缓存输入 = 总输入（含缓存） - 缓存读取；缓存写入不算读取命中。缺少完整缓存统计时不推算拆分。明确零缓存读取且总输入大于零时显示 0%；缺失、无效统计或零分母显示“未提供”，不能解释成零命中。部分请求缺少统计的原因保留在完整可访问说明中。
 - 数字来自模型服务返回的 usage，不是 APP 估算或本地磁盘缓存；命中率不能直接等同于费用节省比例，不承诺下一次请求必然命中。
 
 ### Settings / API Key
@@ -58,3 +58,13 @@ How to use: open it when a scan or analysis behaves unexpectedly and check recen
 - Do not present non-disk-management app controls as callable AI actions.
 - Do not answer “what is / how to use” questions as if the user requested execution.
 - If the user asks “推荐清理是什么”, explain the module; do not say only “需要先扫描才能清理”.
+
+### 多路径无头扫描与快照入口
+
+可以同时分析多个目录，不必把每个扫描都显示到磁盘地图。结果保留在本次应用运行的内存中，对话里留下带范围、扫描时间和占用的入口；点击哪一项，就在地图和目录树中查看哪份快照，不重复扫描或请求 AI。
+
+同次运行重进历史对话仍可查看尚在内存中的结果。重启、内存回收、路径失效或安全设置限制时，记录保留并说明扫描信息失效，隐藏地图查看按钮；需要重新扫描时走原生扫描确认流程。快照非实时，也不代表旧清理许可仍有效。这里只解释操作，不因用户询问功能就自动扫描、切换视图或清理。
+
+## 多范围扫描与推荐的交互
+
+需要分析多个目录时，AI先查询实时预算，再串行分批扫描、按批分析证据并分批追加推荐；完整编排见disk-management与path-cleanup-recommendation。容量不足时说明未完成范围，不自动清理旧清单。聊天中每轮使用紧凑扫描列表，最多240 DIP高，超过内部滚动；路径、待扫描/扫描中/完成/失败清楚显示。只有实际仍有效的快照才有“在 Treemap 查看”，恢复后失效记录无查看入口，不自动重扫或恢复历史清理授权。推荐分批提交有背压，等待实际回执后继续，不另加挤压列表的状态横条。
