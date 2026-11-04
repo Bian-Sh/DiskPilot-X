@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Runtime.Loader;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -21,7 +21,7 @@ public sealed class CleanupSkillSourceService(CleanupSkillStore store)
     private static readonly Lazy<IReadOnlyList<MetadataReference>> References = new(() =>
     {
         // 不含 Registry / Process / 网络程序集：本机读取一律经 ISkillHostBridge 由宿主审计。
-        string[] names = ["System.Private.CoreLib.dll", "System.Runtime.dll", "System.Collections.dll", "System.Linq.dll", "System.Threading.dll", "System.Threading.Tasks.dll", "System.IO.dll", "System.IO.FileSystem.dll", "System.Console.dll", "System.Text.RegularExpressions.dll"];
+        string[] names = ["System.Private.CoreLib.dll", "System.Runtime.dll", "System.Collections.dll", "System.Linq.dll", "System.Threading.dll", "System.Threading.Tasks.dll", "System.IO.dll", "System.IO.FileSystem.dll", "System.Console.dll", "System.Text.RegularExpressions.dll", "System.Text.Json.dll", "System.Memory.dll"];
         // 单文件发布时 Assembly.Location 为空串，不能直接拿来做路径。
         var directory = Path.GetDirectoryName(typeof(object).Assembly.Location);
         if (string.IsNullOrEmpty(directory)) directory = AppContext.BaseDirectory;

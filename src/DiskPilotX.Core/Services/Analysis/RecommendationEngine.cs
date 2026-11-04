@@ -158,6 +158,7 @@ public partial class RecommendationEngine
 
             recommendation.TargetPath = entry.Path;
             recommendation.Entry = entry;
+            recommendation.SourceScanId = session.Id;
             recommendation.Size = entry.Size;
             recommendation.LastModified = entry.LastModified;
             AddValidatedRecommendation(result, recommendation, whitelist);

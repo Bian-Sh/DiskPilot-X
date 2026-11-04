@@ -238,7 +238,14 @@ public partial class MainViewModel : ObservableObject
     public async Task<ScanSession> ScanHeadlessAsync(string path, CancellationToken ct, IProgress<ScanProgress>? progress = null)
     {
         ct.ThrowIfCancellationRequested();
-        if (!_fileScanner.IsReady) throw new InvalidOperationException("扫描器正在准备，请稍后再试。");
+        var waiting = System.Diagnostics.Stopwatch.StartNew();
+        while (!_fileScanner.IsReady)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (waiting.Elapsed > TimeSpan.FromSeconds(30)) throw new TimeoutException($"扫描器准备等待已超时（{waiting.Elapsed.TotalSeconds:0} 秒），请稍后重试该范围。");
+            progress?.Report(new ScanProgress("正在等待扫描器完成索引准备…", 0, 0));
+            await Task.Delay(50, ct);
+        }
         var target = ScanPathResolver.Resolve(path ?? string.Empty);
         if (string.IsNullOrWhiteSpace(target)) throw new ArgumentException("路径为空。");
         var execution = new ScanExecutionInfo(target, ScanMethod.Unknown, ScanExecutionStatus.Running, DateTime.Now);

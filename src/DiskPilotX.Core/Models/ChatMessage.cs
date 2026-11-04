@@ -28,6 +28,7 @@ public class ChatMessage : INotifyPropertyChanged
 
     /// <summary>气泡内渲染的按需视图（紧凑模式）。可在窗口中打开完整视图。</summary>
     public ObservableCollection<SkillUiSpec> Views { get; } = new();
+    public ObservableCollection<ScanSnapshotReference> ScanSnapshots { get; } = new();
 
     private ChatSegment? _activeSegment;
     private bool _hasStepDeltas;
@@ -123,7 +124,7 @@ public class ChatMessage : INotifyPropertyChanged
     private void MarkFinalContent()
     {
         var lastTool = Segments.ToList().FindLastIndex(segment => segment.IsTool);
-        foreach (var segment in Segments.Skip(Math.Max(_stepStartIndex, lastTool + 1)).Where(segment => segment.IsText))
+        foreach (var segment in Segments.Skip(Math.Max(_stepStartIndex, lastTool + 1)).Where(segment => segment.IsText && !segment.IsSummary))
             segment.IsFinal = true;
         RefreshSegmentBindings();
     }
@@ -245,6 +246,11 @@ public class ChatMessage : INotifyPropertyChanged
                 if (!string.IsNullOrWhiteSpace(activity.Detail)) tool.Detail = string.IsNullOrWhiteSpace(tool.Detail) ? activity.Detail : tool.Detail + "\n" + activity.Detail;
                 if(tool.Status != ChatSegmentStatus.Cancelled) tool.Status = activity.Success == false ? ChatSegmentStatus.Failed : ChatSegmentStatus.Completed;
                 break;
+            case AgentEventKind.ModelRetryStatus:
+                CompleteActiveSegment();
+                Segments.Add(new(ChatSegmentKind.Text) {Text=activity.Detail??"正在等待模型重试。",Status=ChatSegmentStatus.Completed,IsSummary=true});
+                OperationStatusText=activity.Detail??"正在等待模型重试。";
+                break;
             case AgentEventKind.TaskCompleted:
             case AgentEventKind.TaskFailed:
             case AgentEventKind.TaskCancelled:
@@ -264,6 +270,12 @@ public class ChatMessage : INotifyPropertyChanged
                 if (status == ChatSegmentStatus.Completed && !HasFinalContent) MarkFinalContent();
                 IsError = activity.Kind == AgentEventKind.TaskFailed;
                 if (IsError) OperationResultText = activity.Detail ?? string.Empty;
+                if(status is ChatSegmentStatus.Failed or ChatSegmentStatus.Cancelled)
+                {
+                    var reason=status==ChatSegmentStatus.Failed ? activity.Detail??"任务未完成，请稍后重试。" : "任务已停止，已完成内容保留，未完成部分需重新核实。";
+                    Segments.Add(new(ChatSegmentKind.Text) {Text=reason,IsFinal=true,Status=status});
+                    Text+=(string.IsNullOrEmpty(Text)?"":"\n\n")+reason;
+                }
                 FinishProcess(status, activity.Timestamp.LocalDateTime);
                 break;
         }

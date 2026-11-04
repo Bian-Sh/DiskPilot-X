@@ -115,6 +115,11 @@ public partial class ChatPanel : UserControl
     private void Submit_Click(object sender,RoutedEventArgs e) { if(viewModel?.IsOperationRunning!=true){holdReading=false;followTail=true;QueueScroll();} }
     private void Jump_Click(object sender,RoutedEventArgs e) { holdReading=false; followTail=true; MessagesScrollViewer.ScrollToEnd(); JumpButton.Visibility=Visibility.Collapsed; }
     private void Settings_Click(object sender,RoutedEventArgs e) => OpenSettingsRequested?.Invoke();
+    private async void OpenScanSnapshot_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: ScanSnapshotReference reference } && viewModel is not null)
+            await viewModel.OpenScanSnapshotAsync(reference);
+    }
     private void OpenSkillTask_Click(object sender,RoutedEventArgs e) { if(sender is FrameworkElement { DataContext: SkillTaskCard card }) viewModel?.OpenSkillTask(card); }
     private void OpenSkillWindow_Click(object sender,RoutedEventArgs e) { if(sender is FrameworkElement { DataContext: SkillUiSpec spec }) viewModel?.OpenSkillWindow(spec); }
     /// <summary>整张入口卡可点：命中卡片任意位置都打开完整视图窗口。</summary>

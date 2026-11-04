@@ -21,16 +21,19 @@ public sealed record SavedChatMessage(Guid Id, ChatSender Sender, string Text, s
     string CompletedAtText, bool IsError, IReadOnlyList<SavedChatSegment> Segments,
     DateTime? CompletedAt = null, ChatSegmentStatus? ProcessStatus = null, ModelTokenUsage? Usage = null, string? ModelId = null, bool HasIncompleteCacheUsage = false)
 {
+    public IReadOnlyList<ScanSnapshotReference> ScanSnapshots { get; init; } = [];
+
     public static SavedChatMessage Capture(Message message) => new(message.Id, message.Sender, message.Text,
         message.Thinking, message.Timestamp, message.CompletedAtText, message.IsError,
         message.Segments.Select(segment => new SavedChatSegment(segment.Kind, segment.Text, segment.Detail,
             segment.ToolName, segment.ToolCallId, segment.Status, segment.IsSummary, segment.IsFinal)).ToArray(),
-        message.CompletedAt, message.ProcessStatus, message.Usage, message.ModelId, message.HasIncompleteCacheUsage);
+        message.CompletedAt, message.ProcessStatus, message.Usage, message.ModelId, message.HasIncompleteCacheUsage) { ScanSnapshots = message.ScanSnapshots.ToArray() };
 
     public Message Restore(ChatSegmentStatus? sessionStatus = null)
     {
         var message = new Message { Id = Id, Sender = Sender, Text = Text, Thinking = Thinking,
             Timestamp = Timestamp, CompletedAtText = CompletedAtText, IsError = IsError, Usage = Usage, ModelId = ModelId, HasIncompleteCacheUsage = HasIncompleteCacheUsage };
+        foreach (var snapshot in ScanSnapshots ?? []) message.ScanSnapshots.Add(snapshot);
         foreach (var segment in Segments)
             message.Segments.Add(new ChatSegment(segment.Kind) { Text = segment.Text, Detail = segment.Detail,
                 ToolName = segment.ToolName, ToolCallId = segment.ToolCallId, IsSummary = segment.IsSummary, IsFinal = segment.IsFinal,
@@ -50,13 +53,15 @@ public sealed record ConversationSnapshot(string Id, DateTimeOffset UpdatedAt, s
 {
     public int Version { get; init; } = 1;
     public string? Title { get; init; }
+    public bool TitleIsFallback { get; init; }
+    public int TitleAttempts { get; init; }
 }
 
 /// <summary>用于授权前核验的最小元数据，不包含对话正文。</summary>
 public sealed record ConversationMetadata(string Id, string? PrivacySignature, long SourceLength, DateTime SourceWriteTimeUtc);
 
 /// <summary>每会话一个本地快照；先写同目录临时文件，再原子替换，避免中断破坏上一份记录。</summary>
-public sealed class ConversationStore(string rootDirectory)
+public sealed partial class ConversationStore(string rootDirectory)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(UserDataJson.Options) { WriteIndented = false };
     private static readonly JsonSerializerOptions MetadataJsonOptions = new() { RespectRequiredConstructorParameters = true };
@@ -79,6 +84,7 @@ public sealed class ConversationStore(string rootDirectory)
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
         SaveMetadata(metadata);
+        SaveSummary(snapshot);
     }
 
     /// <summary>只读取侧文件与源文件属性；旧快照不迁移，无法核验时拒绝访问。</summary>
@@ -123,6 +129,7 @@ public sealed class ConversationStore(string rootDirectory)
     {
         var path = PathFor(id);
         // 先移除授权元数据；正文删除失败时仍保留会话，不会误报删除成功。
+        File.Delete(Path.ChangeExtension(path, ".summary"));
         File.Delete(Path.ChangeExtension(path, ".metadata"));
         File.Delete(path);
     }
@@ -144,15 +151,8 @@ public sealed class ConversationStore(string rootDirectory)
             if (!Guid.TryParseExact(Path.GetFileNameWithoutExtension(file), "N", out _)) continue;
             try
             {
-                var snapshot = Load(Path.GetFileNameWithoutExtension(file));
-                if (snapshot.Messages.Count == 0) continue;
-                // 对话可能由应用代发消息（如「分析」按钮）开始，取不到用户消息时回退到任意消息。
-                var first = snapshot.Messages.FirstOrDefault(message => message.Sender == ChatSender.User)?.Text
-                    ?? snapshot.Messages.FirstOrDefault()?.Text
-                    ?? "";
-                var title = snapshot.Title ?? string.Join(' ', first.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-                if (snapshot.Title is null && title.Length > 40) title = title[..40] + "…";
-                summaries.Add(new(snapshot.Id, title, snapshot.UpdatedAt, snapshot.Messages.Count));
+                var summary=ReadSummary(file);
+                if(summary is not null && summary.MessageCount>0) summaries.Add(summary);
             }
             catch (Exception exception) when (IsStorageError(exception)) { /* 单个损坏文件不影响其他会话。 */ }
         }
@@ -173,6 +173,9 @@ public sealed class ConversationStore(string rootDirectory)
             || !Enum.IsDefined(snapshot.State)
             || snapshot.Messages.Any(message => message is null || message.Text is null || message.Thinking is null
                 || !Enum.IsDefined(message.Sender) || message.Segments is null
+                || (message.ScanSnapshots??[]).Any(reference=>reference is null || reference.Id==Guid.Empty || reference.CacheEpoch==Guid.Empty
+                    || string.IsNullOrWhiteSpace(reference.Path) || !Path.IsPathFullyQualified(reference.Path) || reference.Path.IndexOf('\0')>=0
+                    || reference.Files<0 || reference.Folders<0 || reference.SizeBytes<0)
                 || message.Segments.Any(segment => segment is null || segment.Text is null
                     || !Enum.IsDefined(segment.Kind) || !Enum.IsDefined(segment.Status)))
             || snapshot.ModelMessages.Any(message => message is null || !Enum.IsDefined(message.Role)

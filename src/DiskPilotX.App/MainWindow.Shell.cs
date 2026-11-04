@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -139,6 +139,8 @@ public partial class MainWindow
         Interlocked.Increment(ref _cleanupSettingsRevision);
         L.SetLanguage(_settingsViewModel?.Language);
         _chatViewModel?.RefreshApiKeyStatus();
+        _ = PublishPolicyStamp();
+        RefreshScanSnapshotEntries();
     }
 }
 

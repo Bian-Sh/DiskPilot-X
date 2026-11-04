@@ -92,6 +92,10 @@ public sealed partial class DiskAssistantService
     private string? currentConversationId;
     public string? CurrentConversationId => currentConversationId;
     public string? ConversationTitle { get; private set; }
+    public bool ConversationTitleIsFallback { get; private set; }
+    public int ConversationTitleAttempts { get; private set; }
+    private DateTimeOffset conversationUpdatedAt;
+    private string? savedContentFingerprint;
     private string? conversationPrivacySignature;
     private CancellationTokenSource? activeCancellation;
     public event Action<AgentEvent>? Activity;
@@ -113,6 +117,7 @@ public sealed partial class DiskAssistantService
         this.queryTools = queryTools.Select(tool => tool switch { FindByNameTool => (IAgentTool)new FindByNameTool(query), FindByPathTool => new FindByPathTool(query), ListChildrenTool => new ListChildrenTool(query), SummarizeSubtreeTool => new SummarizeSubtreeTool(query), FindLargeFilesTool => new FindLargeFilesTool(query), _ => tool }).ToArray();
         this.workspace = workspace;
         this.workspace.ValidateAnalysisCommit = CanCommitAnalysis;
+        this.workspace.DescribeAnalysisCommitFailure = AnalysisCommitFailure;
         this.settings = settings;
         this.policy = policy ?? new RecommendationEngine(settings);
         this.loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
@@ -124,6 +129,7 @@ public sealed partial class DiskAssistantService
         session = null;
         currentConversationId = null;
         ConversationTitle = null;
+        ConversationTitleIsFallback=false; ConversationTitleAttempts=0; savedContentFingerprint=null; conversationUpdatedAt=default;
         conversationPrivacySignature = null;
         LastAnalysisResult = null;
     }
@@ -143,9 +149,23 @@ public sealed partial class DiskAssistantService
         if (saved.Length == 0) return;
         currentConversationId ??= Guid.NewGuid().ToString("N");
         if (conversationStore is null) return;
-        conversationStore.Save(new(currentConversationId, DateTimeOffset.UtcNow, conversationPrivacySignature,
-            session?.State ?? AgentSessionState.Created, session?.Messages.ToArray() ?? [], saved) { Title = ConversationTitle });
+        if(string.IsNullOrWhiteSpace(ConversationTitle))
+        {
+            var first=saved.FirstOrDefault(m=>m.Sender==ChatSender.User)?.Text??saved[0].Text;
+            ConversationTitle=string.Join(' ',first.Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries));
+            if(string.IsNullOrWhiteSpace(ConversationTitle))ConversationTitle="未命名对话";
+            ConversationTitleIsFallback=true;
+        }
+        var fingerprint=ContentFingerprint(saved);
+        var updated=fingerprint==savedContentFingerprint?conversationUpdatedAt:DateTimeOffset.UtcNow;
+        conversationStore.Save(new(currentConversationId, updated, conversationPrivacySignature,
+            session?.State ?? AgentSessionState.Created, session?.Messages.ToArray() ?? [], saved) { Title = ConversationTitle,
+                TitleIsFallback=ConversationTitleIsFallback,TitleAttempts=ConversationTitleAttempts });
+        conversationUpdatedAt=updated; savedContentFingerprint=fingerprint;
     }
+
+    private static string ContentFingerprint(IReadOnlyList<SavedChatMessage> messages) => JsonSerializer.Serialize(messages.Select(m=>new
+    { m.Id,m.Sender,m.Text,m.Thinking,m.IsError,m.Segments,m.CompletedAt,m.ProcessStatus,m.Usage,m.ModelId,m.HasIncompleteCacheUsage,m.ScanSnapshots }),UserDataJson.Options);
 
     public ConversationSnapshot ReadConversation(string id) => conversationStore?.Load(id)
         ?? throw new InvalidDataException("历史对话不可用。");
@@ -173,6 +193,10 @@ public sealed partial class DiskAssistantService
         session = restored;
         currentConversationId = snapshot.Id;
         ConversationTitle = snapshot.Title;
+        ConversationTitleIsFallback=snapshot.TitleIsFallback;
+        ConversationTitleAttempts=Math.Clamp(snapshot.TitleAttempts,0,2);
+        conversationUpdatedAt=snapshot.UpdatedAt;
+        savedContentFingerprint=ContentFingerprint(messages.Select(SavedChatMessage.Capture).ToArray());
         conversationPrivacySignature = NormalizePrivacySignature(snapshot.PrivacySignature);
         LastAnalysisResult = null;
         return messages;
@@ -269,10 +293,10 @@ public sealed partial class DiskAssistantService
                     if (args is not JsonObject) return ToolResult.SafeFail("工具参数必须是 JSON 对象。");
                     try
                     {
-                        if (options.IsAnalysis && !await CheckAnalysisBoundaryAsync(args, ct).ConfigureAwait(false)) return ToolResult.SafeFail("{\"ok\":false,\"error\":\"扫描、隐私条件已变化或请求超出本轮范围，请重新分析。\"}");
+                        if (options.IsAnalysis && !await CheckAnalysisBoundaryAsync(args, ct).ConfigureAwait(false)) return ToolResult.SafeFail(AnalysisBoundaryError().ToJsonString());
                         var result = await handler(args, ct).ConfigureAwait(false);
-                        if (options.IsAnalysis && !await CheckAnalysisBoundaryAsync(args, ct).ConfigureAwait(false)) return ToolResult.SafeFail("{\"ok\":false,\"error\":\"操作期间条件发生变化，结果不再属于当前分析，请重新分析。\"}");
-                        if (result["ok"]?.GetValue<bool>() == false) runHadToolFailure = true;
+                        if (options.IsAnalysis && !await CheckAnalysisBoundaryAsync(args, ct).ConfigureAwait(false)) return ToolResult.SafeFail(AnalysisBoundaryError().ToJsonString());
+                        if (result["ok"]?.GetValue<bool>() == false && result["validation_rejected"]?.GetValue<bool>()!=true) runHadToolFailure = true;
                         if (result["cancelled"]?.GetValue<bool>() == true) { declinedOperations.Add(name); analysisTask?.Defer("用户取消了本轮部分操作。"); }
                         return result["ok"]?.GetValue<bool>() == false ? ToolResult.SafeFail(result.ToJsonString(AgentJson.Options)) : ToolResult.Ok(result.ToJsonString(AgentJson.Options));
                     }
@@ -368,17 +392,27 @@ public sealed partial class DiskAssistantService
         Add("focus_path", "把 treemap 视图定位（focus）到指定文件夹或文件并高亮，方便在地图上精确指向某个点位。目录会钻取定位，文件会定位到其所在层级并高亮该文件。", """{"type":"object","properties":{"path":{"type":"string"},"highlight":{"type":"boolean","default":true}},"required":["path"]}""",
             async (a, ct) => await ExecuteVisible("focus_path", a, ct).ConfigureAwait(false));
         Add("set_view", "切换磁盘视图，treemap 为矩形树图，tree 为文件树。", """{"type":"object","properties":{"view":{"type":"string","enum":["treemap","tree"]}},"required":["view"]}""", (a, ct) => workspace.Execute("set_view", a, ct));
-        Add("get_analysis_evidence", "读取当前范围的有界元数据、内容指纹和清理证据。", """{"type":"object","properties":{"path":{"type":"string"}}}""", async (a, ct) =>
+        Add("get_analysis_evidence", "按需读取当前扫描或无头批次中指定范围的有界证据，不需要先展示到磁盘地图。", """{"type":"object","properties":{"path":{"type":"string"},"scan_id":{"type":"string"}}}""", async (a, ct) =>
         {
+            if (!options.IsAnalysis && a?["scan_id"]?.GetValue<string>() is { } requestedId && Guid.TryParse(requestedId,out var requestedBatch) && workspace.IsAnalysisBatch(requestedBatch))
+                return await workspace.Execute("get_analysis_evidence",a,ct).ConfigureAwait(false);
             var c = await GetVisibleContext(ct, options.IsAnalysis).ConfigureAwait(false);
-            if (c.Session?.RootEntry is null) return Error("尚无允许分析的扫描结果。");
+            if(a?["scan_id"]?.GetValue<string>() is {} explicitId && explicitId!=c.Session?.Id.ToString())
+            {
+                var expired=await workspace.Execute("describe_analysis_batch",a,ct).ConfigureAwait(false) as JsonObject??new JsonObject();
+                expired["current_scan_id"]=c.Session?.RootEntry is not null?c.Session.Id.ToString():null;
+                expired["ok"]=false;expired["code"]="scan_expired";expired["error"]="所提供的扫描标识无效或已过期，不能改用当前主扫描。";
+                expired["next_step"]="请使用返回的当前允许标识，或重新扫描目标范围后再读取证据。";
+                return expired;
+            }
+            if (c.Session?.RootEntry is null) return Error("尚无允许分析的扫描结果。","scan_required","先扫描目标范围；无头批次请携带对应scan_id。");
             var focus = ResolveFocus(c, a?["path"]?.GetValue<string>() ?? options.FocusPath);
-            if (focus is null) return Error("分析范围不在当前扫描树中。");
+            if (focus is null) return Error("分析范围不在当前扫描树中。","scope_not_scanned","请扫描确切范围，或缩小到已登记路径后再取证。");
             evidenceScanId = c.Session.Id; evidenceScope = focus.Path;
             if (analysisTask is not null) analysisTask.EvidenceRead = true;
             return new JsonObject { ["ok"] = true, ["scan_id"] = c.Session.Id.ToString(), ["evidence"] = policy.BuildEvidence(c.Session, focus) };
         });
-        Add("publish_recommendations", "校验并发布清理建议，大小和安全限制由本地核验。scan_id 取自 get_copilot_context 或 analyze_paths 的返回；一次调用即可发布多个范围的候选。mode 取 replace（默认，用本轮结果替换面板）/ merge（追加到现有清单，保留已勾选状态）。", """{"type":"object","properties":{"scan_id":{"type":"string"},"mode":{"type":"string","enum":["replace","merge"]},"recommendations":{"type":"array","maxItems":100,"items":{"type":"object","properties":{"path":{"type":"string"},"category":{"type":"string"},"safety_rating":{"type":"string"},"explanation":{"type":"string"}},"required":["path","category","safety_rating","explanation"]}}},"required":["scan_id","recommendations"]}""", async (a, ct) =>
+        Add("publish_recommendations", "校验并发布清理建议，大小和安全限制由本地核验。scan_id 取自 get_copilot_context 或 analyze_paths 的返回；一次调用即可发布多个范围的候选。mode 默认 append（追加并去重）；merge 为兼容别名，replace 仅在用户明确选择后覆盖。", """{"type":"object","properties":{"scan_id":{"type":"string"},"mode":{"type":"string","enum":["append","replace","merge"]},"recommendations":{"type":"array","maxItems":100,"items":{"type":"object","properties":{"path":{"type":"string"},"category":{"type":"string"},"safety_rating":{"type":"string"},"explanation":{"type":"string"}},"required":["path","category","safety_rating","explanation"]}}},"required":["scan_id","recommendations"]}""", async (a, ct) =>
         {
             // 技能视图的无头批次不替换 Treemap。仅宿主登记的批次可交回宿主按各自范围校验，
             // 不能把跨盘候选塞进单盘 focus，也不能信任模型传入的 batch 标志。
@@ -389,13 +423,32 @@ public sealed partial class DiskAssistantService
                 return await workspace.Execute("publish_recommendations", batchPayload, ct).ConfigureAwait(false);
             }
             var c = await GetVisibleContext(ct, options.IsAnalysis).ConfigureAwait(false);
-            if (c.Session?.RootEntry is null || a?["scan_id"]?.GetValue<string>() != c.Session.Id.ToString()) return Error("扫描结果已改变，请重新读取上下文。");
-            if (evidenceScanId != c.Session.Id) return Error("请先读取本次扫描的分析证据。");
+            if (c.Session?.RootEntry is null || a?["scan_id"]?.GetValue<string>() != c.Session.Id.ToString())
+                return !options.IsAnalysis ? await workspace.Execute("describe_analysis_batch",a,ct).ConfigureAwait(false)
+                    : Error("扫描标识已失效，请重新读取上下文并分析目标范围。","scan_expired","请使用当前扫描标识重新取证。");
+            if (evidenceScanId != c.Session.Id) return Error("请先读取本次扫描的分析证据。","evidence_required","请先用当前scan_id和范围读取get_analysis_evidence，再提交候选。");
             var focus = ResolveFocus(c, options.FocusPath ?? evidenceScope);
-            if (focus is null) return Error("分析范围失效。");
-            if (options.IsAnalysis && lastRejectedPublish == a?.ToJsonString()) return Error("相同候选已因保护或限制被过滤，请说明限制，不要重复提交。");
+            if (focus is null) return Error("分析范围失效。","scope_expired","请重新读取当前上下文并按允许范围取证。");
+            if (options.IsAnalysis && lastRejectedPublish == a?.ToJsonString()) return Error("相同候选已因保护或限制被过滤，请说明限制，不要重复提交。","rejected_candidates_repeated","请说明具体限制并修正范围，不要缩小同一清单反复试探保护。");
             var analysis = policy.ValidateCandidates(c.Session, JsonSerializer.SerializeToElement(a), focus);
-            var payload = new JsonObject { ["scan_id"] = c.Session.Id.ToString(), ["focus_path"] = focus.Path, ["analysis_mode"] = options.IsAnalysis, ["task_id"] = analysisTask?.Id.ToString(), ["recommendations"] = JsonSerializer.SerializeToNode(analysis.Recommendations.Select(r => new
+            if(analysis.Recommendations.Count==0)
+            {
+                var reason=analysis.Diagnostics.MissingEntryCount>0?"候选缺少当前扫描证据。":analysis.Diagnostics.ProtectedFilteredCount>0?"候选被当前保护规则过滤。":analysis.Diagnostics.InputRecommendationCount==0?"未提交有效候选。":"候选未通过范围或参数校验。";
+                var rejected=(JsonObject)Error(reason+"原推荐清单保留。","no_accepted_candidates","请根据validation中的具体拒绝计数修正；缺证据时扫描确切范围，保护限制不能靠重复提交绕过。");
+                var incomplete=analysis.Diagnostics.MissingEntryCount>0||analysis.Diagnostics.MalformedRecommendationCount>0||analysis.Diagnostics.MissingFieldRecommendationCount>0||analysis.Diagnostics.ParseError is not null;
+                rejected["accepted_count"]=0;rejected["validation_rejected"]=!incomplete;
+                if(incomplete)analysisTask?.Defer("候选格式或扫描证据不完整，未覆盖原清单。");
+                if(options.IsAnalysis)
+                {
+                    AccumulateDiagnostics(analysis.Diagnostics);
+                    LastAnalysisResult=analysis;
+                    if(analysisTask is not null)analysisTask.AcceptedCount=0;
+                    if(analysis.Diagnostics.InputRecommendationCount>0)lastRejectedPublish=a?.ToJsonString();
+                }
+                rejected["validation"]=MergePublishedValidation(null,analysis.Diagnostics,0);
+                return rejected;
+            }
+            var payload = new JsonObject { ["scan_id"] = c.Session.Id.ToString(), ["focus_path"] = focus.Path, ["mode"] = a?["mode"]?.DeepClone() ?? JsonValue.Create("append"), ["analysis_mode"] = options.IsAnalysis, ["task_id"] = analysisTask?.Id.ToString(), ["recommendations"] = JsonSerializer.SerializeToNode(analysis.Recommendations.Select(r => new
                 { id = r.Id, path = r.TargetPath, size_bytes = r.Size, category = r.Category.ToString(), safety_rating = r.SafetyRating.ToString(), explanation = r.Explanation })) };
             var published = await workspace.Execute("publish_recommendations", payload, ct).ConfigureAwait(false);
             if (published["ok"]?.GetValue<bool>() != false)
@@ -415,7 +468,7 @@ public sealed partial class DiskAssistantService
                 if (analysisTask is not null) analysisTask.AcceptedCount = analysis.Recommendations.Count;
             }
             else analysisTask?.Defer("本轮建议未能写入推荐列表。");
-            published["validation"] = ValidationSummary(analysis.Diagnostics, analysis.Recommendations.Count);
+            published["validation"] = MergePublishedValidation(published["validation"],analysis.Diagnostics,published["ok"]?.GetValue<bool>()==false?0:analysis.Recommendations.Count);
             return published;
         }, ToolRiskLevel.Write);
         Add("ask_user", "用结构化问题收集单选、多选、文本或数字；保留用户答案和取消，不索取凭据。", UserDecisionRequest.CreateSchema().ToJsonString(), async (a, ct) =>
@@ -517,11 +570,33 @@ public sealed partial class DiskAssistantService
             foreach (var prop in props) if (obj.TryGetPropertyValue(prop.Key, out var value)) result[prop.Key] = value?.DeepClone();
         return result;
     }
-    private static JsonNode Error(string message) => new JsonObject { ["ok"] = false, ["error"] = message };
-    private static string FormatFailure(Exception exception) => exception switch
+    private static JsonNode Error(string message,string? code=null,string? nextStep=null)
+    {
+        var error=new JsonObject {["ok"]=false,["error"]=message};
+        if(code is not null)error["code"]=code;
+        if(nextStep is not null)error["next_step"]=nextStep;
+        return error;
+    }
+    private static JsonNode MergePublishedValidation(JsonNode? host,AnalysisDiagnostics d,int accepted)
+    {
+        var result=(host?.DeepClone() as JsonObject)??new JsonObject();
+        int Read(string name,string? legacy=null)=>result[name]?.GetValue<int>()??(legacy is null?0:result[legacy]?.GetValue<int>()??0);
+        var missing=d.MissingEntryCount+Read("not_scanned");
+        var protectedCount=d.ProtectedFilteredCount+Read("protected_count","protected");
+        var excluded=d.ExcludedFilteredCount+Read("excluded_count","excluded");
+        var hostFiltered=Math.Max(d.HostFilteredCount,Read("host_filtered"));
+        result["input_count"]=d.InputRecommendationCount;result["input"]=d.InputRecommendationCount;
+        result["accepted_count"]=accepted;result["accepted"]=accepted;
+        result["not_scanned"]=missing;result["protected_count"]=protectedCount;result["protected"]=protectedCount;
+        result["excluded_count"]=excluded;result["excluded"]=excluded;result["host_filtered"]=hostFiltered;
+        result["overlapping"]=d.OverlapFilteredCount;result["invalid"]=d.MalformedRecommendationCount+d.MissingFieldRecommendationCount;
+        result["reason"]=d.ParseError;result["meaning"]="计数保留原始提交及宿主复核结果；过滤或未完成不等于没有可处理内容。";
+        return result;
+    }
+    private static string FormatFailure(Exception exception) => (exception switch
     {
         ModelClientException e => (e.Kind switch { ModelErrorKind.Authentication => "API Key 无效或已过期，请检查模型配置。", ModelErrorKind.PermissionDenied => "当前凭据没有访问此模型的权限。", ModelErrorKind.ModelNotFound => "所选模型不可用，请检查模型名称。", ModelErrorKind.ContextLengthExceeded => "本次会话内容过长，请新建会话后继续。", ModelErrorKind.InsufficientQuota => "模型服务额度不足，请检查账户状态。", ModelErrorKind.RateLimited => "模型服务请求频繁，请稍后重试。", ModelErrorKind.Timeout => "模型响应超时，请稍后重试。", ModelErrorKind.ConnectionFailed => "无法连接模型服务，请检查地址和网络。", ModelErrorKind.ServerError or ModelErrorKind.ServerOverloaded => "模型服务暂时不可用，请稍后重试。", _ => "模型响应未能完成，请检查配置或重试。" }) + (e.StatusCode is { } status ? $"（HTTP {status}）" : ""),
         OperationCanceledException => "任务已停止。",
         _ => "任务执行失败，请检查工作区状态后重试。"
-    };
+    }) + (exception.Data["ModelAttempts"] is int attempts ? $"（本步骤已尝试 {attempts} 次；已完成内容保留）" : "");
 }

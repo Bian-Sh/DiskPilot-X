@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.IO;
 using Serilog;
 using Serilog.Events;
@@ -11,10 +11,10 @@ public static class AppLog
 
     public static ObservableCollection<UiLogEntry> Entries => UiSink.Entries;
 
-    public static string LogDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "DiskPilot-X",
-        "logs");
+    public static string LogDirectory { get; } = Diagnostics.AcceptanceAutomationServer.IsEnabled()
+        && Core.AppCompatibility.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_SETTINGS") is { Length: > 0 } acceptance
+        ? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(acceptance))!,"logs")
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"DiskPilot-X","logs");
 
     public static string FilePathPattern => Path.Combine(LogDirectory, "app-.log");
 

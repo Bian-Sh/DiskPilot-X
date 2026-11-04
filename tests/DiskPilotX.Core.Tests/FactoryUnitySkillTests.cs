@@ -13,7 +13,7 @@ public sealed class FactoryUnitySkillTests : IDisposable
     private CleanupSkillStore FactoryStore => new(Path.Combine(root, "empty-user-skills"), [Path.Combine(RepositoryRoot(), "skills")]);
 
     [Fact]
-    public void 空用户库也能发现唯一出厂Unity技能并载入完整表单与三语文案()
+    public void 出厂Unity技能用对话流程且不包含首个参数表单()
     {
         var store = FactoryStore;
         Assert.True(store.IsProtected("unity-cache-check"), "Unity 独立技能必须来自随包目录，而非开发机用户库。");
@@ -23,12 +23,10 @@ public sealed class FactoryUnitySkillTests : IDisposable
         Assert.DoesNotContain(catalog, s => s.Id == "unity-project-cleanup");
         var package = store.LoadReadOnly(item.Id);
         Assert.False(string.IsNullOrWhiteSpace(package.Source));
-        Assert.False(string.IsNullOrWhiteSpace(package.UiXaml));
+        Assert.Null(package.UiXaml);
         Assert.NotNull(package.Localizations);
         Assert.Equal(new[] { "en-US", "zh-CN", "zh-TW" }, package.Localizations.Keys.Order());
-        var panel = SkillUiDocument.Parse(package.UiXaml!);
-        Assert.Contains(panel.Children, child => child.Type == "TextBox" && child.Properties.GetValueOrDefault("Name") == "roots");
-        Assert.Contains(panel.Children, child => child.Type == "TextBox" && child.Properties.GetValueOrDefault("Name") == "depth" && child.Properties.GetValueOrDefault("Text") == "6");
+        Assert.Contains("ask_user",package.SkillMarkdown);
         Assert.False(Directory.Exists(store.UserRoot), "只读载入出厂技能不得依赖或生成用户版本指针。");
     }
 
@@ -60,7 +58,7 @@ public sealed class FactoryUnitySkillTests : IDisposable
     }
 
     [Fact]
-    public async Task 出厂Unity源码可授权执行且只度量四类缓存并保持空范围不扫描()
+    public async Task 出厂Unity源码仅度量Library且默认回传最少信息并保持空范围不扫描()
     {
         var store = FactoryStore;
         Assert.True(store.IsProtected("unity-cache-check"));
@@ -82,10 +80,11 @@ public sealed class FactoryUnitySkillTests : IDisposable
         var result = await service.RunDiscoveryAsync(service.Authorize(package.Id, package.Digest), host,
             parameters: new Dictionary<string, string> { ["roots"] = fixture, ["depth"] = "3" });
         var entry = Assert.Single(result.Entries);
-        Assert.Equal(project, entry.Path);
-        Assert.Equal(4096, entry.SizeBytes);
+        Assert.Equal(Path.Combine(project,"Library"), entry.Path);
+        Assert.Null(entry.Detail);
+        Assert.Equal(1024, entry.SizeBytes);
         Assert.NotNull(result.View);
-        Assert.Equal(new[] { "Library", "Logs", "Temp", "obj" }, host.Measured.Select(Path.GetFileName).Order(StringComparer.Ordinal));
+        Assert.Equal(new[] { "Library" }, host.Measured.Select(Path.GetFileName).Order(StringComparer.Ordinal));
         foreach (var (path, bytes) in before) Assert.Equal(bytes, File.ReadAllBytes(path));
         Assert.Equal(before.Keys.Order(), Directory.GetFiles(fixture, "*", SearchOption.AllDirectories).Order());
         var emptyHost = new FixtureBridge(fixture);
@@ -142,6 +141,29 @@ public sealed class FactoryUnitySkillTests : IDisposable
         Assert.Null(core.GetType("DiskPilotX.Core.Services.Agent.UnityRegistryAgentTool"));
         Assert.DoesNotContain(Enum.GetNames<AiActionKind>(), name => name.Contains("Unity", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(core.GetTypes(), type => type.GetProperties().Any(p => p.Name.StartsWith("Unity", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task 活动及Hub线索仅按需读取且未知不猜()
+    {
+        var fixture=Path.Combine(root,"线索样本"); var project=Path.Combine(fixture,"项目");
+        foreach(var folder in new[]{"Assets","ProjectSettings","Library"})Directory.CreateDirectory(Path.Combine(project,folder));
+        var hub=Path.Combine(fixture,"hub.json");
+        File.WriteAllText(hub,JsonSerializer.Serialize(new { schema_version="v1",data=new[]{new {path=project}} }));
+        var package=FactoryStore.LoadReadOnly("unity-cache-check"); var service=new CleanupSkillSourceService(FactoryStore); var host=new FixtureBridge(fixture);
+        var parameters=new Dictionary<string,string>{{"mode","inspect"},{"roots",Path.Combine(project,"Library")},{"hub_projects_file",hub}};
+        var result=await service.RunDiscoveryAsync(service.Authorize(package.Id,package.Digest),host,parameters:parameters);
+        using(var detail=JsonDocument.Parse(Assert.Single(result.Entries).Detail!))
+        {
+            Assert.Equal("listed",detail.RootElement.GetProperty("hub_status").GetString());
+            Assert.True(detail.RootElement.GetProperty("recent_content_change_utc").ValueKind==JsonValueKind.String);
+            Assert.Contains("近似",detail.RootElement.GetProperty("activity_note").GetString());
+        }
+        Assert.Empty(host.Measured);
+        File.WriteAllText(hub,"{\"unsupported\":true}");
+        result=await service.RunDiscoveryAsync(service.Authorize(package.Id,package.Digest),host,parameters:parameters);
+        using var unknown=JsonDocument.Parse(Assert.Single(result.Entries).Detail!);
+        Assert.Equal("unknown",unknown.RootElement.GetProperty("hub_status").GetString());
     }
 
     private sealed class FixtureBridge(string root) : ISkillHostBridge

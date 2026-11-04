@@ -26,6 +26,7 @@ public partial class MainWindow
         try
         {
             var package=App.Services!.GetRequiredService<CleanupSkillStore>().LoadReadOnly(args?["id"]?.GetValue<string>()??"");
+            if(string.IsNullOrWhiteSpace(package.UiXaml)) return AssistantError("该技能没有参数面板，请按技能流程在对话中使用 ask_user 收集必要参数。");
             var key=package.Id+":"+package.Digest;
             if(!skillPanels.TryGetValue(key,out var task))
             {
@@ -134,6 +135,7 @@ public partial class MainWindow
         var window = new SkillWindow(spec) { Owner = this };
         window.ContinueRequested += (source, items) =>
         {
+            if(_chatViewModel?.IsOperationRunning==true) { _chatViewModel.ErrorMessage="已有任务正在运行，请结束后再提交，当前选择已保留。"; return; }
             var payload = DescribeSelection(items,source.Localizations);
             window.Close();
             if (_chatViewModel is null || items.Count == 0) return;
@@ -145,6 +147,7 @@ public partial class MainWindow
         };
         window.PreviewRequested += (source, items) =>
         {
+            if(_chatViewModel?.IsOperationRunning==true) { _chatViewModel.ErrorMessage="已有任务正在运行，请结束后再预览，当前选择已保留。"; return; }
             var payload = DescribeSelection(items,source.Localizations);
             window.Close();
             if (_chatViewModel is null || items.Count == 0) return;
@@ -267,10 +270,11 @@ public partial class MainWindow
     /// </summary>
     private async Task BatchSelectedItemsAsync(IReadOnlyList<SkillUiItem> items, bool previewOnly, Dictionary<string,Dictionary<string,string>>? localizations = null)
     {
-        if (_chatViewModel is null) return;
+        if (_chatViewModel is null || _chatViewModel.IsOperationRunning) return;
         var payload = DescribeSelection(items,localizations);
         AssistantAnalysisBatch? batch = null;
-        string? evidence = null;
+        var completed = false;
+        _chatViewModel.IsOperationRunning=true;
         try
         {
             if (DataContext is ViewModels.MainViewModel main && _recommendationsViewModel is not null)
@@ -286,8 +290,8 @@ public partial class MainWindow
                 };
                 var result = await AnalyzePathsAsync(arguments, CancellationToken.None, main, settings, matcher, Hidden);
                 batch = _analysisBatch;
-                if (result is JsonObject ok && ok["ok"]?.GetValue<bool>() == true)
-                    evidence = ok["evidence"]?.GetValue<string>();
+                completed=result["ok"]?.GetValue<bool>()==true;
+                if(result["cancelled"]?.GetValue<bool>()==true) return;
                 if (batch is null || batch.Scopes.Count == 0)
                     WriteConsoleLog("无头多范围分析未完成：" + (result["error"]?.GetValue<string>() ?? "未知原因"));
             }
@@ -297,8 +301,10 @@ public partial class MainWindow
             WriteConsoleLog($"无头多范围分析失败：{ex.Message}");
         }
 
-        var prompt = batch is { Scopes.Count: > 0 } && evidence is not null
-            ? BuildBatchPrompt(items, previewOnly, batch, evidence,localizations)
+        finally { _chatViewModel.IsOperationRunning=false; }
+
+        var prompt = batch is { Scopes.Count: > 0 } && completed
+            ? BuildBatchPrompt(items, previewOnly, batch, "",localizations)
             : (previewOnly
                 ? "请预览这些条目的清理候选，先读取真实扫描证据，不要直接清理：\n"
                 : "我在这份视图里选中了以下条目，请据此继续；需要时进入清理分析，但清理前必须先让我确认清单：\n")
@@ -315,12 +321,11 @@ public partial class MainWindow
             ? "我在这份视图里一次选中了多个条目，全部范围已经无头扫描完成。请预览它们的清理候选（不要清理）：\n"
             : "我在这份视图里一次选中了多个条目，全部范围已经无头扫描完成，进入清理分析；清理前必须先让我确认清单：\n");
         builder.Append(DescribeSelection(items,localizations)).Append("\n\n");
-        builder.Append("这些范围已经一次性扫描完毕（批次 scan_id=").Append(batch.Id).Append("，共 ")
-               .Append(batch.Scopes.Count).Append(" 个范围，互不覆盖）。下面是全部范围的真实证据。\n");
-        builder.Append("请据此用 mode=replace 调用一次 publish_recommendations 发布全部候选；")
-               .Append("不要再调用 analyze_paths 或 scan_path，也不要分多次 publish（第二次发布会覆盖第一次的结果）。\n");
-        builder.Append("每个候选的 path 必须落在上面某个范围之内。\n\n");
-        builder.Append(evidence);
+        builder.Append("宿主已保存这些范围的内存扫描快照（批次 scan_id=").Append(batch.Id).Append("，成功登记 ")
+            .Append(batch.Scopes.Count).Append(" 个范围）。查看入口已留在对话里，不必先显示到地图。\n");
+        builder.Append("请优先使用已选路径，需要子目录证据时再用 get_analysis_evidence 携带 scan_id 与具体 path；不要重新扫描已完成范围。")
+            .Append("发布默认 append，兼容 merge；只有用户明确选择才使用 replace。部分失败请说明缺少范围，不要宣称全部扫描成功。\n");
+        if(batch.Errors.Count>0) builder.Append("部分范围未完成，请按工具返回的错误说明处理。\n");
         return builder.ToString();
     }
 
@@ -328,9 +333,6 @@ public partial class MainWindow
     /// 多选时的处理约定：推荐清理面板只有一份清单，逐个发布必然互相覆盖。
     /// 明确要求模型一次 analyze_paths 收全部路径、一次 publish_recommendations 发全部候选。
     /// </summary>
-    private static string MultiSelectionHint(int count) => count <= 1
-        ? string.Empty
-        : $"\n\n（我一次选了 {count} 个条目：请调用一次 analyze_paths 传入上面全部路径，"
-          + "拿到全部证据后再调用一次 publish_recommendations 发布全部候选。不要逐个扫描逐个发布，"
-          + "推荐清理面板只有一份清单，第二次发布会覆盖第一次的结果。）";
+    private static string MultiSelectionHint(int count) => count<=1?string.Empty:
+        $"\n\n本次有 {count} 个条目：可分批 analyze_paths，无头结果在当前会话累积；按需取证后追加发布，不自动覆盖，也不要求先展示到地图。";
 }

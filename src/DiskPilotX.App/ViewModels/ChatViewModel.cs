@@ -191,6 +191,8 @@ public partial class ChatViewModel : ObservableObject
     [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task SubmitOrStopAsync()
     {
+        if(IsOperationRunning&&!assistant.IsRunning&&PendingAskUser is null)
+        {ErrorMessage="当前本地操作尚未完成，请先停止扫描或等待结束；输入已保留。";return;}
         // 提问期间复用发送按钮提交答案，优先于模型停止逻辑。
         if (PendingAskUser is { } decision) { decision.TryCompleteSubmission(); return; }
         if (assistant.IsRunning) { assistant.CancelCurrentRun(); return; }
@@ -214,7 +216,7 @@ public partial class ChatViewModel : ObservableObject
     public async Task<AssistantRunResult?> SendAppAnalysisAsync(string text, string? focusPath)
     {
         if (string.IsNullOrWhiteSpace(text)) return null;
-        if (assistant.IsRunning) { ErrorMessage = "已有 Copilot 任务正在运行，请完成或停止后继续。"; return null; }
+        if (IsOperationRunning || assistant.IsRunning) { ErrorMessage = "已有任务正在运行，请完成或停止后继续。"; return null; }
         if (HasPendingInteractionCard || PendingAskUser is not null) { ErrorMessage = "请先完成或取消当前选择。"; return null; }
         RefreshApiKeyStatus();
         if (!IsApiKeyConfigured) { ErrorMessage = "请先在设置中配置模型 API Key。"; return null; }
@@ -241,7 +243,7 @@ public partial class ChatViewModel : ObservableObject
         try
         {
             var result = await assistant.RunAsync(message.Text, options with { MessageId = message.Id.ToString() }, null, CancellationToken.None);
-            if (result.State == AgentSessionState.Completed && !string.IsNullOrWhiteSpace(result.Text))
+            if (CurrentConversationId == conversationId)
                 OnUi(() => { if (CurrentConversationId == conversationId) StartConversationTitle(options, message.Text, result.Text); });
             if (result.State == AgentSessionState.Completed && CurrentConversationId == conversationId)
             {
@@ -287,6 +289,7 @@ public partial class ChatViewModel : ObservableObject
             }
             catch (System.Text.Json.JsonException) { }
         }
+        if (activity.Kind == AgentEventKind.ModelRetryStatus) StatusText=activity.Detail??"正在等待模型重试。";
         if (activity.Kind == AgentEventKind.ToolCallStarted) StatusText = "正在执行 · " + activity.ToolName;
         if (activity.Kind is AgentEventKind.TaskCompleted or AgentEventKind.TaskFailed or AgentEventKind.TaskCancelled)
         {
@@ -295,7 +298,7 @@ public partial class ChatViewModel : ObservableObject
             IsOperationRunning = false; PendingInteractionCard = null;
             displayMessage = null;
         }
-        if (activity.Kind == AgentEventKind.MessageCompleted) SaveCurrentConversation();
+        if (activity.Kind is AgentEventKind.MessageCompleted or AgentEventKind.ModelRetryStatus) SaveCurrentConversation();
     }
     public async Task<bool> ConfirmAsync(string title, string description, string? impact, CancellationToken ct, bool allowNotes = false)
     {

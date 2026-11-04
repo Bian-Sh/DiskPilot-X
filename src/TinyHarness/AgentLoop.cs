@@ -70,6 +70,7 @@ public sealed class AgentLoop
         string? failedDetail = null;
         // 用户取消 AskUser 后，本轮不再展示面板；若模型仍重复调用则复用原取消结果。
         var disabledToolResults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var repeatedFailures = new RepeatedToolFailureGuard();
 
         for (var step = 0; step < session.Options.MaxSteps && !completed && !cancelled && failedDetail is null; step++)
         {
@@ -122,6 +123,12 @@ public sealed class AgentLoop
 
                 switch (streamEvent)
                 {
+                    case ModelRetryEvent retry:
+                        var cause=retry.Kind switch {ModelErrorKind.RateLimited=>"请求频繁（429）",ModelErrorKind.ConnectionFailed=>"连接中断",ModelErrorKind.Timeout=>"请求超时",_=>"模型服务暂时不可用"};
+                        yield return AgentEvent.Create(session.Id,AgentEventKind.ModelRetryStatus) with { Detail=retry.Waiting
+                            ? $"{cause}，等待 {retry.Delay.TotalSeconds:0.#} 秒后重试（第 {retry.Attempt}/{retry.MaximumAttempts} 次尝试）。"
+                            : $"{cause}，准备重试（第 {retry.Attempt}/{retry.MaximumAttempts} 次尝试）。" };
+                        break;
                     case TextDeltaEvent textDelta:
                         textBuilder.Append(textDelta.Text);
                         AppendBlock(blocks, ChatContentKind.Text, textDelta.Text);
@@ -269,6 +276,11 @@ public sealed class AgentLoop
                     Success = result.Success,
                     Detail = result.Success ? null : ModelErrorClassifier.SanitizeUpstreamMessage(result.Content),
                 };
+                if (repeatedFailures.Observe(safeToolCall.Name, safeToolCall.ArgumentsJson, result.Success, result.Content))
+                {
+                    failedDetail=$"工具 {safeToolCall.Name} 对相同参数连续失败三次，本轮已停止；已完成结果保留，请按错误修正后继续。";
+                    break;
+                }
                 if (IsCancelledAskUserResult(safeToolCall.Name, result.Content))
                 {
                     disabledToolResults.TryAdd(safeToolCall.Name, result.Content);
@@ -296,6 +308,7 @@ public sealed class AgentLoop
             yield break;
         }
 
+        session.RepairDanglingToolCalls("{\"ok\":false,\"error\":\"本轮已停止，未执行剩余工具。\"}");
         session.MarkFailed();
         yield return AgentEvent.Create(session.Id, AgentEventKind.TaskFailed) with
         {
@@ -380,6 +393,7 @@ public sealed class AgentLoop
             {
                 logger.LogWarning("Agent 模型尝试终止 {SessionId} {Step} {Attempt} {Retryable} {ReceivedEvent}",
                     sessionId, step, attempt, retryable, receivedEvent);
+                failure.Data["ModelAttempts"]=attempt;
                 throw failure;
             }
 
@@ -390,7 +404,10 @@ public sealed class AgentLoop
             logger.LogWarning(failure, "Agent 模型准备重试 {SessionId} {Step} {Attempt} {DelayMs} {StatusCode} {Kind}",
                 sessionId, step, attempt + 1, delay.TotalMilliseconds,
                 (failure as ModelClientException)?.StatusCode, (failure as ModelClientException)?.Kind);
+            yield return new ModelRetryEvent(attempt+1,5,delay,kind,true);
             await retryDelay(delay, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return new ModelRetryEvent(attempt+1,5,TimeSpan.Zero,kind,false);
         }
     }
 

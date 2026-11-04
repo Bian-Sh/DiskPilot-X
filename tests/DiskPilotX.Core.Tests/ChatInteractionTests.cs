@@ -86,7 +86,8 @@ public class ChatInteractionTests
         message.ProcessStatus.Should().Be(status);
         message.DurationText.Should().Be("3s");
         message.IsStreaming.Should().BeFalse();
-        message.HasFinalContent.Should().BeFalse();
+        message.HasFinalContent.Should().BeTrue("终止原因现在作为持久可见的最终段落，而非成功完成标志");
+        message.FinalSegments.Should().Contain(segment=>segment.Status==status);
     }
 
     [Fact]

@@ -21,7 +21,7 @@ public partial class ChatViewModel
 
     private void StartConversationTitle(AssistantRunOptions options, string userText, string assistantText)
     {
-        if (assistant.ConversationTitle is not null || titleCancellation is not null || CurrentConversationId is not { } id) return;
+        if (titleCancellation is not null || CurrentConversationId is not { } id || !assistant.TryBeginConversationTitle()) return;
         var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         titleCancellation = cancellation;
         titleGenerationTask = GenerateAsync();
@@ -44,7 +44,11 @@ public partial class ChatViewModel
             {
                 _logger.LogDebug("对话标题生成未完成 {ExceptionType}", exception.GetType().Name);
             }
-            finally { cancellation.Dispose(); }
+            finally
+            {
+                await OnUiAsync(()=> { if(ReferenceEquals(titleCancellation,cancellation)) titleCancellation=null; });
+                cancellation.Dispose();
+            }
         }
     }
 
@@ -147,8 +151,11 @@ public partial class ChatViewModel
         }
     }
 
+    public event Action? ConversationReset;
+
     private void ResetConversationUi()
     {
+        ConversationReset?.Invoke();
         if (titleCancellation is { } cancellation)
         {
             titleCancellation = null;

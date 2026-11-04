@@ -30,6 +30,7 @@ public enum AgentEventKind
     ConfigChanged,
     TestStarted,
     TestCompleted,
+    ModelRetryStatus,
 }
 
 /// <summary>
