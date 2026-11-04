@@ -95,11 +95,23 @@ public partial class MainWindow
             return JsonSerializer.SerializeToNode(new{ok=results.All(r=>r.Result is CleanupResult.Success or CleanupResult.AlreadyRemoved),freed_bytes=results.Sum(r=>r.ActualSizeFreed),
                 results=results.Select(r=>new{id=r.Recommendation.Id,path=r.Recommendation.TargetPath,status=r.Result.ToString(),size_bytes=r.ActualSizeFreed})})!;
         }
-        catch(InvalidOperationException){return AssistantError("清理项不在当前允许范围或目录状态已改变，请重新扫描核对后再确认。");}
+        catch(CleanupPlanValidationException ex){return CleanupPlanFailure(ex);}
+        catch(InvalidOperationException ex)
+        {
+            Serilog.Log.Warning(ex, "清理路径或快照安全校验未通过，未继续执行");
+            return AssistantError("清理项不在当前允许范围或目录状态已改变，请重新扫描核对后再确认。");
+        }
         catch(IOException){return AssistantError("目录内容正在变化或无法完整读取，未继续清理。请关闭占用程序或重新扫描后重试。");}
         catch(UnauthorizedAccessException){return AssistantError("无法完整读取清理目录，未继续清理。请检查访问权限。");}
         finally{try{App.Services!.GetRequiredService<DiskAssistantService>().RecordCleanupUsage(completedActions);}catch(Exception e){Serilog.Log.Debug("可选使用记录未能保存 {ExceptionType}",e.GetType().Name);}finally{_cleanupRunning=false;main.IsCopilotBusy=_chatViewModel?.IsOperationRunning==true;}}
     }
+    private static JsonNode CleanupPlanFailure(CleanupPlanValidationException error) => new JsonObject
+    {
+        ["ok"] = false, ["code"] = error.Code, ["error"] = error.Message,
+        ["started"] = false, ["deleted_count"] = 0,
+        ["next_step"] = "请根据具体原因重新读取当前清单或调整选择，再确认；不需要仅因项目数量较多而重新扫描。"
+    };
+
     private void ValidateCleanupItems(CleanupPlan plan,ScanSession session,bool fromAssistant,CleanupRecommendation? current=null,CancellationToken ct=default)
     {
         if(session.Id!=plan.ScanId)throw new InvalidOperationException("扫描版本改变。");

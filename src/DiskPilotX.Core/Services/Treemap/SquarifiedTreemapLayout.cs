@@ -16,11 +16,8 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
     // depth behavior where small directories become leaf nodes.
     private const float MinContentArea = 800f;  // ~28×28 px equivalent
 
-    // Maximum children to render per directory.
-    internal const int MaxChildrenPerDir = 128;
-
     // 不按全图节点总数截断：深度优先遍历耗尽预算会丢失后续同级区域。
-    // 布局规模由屏幕像素 LOD、目录长尾聚合与深度上限约束；视口外节点由绘制层剔除。
+    // 布局规模仅由屏幕像素 LOD 与深度上限约束，不按项目数量截断；视口外节点由绘制层剔除。
 
     // LOD 生长：zoom 越大，展开子节点所需的面积阈值越小（按 zoom² 缩放），
     // 于是更多目录跨过阈值、向下展开更多层级 —— 等价于地图加载更细瓦片。
@@ -35,7 +32,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
     // 布局引擎的独立调用使用稳定回退色；App随后用整次扫描的缓存映射赋予完整语义。
     private static string GetFileColor(FileEntry entry) => TreemapColorContext.GetFallbackFileColor(entry);
 
-    private sealed record LayoutItem(FileEntry Entry, long Size, int AggregatedCount = 0);
+    private sealed record LayoutItem(FileEntry Entry, long Size);
 
     // 折叠目录用最大占用后代的类型色表示内容；层级很深或无读取权限时用稳定的路径色。
     private static string GetDirectoryContentColor(FileEntry directory)
@@ -127,21 +124,11 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
             || contentW * contentH < lodArea)
             return;
 
-        var allChildren = dir.Children
+        var children = dir.Children
             .Where(c => c.Size > 0)
             .OrderByDescending(c => c.Size)
-            .ToList();
-
-        if (allChildren.Count == 0)
-            return;
-
-        var children = allChildren.Take(MaxChildrenPerDir)
             .Select(c => new LayoutItem(c, c.Size)).ToList();
-        if (allChildren.Count > MaxChildrenPerDir)
-        {
-            long tailSize = allChildren.Skip(MaxChildrenPerDir).Sum(c => c.Size);
-            children.Add(new LayoutItem(dir, tailSize, allChildren.Count - MaxChildrenPerDir));
-        }
+        if (children.Count == 0) return;
 
         var contentRect = new Rect(contentX, contentY, contentW, contentH);
         SquarifyChildren(children, contentRect, depth + 1, maxDepth, zoom, result);
@@ -267,18 +254,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
             return;
 
         var entry = item.Entry;
-        if (item.AggregatedCount > 0)
-        {
-            result.Add(new TreemapNode
-            {
-                Entry = entry, X = rect.X, Y = rect.Y, Width = rect.Width, Height = rect.Height,
-                Depth = depth, ColorHex = GetDirectoryContentColor(entry),
-                AggregatedCount = item.AggregatedCount, AggregatedSize = item.Size,
-                Label = $"+{item.AggregatedCount} 项",
-                SizeLabel = FormatSize(item.Size),
-            });
-        }
-        else if (entry.IsDirectory)
+        if (entry.IsDirectory)
         {
             EmitDirectoryNode(entry, rect, depth, maxDepth, zoom, result);
         }

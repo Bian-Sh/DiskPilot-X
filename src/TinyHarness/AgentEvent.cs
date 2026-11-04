@@ -30,6 +30,9 @@ public enum AgentEventKind
     ConfigChanged,
     TestStarted,
     TestCompleted,
+    ToolCallPreparing,
+    ModelRetrying,
+    ModelRetryStatus,
 }
 
 /// <summary>
@@ -44,6 +47,7 @@ public sealed record AgentEvent(
     public string? Text { get; init; }
     public string? ToolName { get; init; }
     public string? ToolCallId { get; init; }
+    public string? PreviousToolCallId { get; init; }
     public bool? Success { get; init; }
     public string? Detail { get; init; }
     public int? Step { get; init; }

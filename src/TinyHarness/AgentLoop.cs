@@ -70,6 +70,7 @@ public sealed class AgentLoop
         string? failedDetail = null;
         // 用户取消 AskUser 后，本轮不再展示面板；若模型仍重复调用则复用原取消结果。
         var disabledToolResults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var repeatedFailures = new RepeatedToolFailureGuard();
 
         for (var step = 0; step < session.Options.MaxSteps && !completed && !cancelled && failedDetail is null; step++)
         {
@@ -122,6 +123,12 @@ public sealed class AgentLoop
 
                 switch (streamEvent)
                 {
+                    case ModelRetryEvent retry:
+                        var cause=retry.Kind switch {ModelErrorKind.RateLimited=>"请求频繁（429）",ModelErrorKind.ConnectionFailed=>"连接中断",ModelErrorKind.Timeout=>"请求超时",_=>"模型服务暂时不可用"};
+                        yield return AgentEvent.Create(session.Id,AgentEventKind.ModelRetryStatus) with { Detail=retry.Waiting
+                            ? $"{cause}，等待 {retry.Delay.TotalSeconds:0.#} 秒后重试（第 {retry.Attempt}/{retry.MaximumAttempts} 次尝试）。"
+                            : $"{cause}，准备重试（第 {retry.Attempt}/{retry.MaximumAttempts} 次尝试）。" };
+                        break;
                     case TextDeltaEvent textDelta:
                         textBuilder.Append(textDelta.Text);
                         AppendBlock(blocks, ChatContentKind.Text, textDelta.Text);
@@ -135,6 +142,17 @@ public sealed class AgentLoop
                             IsSummary = reasoningDelta.IsSummary,
                         };
                         break;
+                    case ModelRetryingEvent:
+                        yield return AgentEvent.Create(session.Id, AgentEventKind.ModelRetrying);
+                        break;
+                    case ModelToolCallPreparingEvent preparing when !string.IsNullOrWhiteSpace(preparing.ToolCallId)
+                        && toolRegistry.TryGet(preparing.ToolName, out var preparingTool) && preparingTool is not null:
+                        yield return AgentEvent.Create(session.Id, AgentEventKind.ToolCallPreparing) with
+                        {
+                            ToolCallId = preparing.ToolCallId,
+                            ToolName = preparingTool.Name,
+                        };
+                        break;
                     case ModelToolCallEvent toolCallEvent:
                         // 防御：忽略 name 为空的无效工具调用（部分上游会附带空占位调用），
                         // 避免其被误判为「未注册工具」并以空 tool_call_id 回传历史导致 400。
@@ -143,6 +161,12 @@ public sealed class AgentLoop
                             logger.LogWarning("Agent 忽略了空名称的工具调用 {SessionId} 步骤 {Step}", session.Id, step + 1);
                             break;
                         }
+                        if (toolCallEvent.PreparationId is { } preparationId
+                            && toolRegistry.TryGet(toolCallEvent.ToolCall.Name, out var readyTool) && readyTool is not null)
+                            yield return AgentEvent.Create(session.Id, AgentEventKind.ToolCallPreparing) with
+                            {
+                                PreviousToolCallId = preparationId, ToolCallId = toolCallEvent.ToolCall.Id, ToolName = readyTool.Name,
+                            };
                         toolCalls.Add(toolCallEvent.ToolCall);
                         break;
                     case ModelCompletedEvent completedEvent:
@@ -193,11 +217,6 @@ public sealed class AgentLoop
             {
                 var toolCall = dedupedToolCalls[toolIndex];
                 var safeToolCall = safeToolCalls[toolIndex];
-                yield return AgentEvent.Create(session.Id, AgentEventKind.ToolCallStarted) with
-                {
-                    ToolName = safeToolCall.Name,
-                    ToolCallId = safeToolCall.Id,
-                };
 
                 // 逐条批准模式：写/删工具先等用户批准
                 if (approvalGate is not null
@@ -239,6 +258,8 @@ public sealed class AgentLoop
                     }
                 }
 
+
+
                 ToolResult? result;
                 bool toolCancelled;
                 if (disabledToolResults.TryGetValue(toolCall.Name, out var disabledResult))
@@ -249,6 +270,11 @@ public sealed class AgentLoop
                 }
                 else
                 {
+                    yield return AgentEvent.Create(session.Id, AgentEventKind.ToolCallStarted) with
+                    {
+                        ToolName = safeToolCall.Name,
+                        ToolCallId = safeToolCall.Id,
+                    };
                     (result, toolCancelled) = await ExecuteToolAsync(toolCall, cancellationToken);
                 }
 
@@ -269,6 +295,11 @@ public sealed class AgentLoop
                     Success = result.Success,
                     Detail = result.Success ? null : ModelErrorClassifier.SanitizeUpstreamMessage(result.Content),
                 };
+                if (repeatedFailures.Observe(safeToolCall.Name, safeToolCall.ArgumentsJson, result.Success, result.Content))
+                {
+                    failedDetail=$"工具 {safeToolCall.Name} 对相同参数连续失败三次，本轮已停止；已完成结果保留，请按错误修正后继续。";
+                    break;
+                }
                 if (IsCancelledAskUserResult(safeToolCall.Name, result.Content))
                 {
                     disabledToolResults.TryAdd(safeToolCall.Name, result.Content);
@@ -296,6 +327,7 @@ public sealed class AgentLoop
             yield break;
         }
 
+        session.RepairDanglingToolCalls("{\"ok\":false,\"error\":\"本轮已停止，未执行剩余工具。\"}");
         session.MarkFailed();
         yield return AgentEvent.Create(session.Id, AgentEventKind.TaskFailed) with
         {
@@ -303,7 +335,7 @@ public sealed class AgentLoop
         };
     }
 
-    /// <summary>仅在尚未产生流式事件时重试模型步骤；首次请求计入五次总尝试。</summary>
+    /// <summary>尚未产生正文或完整调用时允许安全重试；准备元数据不阻止重试，首次请求计入五次总尝试。</summary>
     private async IAsyncEnumerable<ModelStreamEvent> StreamWithRetryAsync(
         ModelRequest request, TimeSpan timeout, string sessionId, int step,
         [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -349,7 +381,7 @@ public sealed class AgentLoop
                                 attemptTimeout.CancelAfter(Timeout.InfiniteTimeSpan);
                             }
                             if (!moved) break;
-                            receivedEvent = true;
+                            receivedEvent |= enumerator.Current is not ModelToolCallPreparingEvent;
                             yield return enumerator.Current;
                         }
                     }
@@ -380,6 +412,7 @@ public sealed class AgentLoop
             {
                 logger.LogWarning("Agent 模型尝试终止 {SessionId} {Step} {Attempt} {Retryable} {ReceivedEvent}",
                     sessionId, step, attempt, retryable, receivedEvent);
+                failure.Data["ModelAttempts"]=attempt;
                 throw failure;
             }
 
@@ -390,7 +423,11 @@ public sealed class AgentLoop
             logger.LogWarning(failure, "Agent 模型准备重试 {SessionId} {Step} {Attempt} {DelayMs} {StatusCode} {Kind}",
                 sessionId, step, attempt + 1, delay.TotalMilliseconds,
                 (failure as ModelClientException)?.StatusCode, (failure as ModelClientException)?.Kind);
+            yield return new ModelRetryingEvent();
+            yield return new ModelRetryEvent(attempt+1,5,delay,kind,true);
             await retryDelay(delay, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return new ModelRetryEvent(attempt+1,5,TimeSpan.Zero,kind,false);
         }
     }
 

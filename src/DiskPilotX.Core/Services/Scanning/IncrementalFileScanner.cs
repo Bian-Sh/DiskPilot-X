@@ -41,7 +41,7 @@ public partial class IncrementalFileScanner : IFileScanner
         {
             _logger.LogInformation("Waiting for background FRN index build to finish");
             progress.Report(new ScanProgress("Finalizing directory index...", 0, 0));
-            await _pendingIndexBuild.ConfigureAwait(false);
+            await _pendingIndexBuild.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
         }
 
         var fullPath = ScanPathResolver.Resolve(path);

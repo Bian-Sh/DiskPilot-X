@@ -37,11 +37,18 @@ public partial class MainWindow
         if (sender is not MainViewModel mainVm)
             return;
 
+        if(e.PropertyName==nameof(MainViewModel.CurrentSession))
+        {
+            _scanSnapshots.ReleaseOwner("view");
+            if(mainVm.CurrentSession is {} current) _scanSnapshots.Protect(current.Id,"view");
+        }
+        if(e.PropertyName==nameof(MainViewModel.IsScanning)) RefreshScanSnapshotEntries();
+
         if (e.PropertyName is nameof(MainViewModel.IsScanning) or nameof(MainViewModel.ScanTitleText) or nameof(MainViewModel.ScanProgressText))
         {
             if (e.PropertyName == nameof(MainViewModel.IsScanning) && mainVm.IsScanning)
             {
-                foreach (var cached in _aiScanSessionsByRoot.Values)
+                foreach (var cached in _scanSnapshots.Sessions)
                     Services.DeletedEntryState.Clear(cached.RootEntry);
                 Services.DeletedEntryState.Clear(mainVm.CurrentSession?.RootEntry);
                 _treemapViewModel?.ClearDeletionMarks();
@@ -66,6 +73,14 @@ public partial class MainWindow
     public void SetViewModels(RecommendationsViewModel recsVm, SettingsViewModel settingsVm)
     {
         _recommendationsViewModel = recsVm;
+        recsVm.PropertyChanged += (_, e) =>
+        {
+            if(e.PropertyName is nameof(RecommendationsViewModel.Recommendations) or nameof(RecommendationsViewModel.HasAcceptedRecommendations)) _recommendationRevision++;
+            if(e.PropertyName == nameof(RecommendationsViewModel.Recommendations) && recsVm.Recommendations.Count==0)
+            {
+                ResetAssistantBatch(); _assistantAnalysisSession=null; _publishedScopes.Clear(); _scanSnapshots.ReleaseOwner("recommendations");
+            }
+        };
         _settingsViewModel = settingsVm;
         if (DataContext is MainViewModel mainVm)
             mainVm.RecommendationsVM = recsVm;
@@ -236,17 +251,14 @@ public partial class MainWindow
 
     private void OnRecommendationActivated(CleanupRecommendation recommendation)
     {
+        if(_cleanupRunning || _chatViewModel?.IsOperationRunning==true || (DataContext as MainViewModel)?.IsScanning==true)
+        {if(_chatViewModel is not null)_chatViewModel.ErrorMessage="任务正在进行，请结束后再查看推荐的扫描版本。";return;}
         if (_treemapViewModel is null)
             return;
 
-        if (recommendation.Entry is not null)
-        {
-            TryShowCachedAiScanForPath(recommendation.Entry.Path, navigateToPath: false);
-            _treemapViewModel.NavigateToEntry(recommendation.Entry);
-            return;
-        }
-
-        TryShowCachedAiScanForPath(recommendation.TargetPath);
+        if(!IsSkillScopeAllowed(recommendation.TargetPath)) {if(_chatViewModel is not null)_chatViewModel.ErrorMessage="当前设置不允许查看此推荐范围。";return;}
+        var shown=TryShowCachedAiScanForPath(recommendation.TargetPath,snapshotId:recommendation.SourceScanId);
+        if(_chatViewModel is not null)_chatViewModel.ErrorMessage=shown?null:"该推荐的扫描版本已不可用，请重新分析，不会改用另一个同路径快照。";
     }
 
     private void CacheAiScanSession(ScanSession session)
@@ -254,19 +266,16 @@ public partial class MainWindow
         if (session.RootEntry is null || string.IsNullOrWhiteSpace(session.TargetPath))
             return;
 
-        _aiScanSessionsByRoot[NormalizePathKey(session.TargetPath)] = session;
+        RegisterScanSnapshot(session);
     }
 
-    private bool TryShowCachedAiScanForPath(string? path, bool navigateToPath = true)
+    private bool TryShowCachedAiScanForPath(string? path, bool navigateToPath = true, Guid? snapshotId = null)
     {
         if (string.IsNullOrWhiteSpace(path) || _treemapViewModel is null)
             return false;
 
-        var session = _aiScanSessionsByRoot.Values
-            .Where(candidate => candidate.RootEntry is not null && IsPathUnder(path, candidate.RootEntry.Path))
-            .OrderByDescending(candidate => NormalizePathKey(candidate.RootEntry!.Path).Length)
-            .FirstOrDefault();
-        if (session?.RootEntry is null)
+        var session = snapshotId is {} id?_scanSnapshots.FindById(id):_scanSnapshots.FindByPath(path);
+        if (session?.RootEntry is null || !IsPathUnder(path,session.RootEntry.Path))
             return false;
 
         if (DataContext is MainViewModel mainVm)
@@ -275,6 +284,7 @@ public partial class MainWindow
             mainVm.UpdateStatusBar(session);
         }
 
+        _scanSnapshots.ReleaseOwner("view"); _scanSnapshots.Protect(session.Id,"view");
         _treemapViewModel.SetRoot(session.RootEntry, session);
         _chatViewModel?.SetContext(session, session.RootEntry);
         if (TreeViewControl.DataContext is TreeViewModel treeViewModel)
@@ -282,7 +292,9 @@ public partial class MainWindow
             treeViewModel.SetRoot(session.RootEntry, session);
         }
 
-        return !navigateToPath || _treemapViewModel.NavigateToPath(path);
+        if(!navigateToPath)return true;
+        var entry=new DiskPilotX.Core.Services.FileTree.FileTreeQueryService().FindByPath(session,path);
+        return entry is not null && _treemapViewModel.NavigateToEntry(entry);
     }
 
     private static bool IsPathUnder(string path, string rootPath)

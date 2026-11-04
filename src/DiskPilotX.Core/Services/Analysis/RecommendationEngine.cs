@@ -158,6 +158,7 @@ public partial class RecommendationEngine
 
             recommendation.TargetPath = entry.Path;
             recommendation.Entry = entry;
+            recommendation.SourceScanId = session.Id;
             recommendation.Size = entry.Size;
             recommendation.LastModified = entry.LastModified;
             AddValidatedRecommendation(result, recommendation, whitelist);
@@ -170,6 +171,21 @@ public partial class RecommendationEngine
 
         _logger.LogInformation("候选校验完成：通过 {Count} 项，硬保护过滤 {ProtectedCount} 项", result.Recommendations.Count, result.Diagnostics.ProtectedFilteredCount);
         return result;
+    }
+
+    /// <summary>追加前按真实路径去重及排除父子重叠，优先保留原对象与勾选状态。</summary>
+    public static List<CleanupRecommendation> MergeRecommendations(IEnumerable<CleanupRecommendation> existing, IEnumerable<CleanupRecommendation> incoming)
+    {
+        var kept = new List<CleanupRecommendation>();
+        var paths = new List<string>();
+        foreach (var item in existing.Concat(incoming))
+        {
+            if (!TryNormalizePath(item.TargetPath, out var path) || paths.Any(previous =>
+                IsSameOrUnderPrefix(path, previous) || IsSameOrUnderPrefix(previous, path))) continue;
+            kept.Add(item);
+            paths.Add(path);
+        }
+        return kept;
     }
 
     public static bool IsDeletionProtected(string path)

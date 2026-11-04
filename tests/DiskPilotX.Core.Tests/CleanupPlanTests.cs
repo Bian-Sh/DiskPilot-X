@@ -5,6 +5,38 @@ using DiskPilotX.Core.Services.Cleanup;
 namespace DiskPilotX.Core.Tests;
 public class CleanupPlanTests
 {
+    [Theory]
+    [InlineData(100)]
+    [InlineData(101)]
+    [InlineData(181)]
+    public void 完整清单可一次确认超过单次推荐发布上限的目标(int count)
+    {
+        using var directory = new CleanupTestDirectory();
+        var items = Enumerable.Range(1, count).Select(index => new CleanupRecommendation
+        {
+            Id = index.ToString(), TargetPath = directory.WriteFile($"cache-{index:000}/payload.bin", "本次清理夹具"), IsAccepted = true
+        }).ToArray();
+        var session = new ScanSession();
+        var plan = CleanupPlan.Capture(session, items, items.Select(item => item.Id).ToArray(), DeletionMode.PermanentDelete);
+        Assert.Equal(count, plan.Items.Count);
+        Assert.True(plan.IsCurrent(session, items, DeletionMode.PermanentDelete));
+        File.WriteAllText(items[^1].TargetPath, "确认期间内容变化，必须重新确认");
+        Assert.False(plan.IsCurrent(session, items, DeletionMode.PermanentDelete));
+    }
+
+    [Theory]
+    [InlineData("empty", "cleanup_selection_empty")]
+    [InlineData("duplicate", "cleanup_selection_duplicate")]
+    [InlineData("expired", "cleanup_item_expired")]
+    [InlineData("overlap", "cleanup_paths_overlap")]
+    public void 选择错误必须保留真实原因而不是统称扫描变化(string kind, string code)
+    {
+        var items = new CleanupRecommendation[] { new() { Id="1", TargetPath=@"D:\清理夹具" }, new() { Id="2", TargetPath=@"D:\清理夹具\子目录" } };
+        string[] ids = kind switch { "empty"=>[], "duplicate"=>["1","1"], "expired"=>["unknown"], _=>["1","2"] };
+        var exception = Assert.ThrowsAny<InvalidOperationException>(() => CleanupPlan.Capture(new ScanSession(), items, ids, DeletionMode.PermanentDelete));
+        Assert.Equal(code, exception.GetType().GetProperty("Code")?.GetValue(exception));
+    }
+
     [Fact]
     public void ApprovalVersionChanges_WhenPathModeOrSelectionChanges()
     {

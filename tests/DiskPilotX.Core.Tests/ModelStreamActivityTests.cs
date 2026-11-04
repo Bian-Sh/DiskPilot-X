@@ -14,7 +14,7 @@ public sealed class ModelStreamActivityTests
     [InlineData("anthropic", 7)]
     [InlineData("openai-chat", 5)]
     [InlineData("openai-responses", 5)]
-    public async Task 每个数据帧含工具参数分片均通知活动但不产生额外模型事件(string protocol, int expected)
+    public async Task 工具名称到达即展示准备状态但不暴露参数分片(string protocol, int expected)
     {
         var callback = typeof(ModelRequest).GetProperty("OnStreamActivity");
         Assert.NotNull(callback);
@@ -28,9 +28,30 @@ public sealed class ModelStreamActivityTests
         var events = new List<ModelStreamEvent>();
         await foreach (var item in client.StreamAsync(request, CancellationToken.None)) events.Add(item);
         Assert.Equal(expected, calls);
-        Assert.Equal(2, events.Count);
+        Assert.Equal(3, events.Count);
+        Assert.Equal("ModelToolCallPreparingEvent", events[0].GetType().Name);
+        Assert.DoesNotContain("path", JsonSerializer.Serialize(events[0], events[0].GetType()));
         Assert.Equal("{\"path\":\"fixture\"}", Assert.Single(events.OfType<ModelToolCallEvent>()).ToolCall.ArgumentsJson);
         Assert.Single(events.OfType<ModelCompletedEvent>());
+    }
+
+    [Fact]
+    public async Task 调用标识分片追加时准备事件同步迁移到完整标识()
+    {
+        var frames = string.Concat(new[]
+        {
+            """{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_","function":{"name":"fixture","arguments":""}}]}}]}""",
+            """{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"1","function":{"arguments":"{}"}}]}}]}""",
+            """{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}""", "[DONE]"
+        }.Select(frame => "data: " + frame + "\n\n"));
+        using var http = new HttpClient(new FixtureHandler(frames));
+        var client = new OpenAiModelClient(http, "fixture", "http://fixture.invalid", "fixture", LlmApiFormat.OpenAiChatCompletions);
+        var events = new List<ModelStreamEvent>();
+        await foreach (var item in client.StreamAsync(new ModelRequest([TinyHarness.ChatMessage.User("分片标识测试")], []), default)) events.Add(item);
+        var preparing = Assert.Single(events.OfType<ModelToolCallPreparingEvent>());
+        Assert.StartsWith("preparing:", preparing.ToolCallId);
+        Assert.Equal(preparing.ToolCallId, Assert.Single(events.OfType<ModelToolCallEvent>()).PreparationId);
+        Assert.Equal("call_1", Assert.Single(events.OfType<ModelToolCallEvent>()).ToolCall.Id);
     }
 
     private static string Frames(string protocol)

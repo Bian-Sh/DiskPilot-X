@@ -277,6 +277,7 @@ public sealed class AnthropicModelClient : IModelClient
                             if (string.IsNullOrWhiteSpace(block.Id) || string.IsNullOrWhiteSpace(block.Name) || !toolIds.Add(block.Id))
                                 throw ProtocolFault(tail, "invalid-tool-block", $"index={index}, id={block.Id ?? "(empty)"}, name={block.Name ?? "(empty)"}");
                             block.InitialInput = content.GetProperty("input").Clone();
+                            yield return new ModelToolCallPreparingEvent(block.PreparationId, block.Name);
                             break;
                         default: throw ProtocolFault(tail, "unknown-block-type", block.Type);
                     }
@@ -324,7 +325,7 @@ public sealed class AnthropicModelClient : IModelClient
                         }
                         catch (JsonException) { }
                         if (!valid) throw ProtocolFault(tail, "invalid-tool-arguments", $"tool={block.Name}, bytes={arguments.Length}");
-                        yield return new ModelToolCallEvent(new ToolCall(block.Id!, block.Name!, arguments));
+                        yield return new ModelToolCallEvent(new ToolCall(block.Id!, block.Name!, arguments), block.PreparationId);
                     }
                     break;
                 }
@@ -391,6 +392,7 @@ public sealed class AnthropicModelClient : IModelClient
     private sealed class ContentBlock(string type)
     {
         public string Type { get; } = type;
+        public string PreparationId { get; } = "preparing:" + Guid.NewGuid().ToString("N");
         public string? Id { get; set; }
         public string? Name { get; set; }
         public JsonElement InitialInput { get; set; }

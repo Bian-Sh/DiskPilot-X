@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 namespace DiskPilotX.Core.Models;
 
 public enum ChatSegmentKind { Text, Thinking, Tool }
-public enum ChatSegmentStatus { Running, Completed, Failed, Cancelled, WaitingForUser }
+public enum ChatSegmentStatus { Running, Completed, Failed, Cancelled, WaitingForUser, Preparing }
 
 /// <summary>一条消息中按实际发生顺序展示的正文、思考或工具过程。</summary>
 public sealed class ChatSegment(ChatSegmentKind kind) : INotifyPropertyChanged
@@ -23,7 +23,7 @@ public sealed class ChatSegment(ChatSegmentKind kind) : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public ChatSegmentKind Kind { get; } = kind;
-    public string? ToolCallId { get; init; }
+    public string? ToolCallId { get; set; }
     public bool IsText => Kind == ChatSegmentKind.Text;
     public bool IsThinking => Kind == ChatSegmentKind.Thinking;
     public bool IsTool => Kind == ChatSegmentKind.Tool;

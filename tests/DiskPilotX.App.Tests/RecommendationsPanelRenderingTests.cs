@@ -80,6 +80,21 @@ public sealed class RecommendationsPanelRenderingTests
         Assert.DoesNotContain("来源表头", texts);
     });
 
+    [Fact]
+    public void 自定义空态纯文本可换行滚动且不生成状态横条() => StaHost.Run(() =>
+    {
+        using var host = CreateHost(out var panel, out var vm);
+        const string title = "<Button>只是纯文本，不执行</Button>";
+        vm.SetEmptyStatePresentation(title, string.Join("\n", Enumerable.Repeat("空间提示：先看证据。", 100)));
+        Layout(panel);
+        Assert.Null(panel.FindName("AnalysisStatus"));
+        var header = Assert.Single(Visuals<TextBlock>(panel).Where(text => text.Text == title));
+        Assert.Equal(TextWrapping.Wrap, header.TextWrapping);
+        var scroll = Assert.IsType<ScrollViewer>(panel.FindName("EmptyStateScroll"));
+        Assert.True(scroll.ScrollableHeight > 0);
+        Assert.Empty(vm.Recommendations);
+        Assert.Null(vm.AnalysisTask);
+    });
     private static IDisposable CreateHost(out RecommendationsPanel panel, out RecommendationsViewModel vm)
     {
         // 面板里有位于<UserControl>根上的 StaticResource（VP.ListViewItem 等），在

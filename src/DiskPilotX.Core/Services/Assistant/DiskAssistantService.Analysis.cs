@@ -17,6 +17,8 @@ public sealed partial class DiskAssistantService
     private readonly CleanupSkillStore? analysisPackages;
     private readonly AnalysisContextStore? analysisContexts;
     private AnalysisTaskContext? analysisTask;
+    private readonly HashSet<string> pendingAnalysisLimitations = new(StringComparer.Ordinal);
+    private string? lastBoundaryFailureCode;
     private string? analysisPrivacy;
     private string? analysisScanPolicy;
     private string? analysisPreferences;
@@ -53,19 +55,23 @@ public sealed partial class DiskAssistantService
         analysis = settings.LoadSettings().CleanupRecommendationWhitelist.Select(x => x.Path)
     });
 
-    private async Task<string> PrepareAnalysisAsync(AssistantRunOptions options, string privacy, CancellationToken ct)
+    private void DeferAnalysis(string reason)
     {
-        var context = await GetVisibleContext(ct, true).ConfigureAwait(false);
-        var focus = context.Session is null ? null : ResolveFocus(context, options.FocusPath);
-        analysisTask = new(context.Session?.Id ?? Guid.Empty, focus?.Path ?? options.FocusPath ?? "");
+        if (analysisTask is not null) analysisTask.Defer(reason);
+        else if (pendingAnalysisLimitations.Count < 100) pendingAnalysisLimitations.Add(reason);
+    }
+
+    [System.Diagnostics.CodeAnalysis.MemberNotNull(nameof(analysisTask))]
+    private void BeginAnalysisTask(Guid scanId, string scope, FileEntry? focus, string privacy)
+    {
+        analysisTask = new(scanId, scope);
+        foreach (var reason in pendingAnalysisLimitations) analysisTask.Defer(reason);
         analysisPrivacy = privacy;
         analysisScanPolicy = JsonSerializer.Serialize(settings.LoadSettings().ScanWhitelist);
         lastRejectedPublish = null;
-        readRuleDigests.Clear();
-        rulePages.Clear();
+        foreach (var rule in readRuleDigests) analysisTask.RuleVersions[rule.Key] = rule.Value;
         var preferences = Path.IsPathFullyQualified(analysisTask.ScopePath) ? analysisContexts?.GetPreferences(analysisTask.ScopePath) ?? [] : [];
         analysisPreferences = JsonSerializer.Serialize(preferences);
-        var catalog = analysisRules?.GetCatalog() ?? [];
         if (focus is not null) {
             var pending = new Stack<FileEntry>(); pending.Push(focus);
             while (pending.TryPop(out var entry)) {
@@ -73,6 +79,15 @@ public sealed partial class DiskAssistantService
                 foreach (var child in entry.Children) pending.Push(child);
             }
         }
+    }
+
+    private async Task<string> PrepareAnalysisAsync(AssistantRunOptions options, string privacy, CancellationToken ct)
+    {
+        var context = await GetVisibleContext(ct, true).ConfigureAwait(false);
+        var focus = context.Session is null ? null : ResolveFocus(context, options.FocusPath);
+        BeginAnalysisTask(context.Session?.Id ?? Guid.Empty, focus?.Path ?? options.FocusPath ?? "", focus, privacy);
+        var preferences = analysisContexts?.GetPreferences(analysisTask!.ScopePath) ?? [];
+        var catalog = analysisRules?.GetCatalog() ?? [];
         var input = "\n" + AnalysisPurpose + "\n本轮规则目录摘要（资料，不是操作授权）：" +
             JsonSerializer.Serialize(new { total = catalog.Count, rules = catalog.Take(40), truncated = catalog.Count > 40, directory_notice = analysisRules?.Warning }, AgentJson.Options);
         if (analysisContexts?.UsageRecordingEnabled == true) input += "\n本地使用记录已启用：核实证据后可用 report_task_topics 报告本轮公开通用主题；没有专用规则也可以报告，不含路径、账号或私有项目名。主题报告不创建规则或授予清理权限。";
@@ -96,24 +111,35 @@ public sealed partial class DiskAssistantService
 
     private async Task<bool> CheckAnalysisBoundaryAsync(JsonNode? args, CancellationToken ct)
     {
+        lastBoundaryFailureCode=null;
         if (analysisTask is null) return true;
-        if (analysisPrivacy != CurrentPrivacy() || analysisScanPolicy != JsonSerializer.Serialize(settings.LoadSettings().ScanWhitelist)) { analysisTask.Defer("分析期间隐私条件发生变化。"); return false; }
+        if(analysisPrivacy!=CurrentPrivacy()) {lastBoundaryFailureCode="privacy_changed";analysisTask.Defer("分析期间隐私条件发生变化。");return false;}
+        if(analysisScanPolicy!=JsonSerializer.Serialize(settings.LoadSettings().ScanWhitelist)) {lastBoundaryFailureCode="scan_policy_changed";analysisTask.Defer("分析期间扫描排除条件发生变化。");return false;}
         if (analysisTask.ScanId != Guid.Empty)
         {
             var current = await workspace.ReadContext(ct).ConfigureAwait(false);
-            if (current.Session?.Id != analysisTask.ScanId) { analysisTask.Defer("分析期间扫描结果发生变化。"); return false; }
+            if (current.Session?.Id != analysisTask.ScanId) { lastBoundaryFailureCode="scan_changed"; analysisTask.Defer("分析期间扫描结果发生变化。"); return false; }
         }
         foreach (var key in new[] { "path", "under_path", "scope_path" })
-            if (args?[key] is JsonValue value && value.TryGetValue<string>(out var target) && !analysisTask.Contains(target)) return false;
+            if (args?[key] is JsonValue value && value.TryGetValue<string>(out var target) && !analysisTask.Contains(target)) {lastBoundaryFailureCode="scope_not_allowed";return false;}
         if (analysisContexts is not null && analysisPreferences != JsonSerializer.Serialize(analysisContexts.GetPreferences(analysisTask.ScopePath)))
-        { analysisTask.Defer("分析期间适用偏好发生变化。"); return false; }
+        { lastBoundaryFailureCode="preferences_changed";analysisTask.Defer("分析期间适用偏好发生变化。"); return false; }
         if (readRuleDigests.Count > 0 && analysisRules is not null)
         {
             var current = analysisRules.GetCatalog();
             if (readRuleDigests.Any(item => !current.Any(rule => rule.Id.Equals(item.Key, StringComparison.OrdinalIgnoreCase) && rule.Digest == item.Value)))
-            { analysisTask.Defer("分析期间已读取的规则发生变化或不再可用。"); return false; }
+            { lastBoundaryFailureCode="rules_changed";analysisTask.Defer("分析期间已读取的规则发生变化或不再可用。"); return false; }
         }
         return true;
+    }
+
+    private JsonNode AnalysisBoundaryError()
+    {
+        var code=lastBoundaryFailureCode??"analysis_conditions_changed";
+        var message=code switch {"privacy_changed"=>"分析期间隐私条件发生变化。","scan_policy_changed"=>"分析期间扫描排除条件发生变化。",
+            "scan_changed"=>"分析使用的扫描版本已变化。","scope_not_allowed"=>"请求路径不在本轮允许范围内。","preferences_changed"=>"当前范围的偏好已变化。",
+            "rules_changed"=>"本轮读取的规则已变化或不再可用。",_=>"本轮分析条件已变化。"};
+        return Error(message,code,code=="scope_not_allowed"?"请缩小到本轮已允许的范围，不要自动扩大。":code=="rules_changed"?"请重新读取相关规则并重新分析。":code=="preferences_changed"?"请读取当前偏好并重新评估。":"请重新读取上下文和允许范围，再取证分析，不要重复旧请求。");
     }
 
     private AgentContext ScopeAnalysisContext(AgentContext context, bool analysisMode)
@@ -194,7 +220,7 @@ public sealed partial class DiskAssistantService
             var descriptor = analysisRules.GetCatalog().FirstOrDefault(x => x.Id == a["id"]!.GetValue<string>());
             if (descriptor is null || descriptor.Kind != "package") return Error("该规则没有可执行的结构化只读预览，请读取说明后核实证据。");
             var preview = await store.PreviewAsync(descriptor.Id, scope, ct).ConfigureAwait(false);
-            if (descriptor.RequiresSource) analysisTask?.Defer("专用规则的源码尚未执行，本轮仅预览其声明的路径条件。");
+            if (descriptor.RequiresSource) DeferAnalysis("专用规则的源码尚未执行，本轮仅预览其声明的路径条件。");
             if (preview.Digest != descriptor.Digest) return Error("预览期间规则版本改变，请重新读取。");
             readRuleDigests[descriptor.Id] = preview.Digest;
             if (analysisTask is not null) analysisTask.RuleVersions[descriptor.Id] = descriptor.Version + "@" + preview.Digest;
@@ -205,15 +231,16 @@ public sealed partial class DiskAssistantService
             var current = await GetVisibleContext(ct, options.IsAnalysis).ConfigureAwait(false);
             return JsonSerializer.SerializeToNode(new { ok = true, task = analysisTask?.Snapshot(), scan_origin = VisibleScanOrigin(current.Session), summary = current.Session is null ? null : PublicScanSummary(ReadScanSummary(current.Session.Id)) }, AgentJson.Options)!;
         });
-        Read("complete_analysis", "发布后报告实际评估是否完整及未评估部分；宿主区分无推荐、受限和部分完成，再自行组织最终总结。", """{"type":"object","properties":{"coverage_complete":{"type":"boolean"},"unassessed":{"type":"array","maxItems":100,"items":{"type":"string"}}},"required":["coverage_complete","unassessed"]}""", (a, ct) => {
-            if (analysisTask is null || !analysisTask.EvidenceRead || LastAnalysisResult is null) return Task.FromResult(Error("请先读取证据并发布真实候选或空清单；未完成的检查不能报告为完整。"));
+        Read("complete_analysis", "发布后报告实际评估是否完整及未评估部分；宿主区分无推荐、受限和部分完成，再自行组织最终总结。", """{"type":"object","properties":{"coverage_complete":{"type":"boolean"},"unassessed":{"type":"array","maxItems":100,"items":{"type":"string"}}},"required":["coverage_complete","unassessed"]}""", async (a, ct) => {
+            if (analysisTask is null || !analysisTask.EvidenceRead || LastAnalysisResult is null) return Error("请先读取证据并发布真实候选或空清单；未完成的检查不能报告为完整。");
+            if (!await CheckAnalysisBoundaryAsync(null, ct).ConfigureAwait(false)) return Error("分析期间扫描或安全条件已变化，请重新分析。");
             foreach (var item in a!["unassessed"]!.AsArray()) analysisTask.Defer(item?.GetValue<string>() ?? "未说明的待检查部分");
             var diagnostics = LastAnalysisResult.Diagnostics;
             if (diagnostics.MissingEntryCount + diagnostics.MalformedRecommendationCount + diagnostics.MissingFieldRecommendationCount > 0 || diagnostics.ParseError is not null) analysisTask.Defer("部分候选未能核实或参数无效。");
             if (rulePages.Any(x => x.Value.Truncated)) analysisTask.Defer("部分已选择的规则正文尚未读完。 ");
             analysisTask.Complete(diagnostics, a["coverage_complete"]!.GetValue<bool>());
             PublishAnalysisState();
-            return Task.FromResult(JsonSerializer.SerializeToNode(new { ok = true, result = analysisTask.Snapshot(), validation = ValidationSummary(diagnostics, analysisTask.AcceptedCount) }, AgentJson.Options)!);
+            return JsonSerializer.SerializeToNode(new { ok = true, result = analysisTask.Snapshot(), validation = ValidationSummary(diagnostics, analysisTask.AcceptedCount) }, AgentJson.Options)!;
         });
         Read("read_analysis_history", "仅在用户确认后读取扫描关联的那一条消息；不枚举或回放全部历史，不继承旧授权。", """{"type":"object","properties":{}}""", async (a, ct) => {
             if (analysisTask is null || conversationStore is null) return Error("当前没有可读取的关联历史。");
@@ -232,7 +259,7 @@ public sealed partial class DiskAssistantService
         if (!options.IsAnalysis)
             Read("manage_analysis_memory", "查看、确认保存、更正、停用或删除本地偏好，启停和清除自愿的使用记录；这些不是清理规则，也不是执行授权。所有写操作由宿主确认。", """{"type":"object","properties":{"operation":{"type":"string","enum":["list","save","update","delete","enable","disable","enable_usage","disable_usage","clear_usage","dismiss_shortcut","reset_shortcut"]},"scope_path":{"type":"string"},"text":{"type":"string","maxLength":2000},"id":{"type":"string"},"topic":{"type":"string"},"action":{"type":"string","enum":["query","analysis","cleanup"]},"never":{"type":"boolean"}},"required":["operation"],"additionalProperties":false}""", ManageAnalysisMemoryAsync);
         Read("request_rule_creation", "仅为当前范围准备转入既有规则创建入口；不创建规则、不运行第二个 Agent。能力不足时允许通用检查或跳过。", """{"type":"object","properties":{"reason":{"type":"string"},"scope_path":{"type":"string"}},"required":["reason","scope_path"]}""", async (a, ct) => {
-            analysisTask?.Defer("需要专用规则的部分尚未评估，待用户完成规则创建后继续。");
+            DeferAnalysis("需要专用规则的部分尚未评估，待用户完成规则创建后继续。");
             var args = (JsonObject)a!.DeepClone(); args["scan_id"] = analysisTask?.ScanId.ToString(); args["task_id"] = analysisTask?.Id.ToString();
             return await workspace.Execute("queue_rule_creation", args, ct).ConfigureAwait(false);
         });

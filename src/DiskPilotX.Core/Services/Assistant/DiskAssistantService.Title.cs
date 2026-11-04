@@ -9,7 +9,14 @@ public sealed partial class DiskAssistantService
     {
         if (currentConversationId != conversationId) return false;
         ConversationTitle = title;
+        ConversationTitleIsFallback=false;
         return true;
+    }
+
+    public bool TryBeginConversationTitle()
+    {
+        if(currentConversationId is null || ConversationTitleAttempts>=2 || ConversationTitle is not null && !ConversationTitleIsFallback) return false;
+        ConversationTitleAttempts++; return true;
     }
 
     /// <summary>独立请求只摘要本轮文字，不传工具或改变聊天上下文。</summary>

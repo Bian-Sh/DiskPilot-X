@@ -13,7 +13,7 @@ public partial class ChatViewModel
     {
         var request=UserDecisionRequest.Parse(arguments);
         var decision=new AskUserDialogViewModel(request);
-        await OnUiAsync(()=> { PendingAskUser?.Cancel(); PendingInteractionCard=null; PendingAskUser=decision; StatusText="等待你的选择"; });
+        await OnUiAsync(()=> { PendingAskUser?.Cancel(); PendingInteractionCard=null; PendingAskUser=decision; displayMessage?.SetWaitingForUser(true); StatusText="等待你的选择"; });
         try
         {
             var response=await decision.Completion.WaitAsync(ct);
@@ -23,7 +23,7 @@ public partial class ChatViewModel
         }
         finally
         {
-            await OnUiAsync(()=> { decision.Cancel(); if(ReferenceEquals(PendingAskUser,decision)) { PendingAskUser=null; StatusText=IsOperationRunning?"正在处理":"准备就绪"; } });
+            await OnUiAsync(()=> { decision.Cancel(); if(ReferenceEquals(PendingAskUser,decision)) { PendingAskUser=null; displayMessage?.SetWaitingForUser(false); StatusText=IsOperationRunning?"正在处理":"准备就绪"; } });
         }
     }
 }

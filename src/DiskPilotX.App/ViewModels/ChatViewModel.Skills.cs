@@ -24,7 +24,7 @@ public partial class ChatViewModel
     }
     /// <summary>入口只表达运行意图；范围、参数、视图和回传方式由技能自己的契约决定。</summary>
     private static string BuildShortcutPrompt(AiSkillCatalogItem skill) => skill.Kind == "provider"
-        ? "@" + skill.Id + " 请先读取并按这份应用数据发现规则运行。需要参数时打开规则自带的任务面板，或让我选择；不要擅自扩大范围。"
+        ? "@" + skill.Id + " 请先读取并按这份应用数据发现规则运行。按技能自己的流程收集必要参数；纯参数优先在对话中提问，只有技能确需复杂交互时才打开它的任务面板；不要擅自扩大范围。"
           + "源码返回视图后不要再调用 render_view 重复渲染；是否勾选回传或在面板中操作，由规则和我的需求决定。只读发现，不直接清理。"
         : "@" + skill.Id + " 请按这条清理规则检查，先让我选择范围并预览，保留用户资料，清理前再确认。";
     [RelayCommand] private async Task ExplorePromptAsync(string? prompt)
@@ -40,6 +40,23 @@ public partial class ChatViewModel
         if (!target.SkillTasks.Any(t => t.TaskId == card.TaskId)) target.SkillTasks.Add(card);
     }
     public void OpenSkillTask(SkillTaskCard card) => SkillTaskRequested?.Invoke(card);
+
+    public Func<ScanSnapshotReference, Task>? ScanSnapshotAction { get; set; }
+    public void AddScanSnapshot(ScanSnapshotReference reference)
+    {
+        var target = displayMessage ?? (Messages.LastOrDefault() is { Sender: ChatSender.Assistant } latest ? latest : null);
+        if (target is null) { target = new() { Sender = ChatSender.Assistant, Timestamp = DateTime.Now }; Messages.Add(target); }
+        if (!target.ScanSnapshots.Any(item => item.Id == reference.Id))
+        {
+            var pending = target.ScanSnapshots.FirstOrDefault(item => item.IsPending &&
+                string.Equals(item.Path, reference.Path, StringComparison.OrdinalIgnoreCase));
+            if (pending is not null) target.ScanSnapshots[target.ScanSnapshots.IndexOf(pending)] = reference;
+            else target.ScanSnapshots.Add(reference);
+        }
+        SaveCurrentConversation();
+    }
+    public Task OpenScanSnapshotAsync(ScanSnapshotReference reference) => ScanSnapshotAction?.Invoke(reference) ?? Task.CompletedTask;
+
 
     /// <summary>
     /// 把模型按需构建的视图追加到当前助手泡泡。泡泡里只放入口卡，因此同一条消息里

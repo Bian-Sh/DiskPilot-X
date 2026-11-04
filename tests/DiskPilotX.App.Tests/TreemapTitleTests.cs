@@ -66,17 +66,26 @@ public class TreemapTitleTests
     }
 
     [Fact]
-    public void 聚合块_标题和容量分开且使用聚合容量而非父目录容量()
+    public void 大量文件仍保留真实名称容量和悬停路径() => InSta(() =>
     {
         var root = Root();
         for (int i = 0; i < 600; i++)
             root.Children.Add(new FileEntry { Name = $"文件{i}.js", Path = $"D:/完整目录/文件{i}.js", Size = 100, Parent = root });
         root.Size = 60000;
-        var nodes = new SquarifiedTreemapLayout().ComputeLayout(root, 1200, 800, 64);
-        var tail = Assert.Single(nodes.Where(n => n.AggregatedCount > 0));
-        Assert.Equal("+472 项", tail.Label);
-        Assert.Equal("46.1 KB", tail.SizeLabel);
-    }
+        var nodes = new SquarifiedTreemapLayout().ComputeLayout(root, 12000, 8000, 64);
+        var files = nodes.Where(node => !node.Entry.IsDirectory).ToArray();
+        Assert.Equal(600, files.Length);
+        Assert.All(files, node => { Assert.Equal(node.Entry.Name, node.Label); Assert.Equal("100 B", node.SizeLabel); });
+        Assert.DoesNotContain(nodes, node => node.AggregatedCount > 0);
+        var last = files.Single(node => node.Entry.Name == "文件599.js");
+        var control = new TreemapControl();
+        typeof(TreemapControl).GetMethod("UpdateToolTipContent", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(control, [last]);
+        var tooltip = (ToolTip)typeof(TreemapControl).GetField("_toolTip", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(control)!;
+        var lines = ((StackPanel)tooltip.Content).Children.OfType<TextBlock>().Select(text => text.Text).ToArray();
+        Assert.Contains(last.Entry.Path, lines);
+        Assert.DoesNotContain(root.Path, lines);
+        Assert.Contains(lines, line => line.Contains(FileSizeConverter.FormatSize(100)));
+    });
 
     [Theory]
     [InlineData(false)]

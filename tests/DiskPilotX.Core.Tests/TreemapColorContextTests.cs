@@ -159,7 +159,7 @@ public class TreemapColorContextTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void AggregatedLayoutTail_KeepsItsRealDominantExtensionColor(bool mixed)
+    public void 超过128项仍为每个实际文件保留类型色(bool mixed)
     {
         var root = Directory("根");
         for (int i = 0; i < 1024; i++)
@@ -168,14 +168,15 @@ public class TreemapColorContextTests
         var context = TreemapColorContext.Create(root);
         var nodes = new SquarifiedTreemapLayout().ComputeLayout(root, 1200, 800, 64);
         context.Apply(nodes);
-        var tail = Assert.Single(nodes.Where(node => node.AggregatedCount > 0));
-        Assert.Equal(896, tail.AggregatedCount);
-        Assert.Equal(context.FileTypes.Single(item => item.Key == ".dll").ColorHex, tail.ColorHex);
-        if (mixed) Assert.NotEqual(nodes[0].ContentColorHex, tail.ColorHex);
+        Assert.Equal(1025, nodes.Count);
+        Assert.DoesNotContain(nodes, node => node.AggregatedCount > 0);
+        Assert.All(nodes.Where(node => !node.Entry.IsDirectory), node =>
+            Assert.Equal(context.FileTypes.Single(item => item.Key == System.IO.Path.GetExtension(node.Entry.Name)).ColorHex, node.ColorHex));
+        if (mixed) Assert.NotEqual(nodes[0].ContentColorHex, nodes.Single(node => node.Entry.Name == "文件1023.dll").ColorHex);
     }
 
     [Fact]
-    public void AggregatedLayoutTail_RespectsOriginalOrderWhenSizesTie()
+    public void 同尺寸第129个文件仍有独立节点和正确颜色()
     {
         var root = Directory("根");
         for (int i = 0; i < 128; i++) File(root, $"文件{i}.dll", 100);
@@ -184,7 +185,7 @@ public class TreemapColorContextTests
         var nodes = new SquarifiedTreemapLayout().ComputeLayout(root, 1200, 800, 64);
         context.Apply(nodes);
         Assert.Equal(context.FileTypes.Single(item => item.Key == ".exe").ColorHex,
-            Assert.Single(nodes.Where(node => node.AggregatedCount > 0)).ColorHex);
+            Assert.Single(nodes.Where(node => node.Entry.Name == "最后文件.exe")).ColorHex);
     }
 
     private static FileEntry Directory(string name, FileEntry? parent = null)

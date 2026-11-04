@@ -68,7 +68,7 @@ public class ChatInteractionTests
         message.IsProcessExpanded = true;
         message.ApplyActivity(Event(AgentEventKind.TaskCompleted) with { Timestamp = start.Timestamp.AddSeconds(15) });
         message.RefreshElapsed(start.Timestamp.LocalDateTime.AddMinutes(1));
-        message.DurationText.Should().Be("12s");
+        message.DurationText.Should().Be("15s");
         message.IsProcessExpanded.Should().BeTrue("后续终态事件不能覆盖用户重新展开的选择");
     }
 
@@ -86,7 +86,8 @@ public class ChatInteractionTests
         message.ProcessStatus.Should().Be(status);
         message.DurationText.Should().Be("3s");
         message.IsStreaming.Should().BeFalse();
-        message.HasFinalContent.Should().BeFalse();
+        message.HasFinalContent.Should().BeTrue("终止原因现在作为持久可见的最终段落，而非成功完成标志");
+        message.FinalSegments.Should().Contain(segment=>segment.Status==status);
     }
 
     [Fact]
@@ -101,6 +102,7 @@ public class ChatInteractionTests
         {
             Timestamp = start.Timestamp.AddSeconds(8), Message = ModelMessage.Assistant("结果")
         });
+        message.ApplyActivity(Event(AgentEventKind.TaskCompleted) with { Timestamp = start.Timestamp.AddSeconds(8) });
         var captured = DiskPilotX.Core.Services.Assistant.SavedChatMessage.Capture(message);
         var json = System.Text.Json.JsonSerializer.Serialize(captured);
         var restored = System.Text.Json.JsonSerializer.Deserialize<DiskPilotX.Core.Services.Assistant.SavedChatMessage>(json)!.Restore();

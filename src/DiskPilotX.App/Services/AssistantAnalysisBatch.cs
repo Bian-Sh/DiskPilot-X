@@ -17,9 +17,16 @@ public sealed class AssistantAnalysisBatch
     public string? Note { get; init; }
     public List<AssistantAnalysisScope> Scopes { get; } = [];
     public List<string> Errors { get; } = [];
+    public void AddOrReplace(AssistantAnalysisScope scope)
+    {
+        Scopes.RemoveAll(item => string.Equals(Path.GetFullPath(item.Path).TrimEnd('\\', '/'), Path.GetFullPath(scope.Path).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase));
+        Scopes.Add(scope);
+    }
+    public AssistantAnalysisScope? FindScope(string path) => Scopes.Where(scope => IsPrefixOf(Path.GetFullPath(scope.Path), Path.GetFullPath(path)))
+        .OrderByDescending(scope => scope.Path.Length).FirstOrDefault();
 
     /// <summary>各范围根挂在一个批次根下，供清理前按路径定位条目（FindByPath 是逐条比对，不依赖公共前缀）。</summary>
-    public ScanSession ToSession()
+    public ScanSession ToSession(Guid? sessionId = null)
     {
         var root = new FileEntry
         {
@@ -33,12 +40,11 @@ public sealed class AssistantAnalysisBatch
         };
         foreach (var scope in Scopes)
         {
-            scope.Root.Parent = root;
             root.Children.Add(scope.Root);
         }
         return new ScanSession
         {
-            Id = Id,
+            Id = sessionId ?? Id,
             TargetPath = root.Path,
             RootEntry = root,
             TotalFiles = root.SubtreeFileCount,
@@ -108,7 +114,7 @@ public static class AssistantAnalysisEvidence
     private static string BuildCore(RecommendationEngine engine, AssistantAnalysisBatch batch, int maxPerScope, int maxTotal)
     {
         var builder = new StringBuilder();
-        builder.Append("本次共 ").Append(batch.Scopes.Count).Append(" 个分析范围，逐范围给出清理候选，最后一次性发布全部候选。\n\n");
+        builder.Append("本次共 ").Append(batch.Scopes.Count).Append(" 个分析范围，逐范围给出清理候选，按批读取证据并分批发布候选；后续使用merge追加并等待回执，不把本批完成误报为整轮完成。\n\n");
         var budget = maxTotal;
         for (var index = 0; index < batch.Scopes.Count; index++)
         {

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using DiskPilotX.Core.Models;
 
@@ -11,6 +11,10 @@ public partial class IncrementalFileScanner
         IProgress<ScanProgress> progress,
         CancellationToken ct)
     {
+        var previousSession=state.CachedSession;
+        var previousIndex=state.FrnIndex;
+        var previousWatermark=state.Watermark;
+        var completed=false;
         try
         {
             progress.Report(new ScanProgress("Reading change journal...", 0, 0));
@@ -27,7 +31,8 @@ public partial class IncrementalFileScanner
 
             if (changes.Count == 0)
             {
-                // No changes — return the cached session with refreshed drive info
+                // 新版本即使没有文件变化也不能改写旧会话的时间和树。
+                DetachCachedState(state,ct);
                 RefreshDriveInfo(state.CachedSession!);
                 state.CachedSession!.StartTime = DateTime.Now;
                 state.CachedSession!.EndTime = DateTime.Now;
@@ -42,6 +47,7 @@ public partial class IncrementalFileScanner
                     state.CachedSession!.TotalFiles,
                     state.CachedSession!.TotalFolders));
 
+                completed=true;
                 return state.CachedSession;
             }
 
@@ -77,18 +83,47 @@ public partial class IncrementalFileScanner
                 state.CachedSession!.TotalFiles,
                 state.CachedSession!.TotalFolders));
 
+            completed=true;
             return state.CachedSession;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Incremental rescan failed");
-            return null; // Any error — fallback to full scan
+            return null; // 失败回退全量扫描。
         }
+        finally
+        {
+            if(!completed) {state.CachedSession=previousSession;state.FrnIndex=previousIndex;state.Watermark=previousWatermark;}
+        }
+    }
+
+    /// <summary>写时分离扫描树与FRN索引，已发布的旧会话和快照保持原样。</summary>
+    private static void DetachCachedState(VolumeScanState state,CancellationToken ct)
+    {
+        var source=state.CachedSession!;
+        static FileEntry Copy(FileEntry e)=>new() {Path=e.Path,Name=e.Name,Size=e.Size,AllocatedSize=e.AllocatedSize,
+            HasAllocatedSize=e.HasAllocatedSize,Extension=e.Extension,LastModified=e.LastModified,IsDirectory=e.IsDirectory,
+            IsReparsePoint=e.IsReparsePoint,IsAccessDenied=e.IsAccessDenied,IsCloudPlaceholder=e.IsCloudPlaceholder,
+            Attributes=e.Attributes,ContentHash=e.ContentHash?.ToArray(),FileReferenceNumber=e.FileReferenceNumber,
+            Depth=e.Depth,SubtreeItemCount=e.SubtreeItemCount,SubtreeFileCount=e.SubtreeFileCount,SubtreeFolderCount=e.SubtreeFolderCount,IsDeleted=e.IsDeleted};
+        var root=Copy(source.RootEntry!);var byPath=new Dictionary<string,FileEntry>(StringComparer.OrdinalIgnoreCase);
+        var pending=new Stack<(FileEntry Source,FileEntry Target)>();pending.Push((source.RootEntry!,root));
+        while(pending.TryPop(out var pair))
+        {
+            ct.ThrowIfCancellationRequested();byPath[pair.Source.Path]=pair.Target;
+            foreach(var child in pair.Source.Children) {var copy=Copy(child);copy.Parent=pair.Target;pair.Target.Children.Add(copy);pending.Push((child,copy));}
+        }
+        var index=state.FrnIndex.Where(pair=>byPath.ContainsKey(pair.Value.Path)).ToDictionary(pair=>pair.Key,pair=>byPath[pair.Value.Path]);
+        state.CachedSession=new ScanSession {Id=source.Id,TargetPath=source.TargetPath,RootEntry=root,StartTime=source.StartTime,EndTime=source.EndTime,
+            TotalFiles=source.TotalFiles,TotalFolders=source.TotalFolders,TotalSize=source.TotalSize,DriveCapacity=source.DriveCapacity,
+            DriveFreeSpace=source.DriveFreeSpace,IsCancelled=source.IsCancelled,Execution=source.Execution,Provenance=source.Provenance};
+        state.FrnIndex=index;
     }
 
     private static void ApplyChanges(List<UsnChange> changes, VolumeScanState state, CancellationToken ct)
     {
-        // Process in order: Deletes → Renames → Creates → Modifies
+        DetachCachedState(state,ct);
+        // 应用顺序：删除、重命名、新建、修改。
         var deletes = new List<UsnChange>();
         var renames = new List<UsnChange>();
         var creates = new List<UsnChange>();

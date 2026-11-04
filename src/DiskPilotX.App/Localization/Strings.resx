@@ -1163,4 +1163,12 @@ This cannot be undone.</value></data>
   <data name="ThemeKeepGlassInactiveOption" xml:space="preserve"><value>Keep the glass effect while windows are inactive</value></data>
   <data name="SkillChartEmpty" xml:space="preserve"><value>No positive data to display</value></data>
   <data name="SkillChartTotal" xml:space="preserve"><value>Total</value></data>
+  <data name="CopilotStatus_Preparing" xml:space="preserve"><value>Preparing call</value></data>
+  <data name="CopilotActivity_WaitingForModel" xml:space="preserve"><value>Waiting for model response</value></data>
+  <data name="CopilotActivity_ReceivingReply" xml:space="preserve"><value>Receiving reply</value></data>
+  <data name="CopilotActivity_ReceivingReasoning" xml:space="preserve"><value>Receiving analysis</value></data>
+  <data name="CopilotActivity_PreparingTool" xml:space="preserve"><value>Preparing tool call</value></data>
+  <data name="CopilotActivity_ExecutingTool" xml:space="preserve"><value>Executing tool</value></data>
+  <data name="CopilotActivity_WaitingForUser" xml:space="preserve"><value>Waiting for your confirmation</value></data>
+  <data name="CopilotTool_set_recommendations_empty_state" xml:space="preserve"><value>Update empty-state hint</value></data>
 </root>

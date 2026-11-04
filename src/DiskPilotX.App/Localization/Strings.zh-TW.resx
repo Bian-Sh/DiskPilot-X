@@ -1163,4 +1163,12 @@
   <data name="ThemeKeepGlassInactiveOption" xml:space="preserve"><value>視窗在背景時仍保持玻璃效果</value></data>
   <data name="SkillChartEmpty" xml:space="preserve"><value>暫無可顯示的正數資料</value></data>
   <data name="SkillChartTotal" xml:space="preserve"><value>合計</value></data>
+  <data name="CopilotStatus_Preparing" xml:space="preserve"><value>準備呼叫</value></data>
+  <data name="CopilotActivity_WaitingForModel" xml:space="preserve"><value>等待模型回應</value></data>
+  <data name="CopilotActivity_ReceivingReply" xml:space="preserve"><value>正在接收回覆</value></data>
+  <data name="CopilotActivity_ReceivingReasoning" xml:space="preserve"><value>正在接收分析內容</value></data>
+  <data name="CopilotActivity_PreparingTool" xml:space="preserve"><value>正在準備工具呼叫</value></data>
+  <data name="CopilotActivity_ExecutingTool" xml:space="preserve"><value>正在執行工具</value></data>
+  <data name="CopilotActivity_WaitingForUser" xml:space="preserve"><value>等待你的確認</value></data>
+  <data name="CopilotTool_set_recommendations_empty_state" xml:space="preserve"><value>更新空態提示</value></data>
 </root>
