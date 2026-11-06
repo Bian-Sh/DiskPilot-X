@@ -72,7 +72,7 @@ public class ScanScopeRegressionTests
     {
         using var cancellation = new CancellationTokenSource();
         var reports = new List<ScanProgress>();
-        var scanner = new IncrementalFileScanner(new FileScanner());
+        var scanner = new IncrementalFileScanner(new FileScanner(), routeEnvironment: new AdaptiveScanDecisionTests.Environment());
         var progress = new ImmediateProgress(p =>
         {
             reports.Add(p);
@@ -88,10 +88,12 @@ public class ScanScopeRegressionTests
     public async Task 已有同路径水位时仍优先选择USN增量路线()
     {
         var target = Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar);
-        var scanner = new IncrementalFileScanner(new FileScanner());
+        var scanner = new IncrementalFileScanner(new FileScanner(), routeEnvironment:new AdaptiveScanDecisionTests.Environment());
         var stateType = typeof(IncrementalFileScanner).GetNestedType("VolumeScanState", BindingFlags.NonPublic)!;
         var state = Activator.CreateInstance(stateType, nonPublic: true)!;
         stateType.GetProperty("ScannedPath")!.SetValue(state, Path.GetFullPath(target));
+        stateType.GetProperty("VolumeKey")!.SetValue(state,"volume-fixture");
+        stateType.GetProperty("RulesKey")!.SetValue(state,Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("[]"))));
         stateType.GetProperty("Watermark")!.SetValue(state, new UsnWatermark(0, 0, Path.GetPathRoot(target)!));
         var states = (IDictionary)typeof(IncrementalFileScanner).GetField("_volumeStates", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(scanner)!;
         states[Path.GetPathRoot(target)!] = state;

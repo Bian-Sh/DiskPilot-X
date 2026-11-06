@@ -7,19 +7,24 @@ namespace DiskPilotX.Core.Services.Scanning;
 
 public partial class IncrementalFileScanner
 {
-    private (ScanSession session, Dictionary<long, FileEntry> frnIndex)? TryMftScan(
+    protected virtual (ScanSession session, Dictionary<long, FileEntry> frnIndex)? TryMftScan(
         string fullPath,
         string volumeRoot,
         IProgress<ScanProgress> progress,
         CancellationToken ct)
     {
+        _lastMftFailure = null;
+        _lastMftMetrics = null;
         try
         {
             var sw = Stopwatch.StartNew();
             _logger.LogInformation("MFT scan starting: fullPath={FullPath}, volumeRoot={VolumeRoot}", fullPath, volumeRoot);
 
             // Phase 1: Enumerate MFT
-            var mftRecords = MftEnumerator.EnumerateVolume(volumeRoot, progress, ct, logger: _logger);
+            var mftRecords = MftEnumerator.EnumerateVolume(volumeRoot, progress, ct, logger: _logger,
+                failure: (phase, code) => _lastMftFailure = (phase, code));
+            double indexMilliseconds = sw.Elapsed.TotalMilliseconds;
+            long volumeRecordCount = mftRecords?.Count ?? 0;
             if (mftRecords == null)
             {
                 _logger.LogWarning("MFT EnumerateVolume returned null; falling back");
@@ -46,6 +51,7 @@ public partial class IncrementalFileScanner
             _logger.LogDebug("MFT target FRN: {TargetFrn:X16} segment {Segment}", targetFrn, targetFrn & 0x0000_FFFF_FFFF_FFFF);
             if (targetFrn == 0)
             {
+                _lastMftFailure = ("target_reference", System.Runtime.InteropServices.Marshal.GetLastWin32Error());
                 _logger.LogWarning("GetFileReferenceNumber returned 0; falling back");
                 return null;
             }
@@ -185,6 +191,7 @@ public partial class IncrementalFileScanner
                 return null;
 
             // Phase 3: Collect sizes via parallel directory enumeration
+            double treeMilliseconds = sw.Elapsed.TotalMilliseconds - indexMilliseconds;
             var (fileCount, folderCount) = ParallelSizeCollector.CollectSizes(
                 rootEntry, progress, ct);
 
@@ -209,10 +216,14 @@ public partial class IncrementalFileScanner
 
             _logger.LogInformation("MFT scan completed in {ElapsedMs}ms", sw.ElapsedMilliseconds);
 
+            _lastMftMetrics = (indexMilliseconds, treeMilliseconds,
+                sw.Elapsed.TotalMilliseconds - indexMilliseconds - treeMilliseconds, volumeRecordCount);
             return (session, frnToEntry);
         }
+        catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
+            _lastMftFailure = ("mft_execution", ex is System.ComponentModel.Win32Exception w ? w.NativeErrorCode : null);
             _logger.LogWarning(ex, "MFT scan failed");
             return null;
         }

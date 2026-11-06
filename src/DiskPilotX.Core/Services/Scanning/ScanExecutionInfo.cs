@@ -10,6 +10,8 @@ public enum ScanExecutionStatus { Running, Completed, Cancelled, CancelledBefore
 public sealed record ScanExecutionInfo(string TargetPath, ScanMethod Method, ScanExecutionStatus Status,
     DateTime? StartedAt = null, DateTime? CompletedAt = null, IReadOnlyList<string>? FallbackReasons = null)
 {
+    public ScanRouteDecision? Decision { get; init; }
+    public IReadOnlyList<ScanRouteAttempt> Attempts { get; init; } = [];
     public object ToPublicData() => new
     {
         path = TargetPath,
@@ -17,7 +19,14 @@ public sealed record ScanExecutionInfo(string TargetPath, ScanMethod Method, Sca
         status = Status switch { ScanExecutionStatus.Running => "running", ScanExecutionStatus.Completed => "completed", ScanExecutionStatus.Cancelled => "cancelled", ScanExecutionStatus.CancelledBeforeStart => "cancelled_before_start", _ => "failed" },
         started = StartedAt.HasValue && Status != ScanExecutionStatus.CancelledBeforeStart,
         started_at = StartedAt, completed_at = CompletedAt,
-        fallback_reasons = FallbackReasons ?? []
+        fallback_reasons = FallbackReasons ?? [],
+        decision = Decision is null ? null : new { policyVersion=Decision.PolicyVersion, plannedMethod=Decision.PlannedMethod.ToString(),
+            reasonCode=Decision.ReasonCode, explanation=Decision.Explanation, capability=Decision.Capability,
+            traversalCost=Decision.TraversalCost, mftCost=Decision.MftCost, probeEntryLimit=Decision.ProbeEntryLimit,
+            probeMilliseconds=Decision.ProbeMilliseconds, requiredSavingRatio=Decision.RequiredSavingRatio,
+            requiredSavingMilliseconds=Decision.RequiredSavingMilliseconds, estimatedIndexMemoryBytes=Decision.EstimatedIndexMemoryBytes, observation=Decision.Observation },
+        attempts = Attempts.Select(a=>new {method=a.Method.ToString(),startedAt=a.StartedAt,completedAt=a.CompletedAt,
+            outcome=a.Outcome,phase=a.Phase,win32Error=a.Win32Error,detail=a.Detail}).ToArray()
     };
 
     public static ScanExecutionInfo? FromSession(ScanSession? session) => session is null ? null : session.Execution

@@ -36,9 +36,9 @@ internal static class MftEnumerator
         string volumeRoot,
         IProgress<ScanProgress> progress,
         CancellationToken ct,
-        ILogger? logger = null)
+        ILogger? logger = null, Action<string,int?>? failure = null)
     {
-        return EnumerateVolumeCore(volumeRoot, progress, ct, directoriesOnly: false, logger);
+        return EnumerateVolumeCore(volumeRoot, progress, ct, directoriesOnly: false, logger, failure);
     }
 
     internal static Dictionary<long, MftRecord>? EnumerateDirectories(
@@ -55,13 +55,13 @@ internal static class MftEnumerator
         IProgress<ScanProgress> progress,
         CancellationToken ct,
         bool directoriesOnly,
-        ILogger? logger)
+        ILogger? logger, Action<string,int?>? failure = null)
     {
         try
         {
             using var volumeHandle = NtfsUsnNative.OpenVolume(volumeRoot);
             if (volumeHandle.IsInvalid)
-                return null;
+            { failure?.Invoke("volume_open", Marshal.GetLastWin32Error()); return null; }
 
             // Query journal to get MaxUsn
             var ok = NtfsUsnNative.DeviceIoControl(
@@ -75,7 +75,7 @@ internal static class MftEnumerator
                 0);
 
             if (!ok)
-                return null;
+            { failure?.Invoke("query_journal", Marshal.GetLastWin32Error()); return null; }
 
             var enumData = new NtfsUsnNative.MFT_ENUM_DATA_V0
             {
@@ -110,6 +110,7 @@ internal static class MftEnumerator
                         var error = Marshal.GetLastWin32Error();
                         if (error == NtfsUsnNative.ERROR_HANDLE_EOF)
                             break; // Done 鈥?enumerated all MFT records
+                        failure?.Invoke("enumerate_records", error);
                         logger?.LogWarning("FSCTL_ENUM_USN_DATA failed: win32 error {Error}, records so far: {Count}", error, count);
                         return null; // Unexpected error
                     }
@@ -161,8 +162,10 @@ internal static class MftEnumerator
                 Marshal.FreeHGlobal(buffer);
             }
         }
+        catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
+            failure?.Invoke("enumerate_exception", ex is System.ComponentModel.Win32Exception w ? w.NativeErrorCode : null);
             logger?.LogWarning(ex, "MFT EnumerateVolume failed");
             return null;
         }

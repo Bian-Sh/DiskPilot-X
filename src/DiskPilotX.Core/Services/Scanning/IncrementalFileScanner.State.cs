@@ -6,9 +6,9 @@ namespace DiskPilotX.Core.Services.Scanning;
 
 public partial class IncrementalFileScanner
 {
-    private void CaptureWatermark(ScanSession session, string fullPath, string volumeRoot)
+    private void CaptureWatermark(ScanSession session, string fullPath, string volumeRoot, UsnWatermark? initialWatermark = null)
     {
-        var watermark = UsnJournalReader.QueryJournal(volumeRoot);
+        var watermark = initialWatermark ?? UsnJournalReader.QueryJournal(volumeRoot);
         if (watermark == null)
         {
             _logger.LogWarning("QueryJournal returned null for {VolumeRoot}; incremental rescan unavailable", volumeRoot);

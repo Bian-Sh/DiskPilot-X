@@ -32,10 +32,12 @@ public class FileScanner : IFileScanner
     // Throttle progress reports to avoid flooding the UI thread.
     private const int ProgressReportInterval = 200;
 
-    public async Task<ScanSession> ScanAsync(
-        string path,
-        IProgress<ScanProgress> progress,
-        CancellationToken cancellationToken)
+    public Task<ScanSession> ScanAsync(string path, IProgress<ScanProgress> progress, CancellationToken cancellationToken)
+        => ScanAdaptiveAsync(path, progress, cancellationToken, null);
+
+    internal async Task<ScanSession> ScanAdaptiveAsync(
+        string path, IProgress<ScanProgress> progress, CancellationToken cancellationToken,
+        Func<TraversalObservation, ScanSession?>? checkpoint, IReadOnlyList<PathWhitelistEntry>? whitelistOverride = null)
     {
         path = ScanPathResolver.Resolve(path);
         _logger.LogInformation("Full scan starting for {Path}", path);
@@ -50,7 +52,7 @@ public class FileScanner : IFileScanner
 
         PopulateDriveInfo(session, path);
 
-        var scanWhitelist = _settingsService?.LoadSettings().ScanWhitelist ?? [];
+        var scanWhitelist = whitelistOverride ?? _settingsService?.LoadSettings().ScanWhitelist ?? [];
         if (_whitelistMatcher.IsExcluded(path, scanWhitelist))
         {
             _logger.LogWarning("Scan target is excluded by whitelist settings: {Path}", path);
@@ -61,6 +63,11 @@ public class FileScanner : IFileScanner
 
         int fileCount = 0;
         int folderCount = 1;
+        ScanSession? alternative = null;
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        long nextEntries = 2048;
+        double nextMilliseconds = 500;
+        bool maySwitch = checkpoint is not null;
 
         await Task.Run(() =>
         {
@@ -164,6 +171,15 @@ public class FileScanner : IFileScanner
                             current.Children.Add(childFile);
                             fileCount++;
                         }
+                        long entries = (long)fileCount + folderCount;
+                        if (maySwitch && (entries >= nextEntries || watch.Elapsed.TotalMilliseconds >= nextMilliseconds))
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            alternative = checkpoint!(new(entries, queue.Count, watch.Elapsed, false));
+                            if (alternative is not null) break;
+                            nextEntries = entries + 2048;
+                            nextMilliseconds = watch.Elapsed.TotalMilliseconds + 1000;
+                        }
                     }
                 }
                 catch (UnauthorizedAccessException ex)
@@ -176,6 +192,8 @@ public class FileScanner : IFileScanner
                     _logger.LogDebug(ex, "I/O error while scanning {Path}", current.Path);
                 }
 
+                if (alternative is not null) break;
+
                 // Throttle progress reports 閳?reporting every directory hammers the UI thread.
                 if (++reportCounter % ProgressReportInterval == 0)
                 {
@@ -183,6 +201,9 @@ public class FileScanner : IFileScanner
                 }
             }
 
+            if (alternative is not null) return;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (checkpoint is not null) checkpoint(new((long)fileCount + folderCount, 0, watch.Elapsed, true));
             // Final progress report.
             progress.Report(new ScanProgress("Calculating sizes...", fileCount, folderCount));
 
@@ -191,6 +212,7 @@ public class FileScanner : IFileScanner
 
         }, cancellationToken).ConfigureAwait(false);
 
+        if (alternative is not null) return alternative;
         session.TotalFiles = fileCount;
         session.TotalFolders = folderCount;
         session.TotalSize = rootEntry.Size;

@@ -19,6 +19,10 @@ public partial class IncrementalFileScanner
         {
             progress.Report(new ScanProgress("Reading change journal...", 0, 0));
 
+            // 水位先取，下一次宁可重放扫描期间变化，也不能越过未读取的并发写入。
+            var refreshWatermark = UsnJournalReader.QueryJournal(state.Watermark!.VolumeRoot);
+            if (refreshWatermark is null || refreshWatermark.JournalId != state.Watermark.JournalId
+                || refreshWatermark.NextUsn < state.Watermark.NextUsn) return null;
             var changes = UsnJournalReader.ReadChanges(state.Watermark!, ct);
             if (changes == null)
             {
@@ -38,7 +42,7 @@ public partial class IncrementalFileScanner
                 state.CachedSession!.EndTime = DateTime.Now;
 
                 // Update watermark to current position
-                var newWatermark = UsnJournalReader.QueryJournal(state.Watermark!.VolumeRoot);
+                var newWatermark = refreshWatermark;
                 if (newWatermark != null)
                     state.Watermark = newWatermark;
 
@@ -72,7 +76,7 @@ public partial class IncrementalFileScanner
             RefreshDriveInfo(state.CachedSession!);
 
             // Update watermark
-            var updatedWatermark = UsnJournalReader.QueryJournal(state.Watermark!.VolumeRoot);
+            var updatedWatermark = refreshWatermark;
             if (updatedWatermark != null)
                 state.Watermark = updatedWatermark;
             else
@@ -86,8 +90,10 @@ public partial class IncrementalFileScanner
             completed=true;
             return state.CachedSession;
         }
+        catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
+            _lastIncrementalFailure=ex.Message;
             _logger.LogWarning(ex, "Incremental rescan failed");
             return null; // 失败回退全量扫描。
         }
@@ -122,6 +128,11 @@ public partial class IncrementalFileScanner
 
     private static void ApplyChanges(List<UsnChange> changes, VolumeScanState state, CancellationToken ct)
     {
+        // USN回执是可重放的历史，不是当前完整目录清单。无法确认范围/类型时应失效而不是猜结果。
+        foreach (var change in changes)
+            if (string.IsNullOrWhiteSpace(change.FileName) || change.FileName is "." or ".."
+                || change.FileName.IndexOfAny(['\\','/']) >= 0)
+                throw new InvalidOperationException("USN记录名称不符合单一目录项契约，需要重新扫描。");
         DetachCachedState(state,ct);
         // 应用顺序：删除、重命名、新建、修改。
         var deletes = new List<UsnChange>();
@@ -149,13 +160,13 @@ public partial class IncrementalFileScanner
         foreach (var ren in renames)
         {
             if (ct.IsCancellationRequested) return;
-            ApplyRename(ren, state);
+            ApplyRename(ren, state, ct);
         }
 
         foreach (var create in creates)
         {
             if (ct.IsCancellationRequested) return;
-            ApplyCreate(create, state);
+            ApplyCreate(create, state, ct);
         }
 
         foreach (var mod in modifies)
@@ -173,8 +184,15 @@ public partial class IncrementalFileScanner
         var child = parentDir.Children.FirstOrDefault(c =>
             string.Equals(c.Name, change.FileName, StringComparison.OrdinalIgnoreCase));
 
-        if (child == null)
-            return;
+        if (child == null) return;
+        if (child.FileReferenceNumber == 0 && (File.Exists(child.Path) || Directory.Exists(child.Path)))
+        {
+            long currentReference = NtfsUsnNative.GetFileReferenceNumber(child.Path);
+            if (currentReference == 0) throw new InvalidOperationException("删除重放对象的当前身份无法确认，快照需要重新扫描。");
+            child.FileReferenceNumber = currentReference;
+        }
+        if (child.FileReferenceNumber != 0 && change.FileReferenceNumber != 0 && child.FileReferenceNumber != change.FileReferenceNumber)
+            return; // 旧删除事件不能删除同名但FRN已变的新对象。
 
         parentDir.RemoveChild(child);
 
@@ -200,141 +218,172 @@ public partial class IncrementalFileScanner
         }
     }
 
-    private static void ApplyRename(UsnChange change, VolumeScanState state)
+    private static FileEntry? LocateChange(UsnChange change, VolumeScanState state)
     {
-        // The USN record tells us the new parent FRN and new name
-        if (!state.FrnIndex.TryGetValue(change.ParentFileReferenceNumber, out var newParent))
-            return; // New parent not in our tree — skip
-
-        // Find the entry by its FRN (directories) or by old parent + old name (files)
-        FileEntry? entry = null;
-
-        if (change.IsDirectory && state.FrnIndex.TryGetValue(change.FileReferenceNumber, out var dirEntry))
+        if (change.IsDirectory && state.FrnIndex.TryGetValue(change.FileReferenceNumber, out var directory)) return directory;
+        if (change.OldParentFileReferenceNumber != 0 && state.FrnIndex.TryGetValue(change.OldParentFileReferenceNumber, out var oldParent))
         {
-            entry = dirEntry;
+            var exact = oldParent.Children.FirstOrDefault(c => c.FileReferenceNumber != 0 && c.FileReferenceNumber == change.FileReferenceNumber);
+            if (exact is not null) return exact;
+            return oldParent.Children.FirstOrDefault(c => string.Equals(c.Name, change.OldFileName, StringComparison.OrdinalIgnoreCase));
         }
-        else if (change.OldParentFileReferenceNumber != 0
-            && change.OldFileName != null
-            && state.FrnIndex.TryGetValue(change.OldParentFileReferenceNumber, out var oldParentDir))
-        {
-            // Find the file in its old parent by old name
-            entry = oldParentDir.Children.FirstOrDefault(c =>
-                string.Equals(c.Name, change.OldFileName, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (entry == null)
-            return;
-
-        // Remove from old parent
-        var oldParent = entry.Parent;
-        if (oldParent != null)
-        {
-            oldParent.Children.Remove(entry);
-            oldParent.RecalculateSize();
-        }
-
-        // Update entry
-        entry.Name = change.FileName;
-        entry.Path = Path.Combine(newParent.Path, change.FileName);
-        entry.Parent = newParent;
-        entry.Depth = newParent.Depth + 1;
-
-        // Add to new parent
-        newParent.Children.Add(entry);
-        newParent.RecalculateSize();
+        return null;
     }
 
-    private static void ApplyCreate(UsnChange change, VolumeScanState state)
+    private static void RemoveEntry(FileEntry entry, VolumeScanState state)
     {
-        if (!state.FrnIndex.TryGetValue(change.ParentFileReferenceNumber, out var parentDir))
-            return; // Parent not in our tree — skip
-
-        var fullPath = Path.Combine(parentDir.Path, change.FileName);
-
-        if (change.IsDirectory)
+        if (entry.Parent is null) throw new InvalidOperationException("扫描根在日志期间移动，快照需要重新扫描。");
+        if (entry.IsDirectory)
         {
-            var newDir = new FileEntry
-            {
-                Path = fullPath,
-                Name = change.FileName,
-                IsDirectory = true,
-                Depth = parentDir.Depth + 1,
-                Parent = parentDir
-            };
-
-            // Get FRN for the new directory
-            var frn = NtfsUsnNative.GetFileReferenceNumber(fullPath);
-            if (frn != 0)
-            {
-                newDir.FileReferenceNumber = frn;
-                state.FrnIndex[frn] = newDir;
-            }
-
-            parentDir.Children.Add(newDir);
+            state.FrnIndex.Remove(entry.FileReferenceNumber);
+            RemoveDescendantFrns(entry, state.FrnIndex);
         }
-        else
+        entry.Parent.RemoveChild(entry);
+    }
+
+    private static bool Excluded(string path, VolumeScanState state) => new Whitelist.PathWhitelistMatcher().IsExcluded(path, state.ScanWhitelist);
+
+    private static void ApplyRename(UsnChange change, VolumeScanState state, CancellationToken ct)
+    {
+        var entry = LocateChange(change, state);
+        if (!state.FrnIndex.TryGetValue(change.ParentFileReferenceNumber, out var newParent))
         {
-            long size = 0;
-            long allocatedSize = 0;
-            try
+            // 真实新父目录不在所选范围内：移除旧位置，不能留下假装仍存在的条目。
+            if (entry is not null) RemoveEntry(entry, state);
+            return;
+        }
+        string path = Path.Combine(newParent.Path, change.FileName);
+        if (Excluded(path, state))
+        {
+            if (entry is not null) RemoveEntry(entry, state);
+            return;
+        }
+        entry ??= newParent.Children.FirstOrDefault(c => c.FileReferenceNumber != 0 && c.FileReferenceNumber == change.FileReferenceNumber
+            || string.Equals(c.Name, change.FileName, StringComparison.OrdinalIgnoreCase));
+        if (entry is null)
+        {
+            // 范围外对象移入时，日志不包含已存在子孙。仅从新范围读取其现有子树。
+            ApplyCreate(change, state, ct);
+            return;
+        }
+        if (entry.FileReferenceNumber != 0 && change.FileReferenceNumber != 0 && entry.FileReferenceNumber != change.FileReferenceNumber)
+            throw new InvalidOperationException("重命名重放对象身份已变化，快照需要重新扫描。");
+        if (entry.Parent is null) throw new InvalidOperationException("扫描根重命名，拒绝复用旧范围快照。");
+        if (entry.IsDirectory != change.IsDirectory) throw new InvalidOperationException("USN对象类型发生冲突，需要重新扫描。");
+        // 路径排除会同时影响已缓存和原先被排除的后代；仅修改路径或裁剪旧树都不能证明新范围完整。
+        if (entry.IsDirectory && state.ScanWhitelist.Count > 0
+            && !string.Equals(entry.Path, path, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("目录路径变化可能改变后代排除结果，快照失效并按当前规则重新扫描。");
+        var oldParent = entry.Parent;
+        oldParent.Children.Remove(entry); oldParent.RecalculateSize();
+        entry.Name = change.FileName; entry.Parent = newParent;
+        var pending = new Stack<FileEntry>(); pending.Push(entry);
+        while (pending.TryPop(out var node))
+        {
+            ct.ThrowIfCancellationRequested();
+            node.Path = Path.Combine(node.Parent!.Path, node.Name); node.Depth = node.Parent.Depth + 1;
+            if (!node.IsDirectory) node.Extension = Path.GetExtension(node.Name).ToLowerInvariant();
+            foreach (var child in node.Children) pending.Push(child);
+        }
+        foreach (var child in newParent.Children.Where(c => !ReferenceEquals(c, entry)
+            && string.Equals(c.Name, entry.Name, StringComparison.OrdinalIgnoreCase)).ToArray()) RemoveEntry(child, state);
+        newParent.Children.Add(entry); newParent.RecalculateSize();
+    }
+
+    private static void ApplyCreate(UsnChange change, VolumeScanState state, CancellationToken ct)
+    {
+        if (!state.FrnIndex.TryGetValue(change.ParentFileReferenceNumber, out var parent)) return;
+        string path = Path.Combine(parent.Path, change.FileName);
+        if (Excluded(path, state)) return;
+        var existing = parent.Children.FirstOrDefault(c => c.FileReferenceNumber != 0 && c.FileReferenceNumber == change.FileReferenceNumber
+            || string.Equals(c.Name, change.FileName, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            if (existing.IsDirectory != change.IsDirectory) throw new InvalidOperationException("重放创建记录与快照类型冲突。");
+            if (existing.FileReferenceNumber != 0 && change.FileReferenceNumber != 0
+                && existing.FileReferenceNumber != change.FileReferenceNumber)
+                throw new InvalidOperationException("重放创建记录与当前快照身份冲突，需要重新扫描。");
+            // 幂等只保证不重复添加，不能跳过当前实物的存在性、类型与重解析状态核验。
+            ApplyModify(change, state);
+            if (existing.IsDirectory)
             {
-                var fi = new FileInfo(fullPath);
-                if (fi.Exists)
+                long currentReference = NtfsUsnNative.GetFileReferenceNumber(path);
+                if (currentReference == 0 || currentReference != change.FileReferenceNumber)
+                    throw new InvalidOperationException("重放目录创建记录的实物身份无法确认，快照失效并重新扫描。");
+            }
+            return;
+        }
+        FileEntry node;
+        try
+        {
+            var attributes = File.GetAttributes(path);
+            bool reparse = (attributes & FileAttributes.ReparsePoint) != 0;
+            if (change.IsDirectory)
+            {
+                if ((attributes & FileAttributes.Directory) == 0) throw new InvalidOperationException("新建目录类型已变化。");
+                if (reparse)
+                    node = new FileEntry {Name=change.FileName,Path=path,IsDirectory=true,IsReparsePoint=true,Attributes=attributes};
+                else
                 {
-                    size = fi.Length;
-                    allocatedSize = FileScanner.GetAllocatedSize(fullPath, size);
+                    var scanner = new FileScanner();
+                    var scanned = scanner.ScanAdaptiveAsync(path,new RouteProgress(_=>{}),ct,null,state.ScanWhitelist).GetAwaiter().GetResult();
+                    if (scanned.IsCancelled || scanned.RootEntry is null) throw new InvalidOperationException("移入目录未完成读取。");
+                    node = scanned.RootEntry;
                 }
             }
-            catch
+            else
             {
-                // Best-effort size
+                if ((attributes & FileAttributes.Directory) != 0) throw new InvalidOperationException("新建文件类型已变化。");
+                var info = new FileInfo(path);
+                bool cloud = (attributes & ((FileAttributes)0x00400000 | (FileAttributes)0x00040000 | FileAttributes.Offline)) != 0;
+                long size = cloud ? 0 : info.Length;
+                node = new FileEntry {Name=change.FileName,Path=path,IsDirectory=false,IsReparsePoint=reparse,IsCloudPlaceholder=cloud,
+                    Attributes=attributes,LastModified=info.LastWriteTime,Extension=Path.GetExtension(change.FileName).ToLowerInvariant(),
+                    Size=size,AllocatedSize=FileScanner.GetAllocatedSize(path,size,cloud),HasAllocatedSize=true};
             }
-
-            var newFile = new FileEntry
-            {
-                Path = fullPath,
-                Name = change.FileName,
-                IsDirectory = false,
-                Extension = Path.GetExtension(change.FileName)?.ToLowerInvariant(),
-                Size = size,
-                AllocatedSize = allocatedSize,
-                HasAllocatedSize = true,
-                Depth = parentDir.Depth + 1,
-                Parent = parentDir
-            };
-
-            parentDir.Children.Add(newFile);
-            parentDir.RecalculateSize();
         }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        { throw new InvalidOperationException("USN新建/移入对象无法确认，快照失效并重新扫描。",e); }
+        node.FileReferenceNumber = change.FileReferenceNumber; node.Parent = parent;
+        var pending = new Stack<FileEntry>(); pending.Push(node);
+        while (pending.TryPop(out var n))
+        {
+            ct.ThrowIfCancellationRequested(); n.Depth = n.Parent is null ? 0 : n.Parent.Depth + 1;
+            if (n.IsDirectory)
+            {
+                if (n.FileReferenceNumber == 0) n.FileReferenceNumber = NtfsUsnNative.GetFileReferenceNumber(n.Path);
+                if (n.FileReferenceNumber == 0 && !n.IsReparsePoint)
+                    throw new InvalidOperationException("移入目录引用号无法确认，拒绝建立不完整增量索引。");
+                if (n.FileReferenceNumber != 0) state.FrnIndex[n.FileReferenceNumber] = n;
+                foreach (var child in n.Children) pending.Push(child);
+            }
+        }
+        parent.Children.Add(node); parent.RecalculateSize();
     }
 
     private static void ApplyModify(UsnChange change, VolumeScanState state)
     {
-        if (!state.FrnIndex.TryGetValue(change.ParentFileReferenceNumber, out var parentDir))
-            return; // Parent not in our tree — skip
-
-        var child = parentDir.Children.FirstOrDefault(c =>
-            string.Equals(c.Name, change.FileName, StringComparison.OrdinalIgnoreCase));
-
-        if (child == null || child.IsDirectory)
-            return; // Only refresh size for files
-
+        if (!state.FrnIndex.TryGetValue(change.ParentFileReferenceNumber, out var parent)) return;
+        var child = parent.Children.FirstOrDefault(c => string.Equals(c.Name, change.FileName, StringComparison.OrdinalIgnoreCase));
+        if (child is null) throw new InvalidOperationException("修改事件对象不在快照内，需要重新扫描。");
+        if (Excluded(child.Path, state)) { RemoveEntry(child, state); return; }
         try
         {
-            var fi = new FileInfo(child.Path);
-            if (fi.Exists)
-            {
-                child.Size = fi.Length;
-                child.AllocatedSize = FileScanner.GetAllocatedSize(child.Path, child.Size);
-                child.HasAllocatedSize = true;
-                child.LastModified = fi.LastWriteTime;
-                parentDir.RecalculateSize();
-            }
+            var attributes = File.GetAttributes(child.Path);
+            bool directory = (attributes & FileAttributes.Directory) != 0;
+            bool reparse = (attributes & FileAttributes.ReparsePoint) != 0;
+            if (directory != child.IsDirectory || reparse != child.IsReparsePoint)
+                throw new InvalidOperationException("修改对象类型或重解析点状态已变化，快照失效。");
+            if (directory) { child.Attributes = attributes; return; }
+            var info = new FileInfo(child.Path);
+            bool cloud = (attributes & ((FileAttributes)0x00400000 | (FileAttributes)0x00040000 | FileAttributes.Offline)) != 0;
+            child.Size = cloud ? 0 : info.Length;
+            child.AllocatedSize = FileScanner.GetAllocatedSize(child.Path, child.Size, cloud); child.HasAllocatedSize = true;
+            child.Attributes = attributes; child.IsCloudPlaceholder = cloud; child.LastModified = info.LastWriteTime;
+            parent.RecalculateSize();
         }
-        catch
-        {
-            // Best-effort — if we can't read the file, leave size as-is
-        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        { throw new InvalidOperationException("修改对象无法确认，拒绝继续返回旧大小。", e); }
     }
 
     private static (int files, int folders) CountEntries(FileEntry root)
