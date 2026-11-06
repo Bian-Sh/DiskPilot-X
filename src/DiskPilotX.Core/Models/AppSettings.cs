@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using DiskPilotX.Core.Enums;
 using DiskPilotX.Core.Models.Theme;
 using DiskPilotX.Core.Services.Llm;
@@ -6,6 +8,15 @@ namespace DiskPilotX.Core.Models;
 
 public class AppSettings
 {
+    private int _treemapDisplayDepth;
+    /// <summary>树图相对当前目录的显示上限；0为自动，旧值或非法值回自动，不影响真实扫描树。</summary>
+    [JsonConverter(typeof(TreemapDisplayDepthConverter))]
+    public int TreemapDisplayDepth
+    {
+        get => _treemapDisplayDepth;
+        set => _treemapDisplayDepth = value is >= 1 and <= 6 ? value : 0;
+    }
+
     public byte[]? EncryptedApiKey { get; set; }
     public bool IsApiKeyValid { get; set; } = false;
     public DeletionMode DeletionMode { get; set; } = DeletionMode.MoveToRecycleBin;
@@ -70,4 +81,18 @@ public class PathWhitelistEntry
 {
     public string Path { get; set; } = string.Empty;
     public string? Description { get; set; }
+}
+
+/// <summary>深度旧值独立容错，不能因一个显示偏好损坏而丢掉其他用户设置。</summary>
+internal sealed class TreemapDisplayDepthConverter : JsonConverter<int>
+{
+    public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value))
+            return value is >= 1 and <= 6 ? value : 0;
+        reader.Skip();
+        return 0;
+    }
+
+    public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
 }

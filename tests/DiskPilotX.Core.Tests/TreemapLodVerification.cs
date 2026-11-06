@@ -103,11 +103,16 @@ public class TreemapLodVerification
                 $"zoom={rows[i].zoom} 最大深度({rows[i].maxDepth})不应少于 zoom={rows[i - 1].zoom}({rows[i - 1].maxDepth})");
         }
 
-        // 最终必须有「明显更多」的节点被揭示（不是仅仅 +1）。
-        Assert.True(rows[^1].count > rows[0].count * 2,
-            $"zoom=8 节点数({rows[^1].count})应显著超过 zoom=1({rows[0].count})的 2 倍");
-        Assert.True(rows[^1].maxDepth > rows[0].maxDepth,
-            $"zoom=8 最大深度({rows[^1].maxDepth})应深于 zoom=1({rows[0].maxDepth})");
+        // 新算法在全景已保留更多文件，不能要求刻意隐藏一半来制造两倍增长。
+        Assert.True(rows[^1].count > rows[0].count, "放大后必须恢复更多真实细节");
+        Assert.True(rows[^1].maxDepth >= rows[0].maxDepth);
+        foreach (float zoom in new[] { 1f, 2f, 4f, 8f })
+        {
+            var nodes = engine.ComputeLayout(root, 1200, 800, 64, zoom);
+            var mass = nodes.Where(n => n.AggregatedCount > 0 || !n.Entry.IsDirectory || n.IsContentLeaf)
+                .Sum(n => n.AggregatedSize ?? n.Entry.Size);
+            Assert.Equal(root.Size, mass);
+        }
     }
 
     private static string PickExt(Random rng) =>

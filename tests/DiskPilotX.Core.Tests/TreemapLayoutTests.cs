@@ -6,7 +6,7 @@ namespace DiskPilotX.Core.Tests;
 public class TreemapLayoutTests
 {
     [Fact]
-    public void DirectoryChildren_UseOnePixelFrame()
+    public void 透明目录复用内容矩形而不重复预留边框()
     {
         var root = Directory("根");
         var child = Directory("目录", root);
@@ -16,9 +16,11 @@ public class TreemapLayoutTests
         var rootNode = nodes.Single(n => n.Entry == root);
         var childNode = nodes.Single(n => n.Entry == child);
         var file = nodes.Single(n => !n.Entry.IsDirectory);
-        Assert.Equal(1f, childNode.X - rootNode.X);
-        Assert.Equal(1f, file.X - childNode.X);
-        Assert.Equal(1f, childNode.X + childNode.Width - file.X - file.Width);
+        Assert.Equal(0.5f, childNode.X - rootNode.X);
+        Assert.Equal(0f, file.X - childNode.X);
+        Assert.Equal(0f, childNode.X + childNode.Width - file.X - file.Width);
+        Assert.False(childNode.ShowDirectoryFrame);
+        Assert.Null(childNode.Label);
         Assert.All(nodes.Where(n => n.Entry.IsDirectory), n => Assert.Equal("#303030", n.ColorHex));
     }
 
@@ -67,11 +69,11 @@ public class TreemapLayoutTests
         var z1 = engine.ComputeLayout(root, 800, 600, 8, zoom: 1f);
         var z2 = engine.ComputeLayout(root, 800, 600, 8, zoom: 2f);
 
-        // 标题栏在屏幕上恒定 18px：逻辑高度 = 18/zoom。
+        // 紧凑标题的屏幕高度恒定，缩放仅折算逻辑坐标，不按层级扩大。
         float h1 = z1.Single(n => n.Entry.Name == "子").Y - z1[0].Y;
         float h2 = z2.Single(n => n.Entry.Name == "子").Y - z2[0].Y;
-        Assert.Equal(18f, h1, 1);
-        Assert.Equal(9f, h2, 1);
+        Assert.Equal(TreemapLabelPolicy.DirectoryTitleScreenHeight, h1, 1);
+        Assert.Equal(TreemapLabelPolicy.DirectoryTitleScreenHeight / 2, h2, 1);
     }
 
     [Fact]
@@ -129,12 +131,14 @@ public class TreemapLayoutTests
         }
         // 一级目录必须铺满根内容区，不能以父目录底色掩盖丢失的同级区域。
         double area = nodes.Where(n => n.Depth == 1).Sum(n => (double)n.Width * n.Height);
-        double expected = (1600 - 6 / zoom) * (900 - 23 / zoom);
+        var rootNode = nodes.Single(n => ReferenceEquals(n.Entry, root));
+        double border = rootNode.HeaderHeight > 0 ? .5 / zoom : 0;
+        double expected = (rootNode.Width - border * 2) * (rootNode.Height - (rootNode.HeaderHeight ?? 0) - border);
         Assert.InRange(area / expected, 0.99999, 1.00001);
     }
 
     [Fact]
-    public void TextLod_SmallDirectoriesDoNotReserveEmptyHeaders_AndZoomRevealsNames()
+    public void 小目录透明且放大优先展示文件名称()
     {
         var root = Directory("根");
         for (int i = 0; i < 128; i++)
@@ -150,21 +154,23 @@ public class TreemapLayoutTests
         var small = overview.First(n => n.Depth == 1 && n.Width < 104 && n.Height > 30);
         Assert.Null(small.Label);
         var file = overview.Single(n => ReferenceEquals(n.Entry.Parent, small.Entry));
-        Assert.InRange(file.Y - small.Y, 0.5f, 1.01f);
-        Assert.True(zoomed.Count(n => n.Entry.IsDirectory && n.Label is not null)
-            > overview.Count(n => n.Entry.IsDirectory && n.Label is not null));
+        Assert.Equal(small.Y, file.Y);
+        Assert.False(small.ShowDirectoryFrame);
+        Assert.True(zoomed.Count(n => !n.Entry.IsDirectory && n.Label is not null)
+            >= overview.Count(n => !n.Entry.IsDirectory && n.Label is not null));
+        Assert.Contains(overview, n => !n.Entry.IsDirectory && n.Label is not null);
         Assert.Equal(128, overview.Count(n => !n.Entry.IsDirectory));
     }
 
     [Fact]
-    public void TextLod_OverviewHidesSmallFileLabels_ButKeepsLargeFileName()
+    public void 文字可读时全景文件也有名称而非强制隐藏()
     {
         var root = Directory("根");
         for (int i = 0; i < 64; i++) File($"文件{i}.dll", root, 100);
         root.Size = 6400;
         var engine = new SquarifiedTreemapLayout();
         var nodes = engine.ComputeLayout(root, 800, 600, 64);
-        Assert.All(nodes.Where(n => !n.Entry.IsDirectory), n => Assert.Null(n.Label));
+        Assert.All(nodes.Where(n => !n.Entry.IsDirectory), n => Assert.Equal(n.Entry.Name, n.Label));
         // 单文件目录用于验证大块仍有直接标注。
         var single = Directory("单文件目录");
         File("大文件.dll", single, 100);
