@@ -49,12 +49,14 @@ public partial class MainWindow
             case "click": control.HandleClick(position, 1, false); break;
             case "ctrl_click": control.HandleClick(position, 1, true); break;
             case "double_click": control.HandleClick(position, 2, false); break;
+            case "right_click": control.HandleContextMenu(position); break;
             case "nodes": break;
             default: throw new InvalidOperationException("不支持的树状图验收动作。");
         }
         return new
         {
             ProcessId = Environment.ProcessId,
+            DisplayDepth = _treemapViewModel?.DisplayDepth,
             CurrentRootPath = _treemapViewModel?.CurrentRoot?.Path,
             SelectedPath = _treemapViewModel?.SelectedNode?.Entry.Path,
             MultiSelectedPaths = control.MultiSelection.Select(node => node.Entry.Path).ToArray(),
@@ -63,16 +65,28 @@ public partial class MainWindow
             Height = control.ActualHeight,
             Viewport = new { control.Viewport.Zoom, PanX = control.Viewport.X, PanY = control.Viewport.Y },
             TypeColors = _treemapViewModel?.TypeColors,
-            RenderStats = new { control.RenderedNodeCount, control.TitleClipNodeCount, control.RenderedLabelCount },
+            RenderStats = new { control.RenderedNodeCount, control.TitleClipNodeCount, control.RenderedLabelCount, control.BaseRenderCount, control.PreviewRenderCount, control.GeometryFallbackNodeCount, control.RasterPending, control.RasterError },
+            DetailUpdate = new { Pending = _treemapViewModel?.IsZoomLayoutPending, Commits = _treemapViewModel?.ZoomLayoutCommits, Error = _treemapViewModel?.ZoomLayoutError },
+            SemanticTitles = control.SemanticTitles.Select(t => new { t.Node.Entry.Name, t.Node.Entry.Path,
+                X = t.Rect.Left, Y = t.Rect.Top, Width = t.Rect.Width, Height = t.Rect.Height, t.Opacity }).ToArray(),
             Nodes = action == "nodes" ? control.Nodes?.Select(n => new
             {
                 n.Entry.Name, n.Entry.Path, n.Entry.IsDirectory, n.Entry.IsDeleted,
-                n.X, n.Y, n.Width, n.Height, n.Depth, n.Label, n.SizeLabel, n.ColorHex, n.ContentColorHex, n.AggregatedCount, n.AggregatedSize,
+                n.X, n.Y, n.Width, n.Height, n.Depth, n.Label, n.SizeLabel, n.ColorHex, n.ContentColorHex, n.AggregatedCount, n.AggregatedSize, n.HeaderHeight, n.ShowDirectoryFrame, n.IsContentLeaf,
                 ScreenX = n.X * control.Viewport.Zoom + control.Viewport.X,
                 ScreenY = n.Y * control.Viewport.Zoom + control.Viewport.Y,
                 ScreenWidth = n.Width * control.Viewport.Zoom, ScreenHeight = n.Height * control.Viewport.Zoom
             }).ToArray() : null,
         };
+    }
+
+    /// <summary>只在验收模式调用同一深度设置路径，不扫描也不操作用户文件。</summary>
+    internal object AcceptanceTreemapDepth(int? depth)
+    {
+        if (!AcceptanceAutomationServer.IsEnabled() || _treemapViewModel is null)
+            throw new InvalidOperationException("验收入口未启用或树图未初始化。");
+        _ = _treemapViewModel.SetDisplayDepthAsync(depth ?? 0);
+        return AcceptanceTreemapPointer(null, null, "nodes");
     }
 
     private System.Text.Json.Nodes.JsonNode? acceptanceDecision;
@@ -177,6 +191,8 @@ public partial class MainWindow
             ConsoleVisible = ConsoleFrame.Visibility == Visibility.Visible,
             Copilot = new { Busy = _chatViewModel?.IsOperationRunning, Status = _chatViewModel?.StatusText, Model = _chatViewModel?.ModelDisplayName, Width = ChatPanelColumn.ActualWidth, Pending = _chatViewModel?.PendingInteractionCard?.Title, MessageCount = _chatViewModel?.Messages.Count, HistoryOpen = _chatViewModel?.IsHistoryOpen, HistoryCount = _chatViewModel?.ConversationHistory.Count, ConversationId = _chatViewModel?.CurrentConversationId, LastMessage = _chatViewModel?.Messages.LastOrDefault()?.Text, SegmentCount = _chatViewModel?.Messages.LastOrDefault()?.Segments.Count },
             Recommendations = _recommendationsViewModel?.Recommendations.Select(r => new { r.Id, r.TargetPath, r.Size, r.IsAccepted }).ToArray(),
+            ScanDecisionText = mainVm?.ScanDecisionText,
+            ScanExecution = mainVm?.LastScanExecution?.ToPublicData(),
             ScanTotals = new { Files = mainVm?.CurrentSession?.TotalFiles, Folders = mainVm?.CurrentSession?.TotalFolders, Bytes = mainVm?.CurrentSession?.TotalSize },
 
         };

@@ -591,15 +591,16 @@ public class TreemapControlTests
     });
 
     [Fact]
-    public void TextLod_RendererDoesNotFloodSmallCellsWithLabels() => InSta(() =>
+    public void 文字按可读尺寸显示而非把九十像素文件块也隐藏() => InSta(() =>
     {
         var small = Node(false, 10, 20, 90, 80);
         var large = Node(false, 110, 20, 280, 260);
-        var control = Sized([small, large]);
+        var tiny = Node(false, 10, 120, 40, 24);
+        var control = Sized([small, large, tiny]);
         using var image = Render(control);
         var count = typeof(TreemapControl).GetProperty("RenderedLabelCount", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(count);
-        Assert.Equal(1, count.GetValue(control));
+        Assert.Equal(2, count.GetValue(control));
     });
 
     [Fact]
@@ -613,6 +614,97 @@ public class TreemapControlTests
         Assert.Equal(SKColor.Parse("#303030"), image.GetPixel(300, 3));
         Assert.Equal(SKColor.Parse("#808080"), image.GetPixel(300, 100));
         Assert.Null(typeof(TreemapNode).GetProperty("AccentColorHex"));
+    });
+
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(2f)]
+    public void 透明目录不绘制背景边框但保留真实命中与选择(float zoom) => InSta(() =>
+    {
+        var parent = Node(true, 0, 0, 400 / zoom, 300 / zoom);
+        parent.ColorHex = parent.ContentColorHex = "#506070";
+        var child = Node(true, 50 / zoom, 40 / zoom, 200 / zoom, 220 / zoom);
+        child.Label = null; child.Depth = 1; child.ShowDirectoryFrame = false;
+        child.IsContentLeaf = false; child.HeaderHeight = 0;
+        var control = Sized([parent, child]);
+        typeof(TreemapControl).GetField("_zoom", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(control, zoom);
+        using var bitmap = Render(control);
+        Assert.Equal(SKColor.Parse("#506070"), bitmap.GetPixel(50, 150));
+        Assert.Equal(SKColor.Parse("#506070"), bitmap.GetPixel(100, 150));
+        Assert.Same(child, control.HitTest(100, 150));
+        Click(control, 100, 150, 1); Assert.Same(child, control.SelectedNode);
+    });
+
+    [Fact]
+    public void 可见深层目录标题采用布局预算而不是原始路径深度() => InSta(() =>
+    {
+        var folder = Node(true, 0, 0, 150, 100);
+        folder.Depth = 20; folder.HeaderHeight = 18;
+        var control = Sized([folder]);
+        var method = typeof(TreemapControl).GetMethod("GetDirectoryTitleHeight", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Assert.Equal(18f, (float)method.Invoke(control, [folder])!);
+    });
+
+    [Fact]
+    public void 末级目录有聚合尾部时允许放大展开并缩回原图() => InSta(() =>
+    {
+        var root = new FileEntry { Name = "根", Path = "D:/根", IsDirectory = true, Size = 1000000 };
+        root.Children.Add(new FileEntry { Name = "大文件.bin", Path = "D:/根/大文件.bin", Parent = root, Size = 999000 });
+        for (int i = 0; i < 1000; i++) root.Children.Add(new FileEntry { Name = $"小{i}.txt", Path = $"D:/根/小{i}.txt", Parent = root, Size = 1 });
+        var vm = new TreemapViewModel(new SquarifiedTreemapLayout()); var control = Sized([]);
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(vm.CurrentRoot)) Call(control, "SetViewRoot", vm.CurrentRoot, vm.ScanRoot);
+            if (e.PropertyName == nameof(vm.Nodes)) control.Nodes = vm.Nodes;
+        };
+        control.ZoomChanged += (_, zoom) => vm.SetZoom(zoom);
+        vm.UpdateSize(400, 300); vm.SetRoot(root);
+        Assert.Contains(control.Nodes!, n => n.AggregatedCount > 0);
+        int before = control.Nodes!.Count(n => !n.Entry.IsDirectory);
+        Call(control, "ZoomAt", 200f, 150f, 8f);
+        Assert.Equal(8f, vm.Zoom);
+        Assert.True(control.Nodes!.Count(n => !n.Entry.IsDirectory) > before);
+        Assert.Same(root, vm.CurrentRoot);
+        Call(control, "ZoomAt", 200f, 150f, .125f);
+        Assert.Equal(1f, vm.Zoom);
+        Assert.Equal(0f, Field(control, "_panX")); Assert.Equal(0f, Field(control, "_panY"));
+        Assert.Contains(control.Nodes!, n => n.AggregatedCount == 1000);
+    });
+
+    [Fact]
+    public void 聚合尾部解聚合后使用真实父目录作为稳定缩放锚点() => InSta(() =>
+    {
+        var root = new FileEntry { Name = "根", IsDirectory = true, Size = 1000 };
+        var folder = Node(true, 0, 0, 400, 300); folder.Entry = root;
+        var tail = Node(true, 300, 0, 100, 300); tail.Entry = root; tail.AggregatedCount = 500; tail.Depth = 1;
+        var control = Sized([folder, tail]);
+        control.ZoomChanged += (_, _) =>
+        {
+            var changed = Node(true, 0, 20, 400, 280); changed.Entry = root;
+            control.Nodes = [changed];
+        };
+        Call(control, "ZoomAt", 350f, 150f, 2f);
+        Assert.Equal(-350f, Field(control, "_panX"), 3);
+        Assert.Equal(-170f, Field(control, "_panY"), 3);
+    });
+
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(1.5f)]
+    [InlineData(2f)]
+    public void 选择性目录共享边界在高DPI仍为单物理像素(float dpi) => InSta(() =>
+    {
+        var first = Node(true, 10, 20, 190, 260);
+        var second = Node(true, 200, 20, 190, 260);
+        first.ColorHex = second.ColorHex = "#303030";
+        first.ContentColorHex = second.ContentColorHex = "#303030";
+        var control = Sized([first, second]); var info = new SKImageInfo((int)(400 * dpi), (int)(300 * dpi));
+        using var surface = SKSurface.Create(info);
+        typeof(TreemapControl).GetMethod("OnPaintSurface", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)!
+            .Invoke(control, [null, new SKPaintSurfaceEventArgs(surface, info)]);
+        using var image = surface.Snapshot(); using var bitmap = SKBitmap.FromImage(image);
+        int x = (int)(200 * dpi), y = (int)(24 * dpi);
+        Assert.Equal(1, Enumerable.Range(x - 3, 7).Count(px => bitmap.GetPixel(px, y) != SKColor.Parse("#303030")));
     });
 
     private static TreemapControl Sized(List<TreemapNode> nodes)

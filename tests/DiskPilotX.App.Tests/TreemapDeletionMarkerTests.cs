@@ -79,20 +79,24 @@ public class TreemapDeletionMarkerTests
     {
         var (folder, deleted, _) = Fixture();
         var layout = new SquarifiedTreemapLayout();
-        var control = Sized(layout.ComputeLayout(folder, 30, 30, 64, 1));
+        var control = Sized(layout.ComputeLayout(folder, 5, 5, 64, 1));
         typeof(TreemapControl).GetMethod("SetViewRoot", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(control, [folder, folder]);
-        Assert.Single(control.Nodes!);
-        using (var image = Render(control)) Assert.Equal(DeletedColor, image.GetPixel(26, 3));
+        Assert.Contains(control.Nodes!, n => n.AggregatedCount == 2);
+        HashSet<FileEntry> Hints() => (HashSet<FileEntry>)typeof(TreemapControl)
+            .GetMethod("GetDeletionHintEntries", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(control, null)!;
+        Assert.Contains(folder, Hints());
 
         typeof(TreemapControl).GetField("_zoom", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(control, 2f);
-        control.Nodes = layout.ComputeLayout(folder, 30, 30, 64, 2);
+        control.Nodes = layout.ComputeLayout(folder, 5, 5, 64, 2);
         Assert.Contains(control.Nodes!, n => ReferenceEquals(n.Entry, deleted));
-        using (var image = Render(control)) Assert.NotEqual(DeletedColor, image.GetPixel(56, 4));
+        Assert.DoesNotContain(folder, Hints());
+        using (var image = Render(control))
+            Assert.Contains(Enumerable.Range(0, 10).SelectMany(x => Enumerable.Range(0, 10).Select(y => image.GetPixel(x, y))), color => color == DeletedColor);
 
         typeof(TreemapControl).GetField("_zoom", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(control, 1f);
-        control.Nodes = layout.ComputeLayout(folder, 30, 30, 64, 1);
-        using (var image = Render(control)) Assert.Equal(DeletedColor, image.GetPixel(26, 3));
+        control.Nodes = layout.ComputeLayout(folder, 5, 5, 64, 1);
+        Assert.Contains(folder, Hints());
     });
 
     [Fact]
@@ -115,17 +119,19 @@ public class TreemapDeletionMarkerTests
         control.Arrange(new Rect(0, 0, 400, 300));
         var nodes = control.Nodes;
         control.SelectedNode = nodes![0];
-        using (var image = Render(control)) Assert.NotEqual(DeletedColor, image.GetPixel(26, 3));
+        var deletedNode = nodes.Single(n => ReferenceEquals(n.Entry, deleted));
+        int markX = (int)(deletedNode.X - 1), markY = (int)(deletedNode.Y + deletedNode.Height / 2);
+        using (var image = Render(control)) Assert.NotEqual(DeletedColor, image.GetPixel(markX, markY));
 
         vm.ApplyCleanupResults([new CleanupAction { Result = CleanupResult.Success,
             Recommendation = new() { TargetPath = deleted.Path } }], session);
-        using (var image = Render(control)) Assert.Equal(DeletedColor, image.GetPixel(26, 3));
+        using (var image = Render(control)) Assert.Equal(DeletedColor, image.GetPixel(markX, markY));
         Assert.Same(nodes, control.Nodes);
         Assert.Same(nodes[0], control.SelectedNode);
         Assert.Equal(1f, typeof(TreemapControl).GetField("_zoom", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(control));
 
         vm.ClearDeletionMarks();
-        using (var image = Render(control)) Assert.NotEqual(DeletedColor, image.GetPixel(26, 3));
+        using (var image = Render(control)) Assert.NotEqual(DeletedColor, image.GetPixel(markX, markY));
         Assert.Same(nodes, control.Nodes);
         Assert.Same(nodes[0], control.SelectedNode);
     });
@@ -185,6 +191,23 @@ public class TreemapDeletionMarkerTests
         tooltipMethod.Invoke(control, [node]);
         Assert.DoesNotContain(((StackPanel)tooltip.Content).Children.OfType<TextBlock>(),
             text => text.Text == L.Text("TreemapContainsDeletedItems"));
+    });
+
+    [Fact]
+    public void 保留质量的亚像素删除项仍由可见祖先承接提示() => InSta(() =>
+    {
+        var folder = new FileEntry { Name = "根", IsDirectory = true, Size = 1000000000001L };
+        var big = new FileEntry { Name = "大文件.bin", Size = 1000000000000L, Parent = folder };
+        var tiny = new FileEntry { Name = "一字节.txt", Size = 1, Parent = folder, IsDeleted = true };
+        folder.Children = [big, tiny];
+        var nodes = new SquarifiedTreemapLayout().ComputeLayout(folder, 400, 300, 64);
+        Assert.Contains(nodes, n => ReferenceEquals(n.Entry, tiny));
+        var control = Sized(nodes);
+        typeof(TreemapControl).GetMethod("SetViewRoot", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(control, [folder, folder]);
+        var hints = (HashSet<FileEntry>)typeof(TreemapControl).GetMethod("GetDeletionHintEntries", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(control, null)!;
+        Assert.Contains(folder, hints);
+        using var image = Render(control);
+        Assert.Equal(DeletedColor, image.GetPixel(396, 4));
     });
 
     private static (FileEntry Folder, FileEntry Deleted, FileEntry Live) Fixture()

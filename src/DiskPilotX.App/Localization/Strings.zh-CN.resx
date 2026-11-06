@@ -1195,4 +1195,17 @@
   <data name="TreemapContainsDeletedItems" xml:space="preserve">
     <value>内含已删除项；放大可定位具体项目。</value>
   </data>
+  <data name="ScanRouteMft" xml:space="preserve"><value>MFT 索引扫描</value></data>
+  <data name="ScanRouteUsn" xml:space="preserve"><value>USN 增量扫描</value></data>
+  <data name="ScanRouteTraversal" xml:space="preserve"><value>普通目录遍历</value></data>
+  <data name="ScanRouteEvaluating" xml:space="preserve"><value>正在评估扫描方式</value></data>
+  <data name="ScanRouteElevated" xml:space="preserve"><value>已提权</value></data>
+  <data name="ScanRouteNotElevated" xml:space="preserve"><value>未提权</value></data>
+  <data name="ScanRouteCapability" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="ScanRouteCosts" xml:space="preserve"><value>剩余成本估计：遍历 {0:F1}–{1:F1} 秒；MFT {2:F1}–{3:F1} 秒 · {4} 条近期实测</value></data>
+  <data name="ScanRouteCostUnknown" xml:space="preserve"><value>暂无可靠成本区间，不显示猜测的剩余时间。</value></data>
+  <data name="TreemapDisplayDepthMenu" xml:space="preserve"><value>显示深度</value></data>
+  <data name="TreemapDepthAuto" xml:space="preserve"><value>自动</value></data>
+  <data name="TreemapDepthLayers" xml:space="preserve"><value>{0} 层</value></data>
+  <data name="TreemapDepthSaveFailed" xml:space="preserve"><value>保存显示深度失败：{0}</value></data>
 </root>

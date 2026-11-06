@@ -47,6 +47,9 @@ public partial class MainViewModel : ObservableObject
     private string? _scanProgressText;
 
     [ObservableProperty]
+    private string? _scanDecisionText;
+
+    [ObservableProperty]
     private ScanSession? _currentSession;
 
 
@@ -125,6 +128,7 @@ public partial class MainViewModel : ObservableObject
         _lastScanCancelled = false;
         SetLocalizedScanTitle("ScanningStatus");
         ScanProgressText = string.Empty;
+        ScanDecisionText = string.Empty;
         _scanCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var execution = new ScanExecutionInfo(scanTarget, ScanMethod.Unknown, ScanExecutionStatus.Running, DateTime.Now);
         Volatile.Write(ref _lastScanExecution, execution);
@@ -134,6 +138,7 @@ public partial class MainViewModel : ObservableObject
             var uiProgress = new Progress<ScanProgress>(p =>
             {
                 ScanProgressText = ScanProgressFormatter.Format(p);
+                if(p.Execution?.Decision is not null) ScanDecisionText = ScanProgressFormatter.FormatDecision(p.Execution);
             });
 
             var progress = new ExecutionProgress(p =>
@@ -143,6 +148,7 @@ public partial class MainViewModel : ObservableObject
             var session = await _fileScanner.ScanAsync(scanTarget, progress, _scanCts.Token);
             session.Execution ??= execution with { Status = session.IsCancelled ? ScanExecutionStatus.Cancelled : ScanExecutionStatus.Completed, CompletedAt = session.EndTime ?? DateTime.Now };
             Volatile.Write(ref _lastScanExecution, session.Execution);
+            ScanDecisionText = ScanProgressFormatter.FormatDecision(session.Execution);
             if (session.IsCancelled || _scanCts.IsCancellationRequested)
             {
                 _logger.LogWarning("Scan cancelled for {ScanTarget}; hasRoot={HasRoot}, files={Files}, folders={Folders}", scanTarget, session.RootEntry is not null, session.TotalFiles, session.TotalFolders);
@@ -309,6 +315,7 @@ public partial class MainViewModel : ObservableObject
         IsExternalScan = true;
         SetRawScanTitle(titleText);
         ScanProgressText = progressText ?? string.Empty;
+        ScanDecisionText = string.Empty;
         IsScanning = true;
         return new ExternalScanScope(this);
     }

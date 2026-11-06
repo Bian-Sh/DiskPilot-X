@@ -44,7 +44,7 @@ public partial class MainWindow
         }
         if(e.PropertyName==nameof(MainViewModel.IsScanning)) RefreshScanSnapshotEntries();
 
-        if (e.PropertyName is nameof(MainViewModel.IsScanning) or nameof(MainViewModel.ScanTitleText) or nameof(MainViewModel.ScanProgressText))
+        if (e.PropertyName is nameof(MainViewModel.IsScanning) or nameof(MainViewModel.ScanTitleText) or nameof(MainViewModel.ScanProgressText) or nameof(MainViewModel.ScanDecisionText))
         {
             if (e.PropertyName == nameof(MainViewModel.IsScanning) && mainVm.IsScanning)
             {
@@ -53,7 +53,7 @@ public partial class MainWindow
                 Services.DeletedEntryState.Clear(mainVm.CurrentSession?.RootEntry);
                 _treemapViewModel?.ClearDeletionMarks();
             }
-            TreemapView.SetScanningState(mainVm.IsScanning, mainVm.ScanTitleText, mainVm.ScanProgressText);
+            TreemapView.SetScanningState(mainVm.IsScanning, mainVm.ScanTitleText, mainVm.ScanProgressText, mainVm.ScanDecisionText);
         }
         else if (e.PropertyName is nameof(MainViewModel.SelectedPath))
         {

@@ -19,6 +19,7 @@ public partial class TreemapView : UserControl
 {
     private TreemapViewModel? _viewModel;
     private bool _isScanning;
+    internal ContextMenu? ActiveContextMenu { get; private set; }
 
     public Func<string, string, MessageBoxButton, MessageBoxImage, Task<MessageBoxResult>>? ShowMessageAsync { get; set; }
 
@@ -59,9 +60,13 @@ public partial class TreemapView : UserControl
     public TreemapView()
     {
         InitializeComponent();
+        Treemap.EnableAsyncRaster = true;
+        Treemap.BlankRightClicked += (_, _) => OpenDepthMenu();
+        // 空状态覆盖层也能打开；限定树图容器，不接管窗口其他区域。
+        TreemapContainer.MouseRightButtonUp += (_, e) => { OpenDepthMenu(); e.Handled = true; };
         // 事件只绑定一次，替换 ViewModel 不累积旧委托。
         Treemap.MultiSelectionChanged += (_, _) => _viewModel?.SetMultiSelection(Treemap.MultiSelection.ToList());
-        Treemap.ZoomChanged += (_, zoom) => _viewModel?.SetZoom(zoom);
+        Treemap.ZoomChanged += (_, zoom) => { if (_viewModel is { } vm) _ = vm.RequestZoomAsync(zoom); };
         Treemap.RootNavigationRequested += (_, entry) => _viewModel?.NavigateToEntry(entry);
 
     }
@@ -71,6 +76,7 @@ public partial class TreemapView : UserControl
         // Unsubscribe from previous view model if any
         if (_viewModel is not null)
         {
+            _viewModel.CancelZoomUpdate();
             _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
         }
 
@@ -90,6 +96,9 @@ public partial class TreemapView : UserControl
     {
         switch (e.PropertyName)
         {
+            case nameof(TreemapViewModel.DisplayDepth):
+                Treemap.PreserveViewportForDepthChange();
+                break;
             case nameof(TreemapViewModel.DeletionRevision):
                 Treemap.RefreshDeletionMarks();
                 break;
@@ -106,12 +115,13 @@ public partial class TreemapView : UserControl
         }
     }
 
-    public void SetScanningState(bool isScanning, string? titleText, string? progressText)
+    public void SetScanningState(bool isScanning, string? titleText, string? progressText, string? decisionText = null)
     {
         _isScanning = isScanning;
         ScanningOverlay.Visibility = isScanning ? Visibility.Visible : Visibility.Collapsed;
         ScanTitleText.Text = string.IsNullOrWhiteSpace(titleText) ? L.Text("ScanningStatus") : titleText;
         ScanProgressText.Text = progressText ?? string.Empty;
+        ScanDecisionText.Text = decisionText ?? string.Empty;
         UpdateEmptyState();
     }
 
@@ -194,6 +204,7 @@ public partial class TreemapView : UserControl
     {
         var entry = node.Entry;
         var contextMenu = BuildNodeContextMenu(node);
+        ActiveContextMenu = contextMenu;
         contextMenu.PlacementTarget = Treemap;
         contextMenu.IsOpen = true;
     }
@@ -211,9 +222,14 @@ public partial class TreemapView : UserControl
         return menu;
     }
 
-    internal ContextMenu BuildContextMenu(FileEntry entry)
+    internal ContextMenu BuildContextMenu(FileEntry? entry)
     {
         var contextMenu = new ContextMenu();
+        if (entry is null)
+        {
+            contextMenu.Items.Add(BuildDisplayDepthMenu(contextMenu));
+            return contextMenu;
+        }
 
         // 多选非空时提供「引用到对话框」。
         if (ReferencedEntries.Count > 1)
@@ -265,8 +281,91 @@ public partial class TreemapView : UserControl
         var propertiesItem = new MenuItem { Header = L.Text("PropertiesMenu"), IsEnabled = !entry.IsDeleted };
         propertiesItem.Click += async (_, _) => await RunShellActionAsync(() => FileEntryShellService.ShowProperties(entry));
         contextMenu.Items.Add(propertiesItem);
+        contextMenu.Items.Add(new Separator());
+        contextMenu.Items.Add(BuildDisplayDepthMenu(contextMenu));
 
         return contextMenu;
+    }
+
+    private void OpenDepthMenu()
+    {
+        var menu = BuildContextMenu(null);
+        ActiveContextMenu = menu;
+        menu.PlacementTarget = Treemap;
+        menu.IsOpen = true;
+    }
+
+    private MenuItem BuildDisplayDepthMenu(ContextMenu menu)
+    {
+        var parent = new MenuItem { Header = L.Text("TreemapDisplayDepthMenu"), Style = (Style)Resources["TreemapDepthMenu"] };
+        for (int depth = 0; depth <= 6; depth++)
+        {
+            int choice = depth;
+            var item = new MenuItem
+            {
+                Header = depth == 0 ? L.Text("TreemapDepthAuto") : L.Format("TreemapDepthLayers", depth),
+                IsCheckable = true,
+                IsChecked = depth == (_viewModel?.DisplayDepth ?? 0),
+                Tag = depth
+            };
+            item.Click += async (_, _) =>
+            {
+                try
+                {
+                    var pending = _viewModel?.SetDisplayDepthAsync(choice) ?? Task.CompletedTask;
+                    foreach (var option in parent.Items.OfType<MenuItem>()) option.IsChecked = Equals(option.Tag, _viewModel?.DisplayDepth ?? 0);
+                    await pending;
+                }
+                catch (Exception error) { await ShowErrorAsync(L.Format("TreemapDepthSaveFailed", error.Message)); }
+            };
+            parent.Items.Add(item);
+        }
+        // 仅显示深度子菜单维护逻辑焦点；原生焦点不可用时也不丢失当前选项，不接管其他菜单。
+        void FocusChoice(MenuItem target)
+        {
+            FocusManager.SetFocusedElement(parent, target);
+            target.Focus();
+        }
+        parent.PreviewKeyDown += (_, e) =>
+        {
+            if (!ReferenceEquals(e.OriginalSource, parent)) return;
+            if (e.Key is Key.Right or Key.Enter)
+            {
+                parent.IsSubmenuOpen = true;
+                FocusChoice(parent.Items.OfType<MenuItem>().First(i => i.IsChecked));
+            }
+            else if (e.Key == Key.Escape)
+            {
+                if (parent.IsSubmenuOpen) parent.IsSubmenuOpen = false;
+                else menu.IsOpen = false;
+            }
+            else return;
+            e.Handled = true;
+        };
+        foreach (var option in parent.Items.OfType<MenuItem>())
+        {
+            option.PreviewKeyDown += (_, e) =>
+            {
+                if (e.Key is Key.Down or Key.Up)
+                {
+                    int index = parent.Items.IndexOf(option);
+                    FocusChoice((MenuItem)parent.Items[(index + (e.Key == Key.Down ? 1 : 6)) % 7]);
+                }
+                else if (e.Key == Key.Enter)
+                {
+                    option.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                    menu.IsOpen = false;
+                }
+                else if (e.Key is Key.Escape or Key.Left)
+                {
+                    parent.IsSubmenuOpen = false;
+                    FocusChoice(parent);
+                }
+                else return;
+                e.Handled = true;
+            };
+        }
+        return parent;
     }
 
     private async Task RunShellActionAsync(Action action)

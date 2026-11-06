@@ -1195,4 +1195,17 @@ This cannot be undone.</value></data>
   <data name="TreemapContainsDeletedItems" xml:space="preserve">
     <value>Contains deleted items; zoom in to locate them.</value>
   </data>
+  <data name="ScanRouteMft" xml:space="preserve"><value>MFT index scan</value></data>
+  <data name="ScanRouteUsn" xml:space="preserve"><value>USN incremental scan</value></data>
+  <data name="ScanRouteTraversal" xml:space="preserve"><value>Directory traversal</value></data>
+  <data name="ScanRouteEvaluating" xml:space="preserve"><value>Evaluating scan route</value></data>
+  <data name="ScanRouteElevated" xml:space="preserve"><value>elevated</value></data>
+  <data name="ScanRouteNotElevated" xml:space="preserve"><value>not elevated</value></data>
+  <data name="ScanRouteCapability" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="ScanRouteCosts" xml:space="preserve"><value>Estimated remaining: traversal {0:F1}–{1:F1}s; MFT {2:F1}–{3:F1}s · {4} recent samples</value></data>
+  <data name="ScanRouteCostUnknown" xml:space="preserve"><value>No reliable cost estimate yet; this is not an ETA.</value></data>
+  <data name="TreemapDisplayDepthMenu" xml:space="preserve"><value>Display depth</value></data>
+  <data name="TreemapDepthAuto" xml:space="preserve"><value>Automatic</value></data>
+  <data name="TreemapDepthLayers" xml:space="preserve"><value>{0} layers</value></data>
+  <data name="TreemapDepthSaveFailed" xml:space="preserve"><value>Unable to save display depth: {0}</value></data>
 </root>

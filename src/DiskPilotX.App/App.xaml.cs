@@ -65,6 +65,10 @@ public partial class App : Application
         services.AddSingleton<IAiSkillRouter, AiSkillRouter>();
 
         // US1 services
+        services.AddSingleton<IScanRouteEnvironment, ScanRouteEnvironment>();
+        services.AddSingleton<IScanPerformanceStore>(_ => new ScanPerformanceStore(
+            AcceptanceAutomationServer.IsEnabled() && Core.AppCompatibility.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_SETTINGS") is { Length: > 0 } routeSettings
+                ? System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(routeSettings))!, "scan-performance.json") : null));
         services.AddSingleton<FileScanner>();
         services.AddSingleton<IFileScanner, IncrementalFileScanner>();
         services.AddSingleton<ITreemapLayoutEngine, SquarifiedTreemapLayout>();

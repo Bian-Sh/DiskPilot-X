@@ -7,6 +7,58 @@
              xmlns:loc="clr-namespace:DiskPilotX.App.Localization"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="800">
+    <UserControl.Resources>
+        <!-- 只补树图深度入口的子菜单宿主，不改控制台的通用MenuItem模板。 -->
+        <Style x:Key="TreemapDepthMenu" TargetType="MenuItem">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontFamily" Value="{DynamicResource VP.FontFamily}" />
+            <Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Grid>
+                            <Border x:Name="Highlight" Background="Transparent" CornerRadius="5"
+                                    Padding="{TemplateBinding Padding}" Margin="0,1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="22" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="18" />
+                                    </Grid.ColumnDefinitions>
+                                    <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True"
+                                                      VerticalAlignment="Center" Margin="4,0" />
+                                    <TextBlock Grid.Column="2" Text="&#xE76C;" FontFamily="Segoe MDL2 Assets"
+                                               FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                            <Popup x:Name="PART_Popup" Placement="Right" AllowsTransparency="True" Focusable="False"
+                                   IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                   PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}">
+                                <Border Background="{DynamicResource VP.BackgroundAltBrush}"
+                                        BorderBrush="{DynamicResource VP.BorderLightBrush}" BorderThickness="0.5"
+                                        CornerRadius="8" Padding="4,2" Margin="4">
+                                    <ScrollViewer MaxHeight="480" VerticalScrollBarVisibility="Auto" CanContentScroll="True">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"
+                                                        KeyboardNavigation.TabNavigation="Cycle" Grid.IsSharedSizeScope="True" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Highlight" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSubmenuOpen" Value="True">
+                                <Setter TargetName="Highlight" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
 
     <Grid>
         <!-- Treemap area: rounded container with clip -->
@@ -74,6 +126,10 @@
                                    Foreground="{DynamicResource VP.TextSecondaryBrush}"
                                    HorizontalAlignment="Center"
                                    Margin="0,8,0,0" />
+                        <TextBlock x:Name="ScanDecisionText" TextWrapping="Wrap" MaxWidth="620"
+                                   FontSize="12" Foreground="{DynamicResource VP.TextSecondaryBrush}"
+                                   HorizontalAlignment="Center" TextAlignment="Center" Margin="20,10,20,0"
+                                   ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                         <Button Content="{loc:Loc CancelButton}"
                                 Padding="20,8"
                                 Margin="0,16,0,0"

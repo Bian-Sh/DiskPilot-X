@@ -136,7 +136,7 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel mainVm)
         {
             mainVm.PropertyChanged += MainViewModel_PropertyChanged;
-            TreemapView.SetScanningState(mainVm.IsScanning, mainVm.ScanTitleText, mainVm.ScanProgressText);
+            TreemapView.SetScanningState(mainVm.IsScanning, mainVm.ScanTitleText, mainVm.ScanProgressText, mainVm.ScanDecisionText);
 
             // Set default path to first available drive
             if (string.IsNullOrEmpty(mainVm.SelectedPath))

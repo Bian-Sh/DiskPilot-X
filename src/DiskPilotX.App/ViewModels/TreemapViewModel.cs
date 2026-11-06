@@ -6,12 +6,113 @@ using DiskPilotX.Core.Enums;
 using DiskPilotX.Core.Models;
 using DiskPilotX.Core.Services.Treemap;
 using DiskPilotX.Core.Services.FileTree;
+using DiskPilotX.Core.Services.Settings;
 
 namespace DiskPilotX.App.ViewModels;
 
 public partial class TreemapViewModel : ObservableObject
 {
     private readonly ITreemapLayoutEngine _layoutEngine;
+    private readonly ISettingsService? _settingsService;
+    public int DisplayDepth { get; private set; }
+    private int LayoutDepth => DisplayDepth == 0 ? 64 : DisplayDepth;
+
+    /// <summary>只切换显示投影；保留真实选择、缩放和平移，合并后台布局并隔离旧模式结果。</summary>
+    public Task SetDisplayDepthAsync(int depth)
+    {
+        int next = depth is >= 1 and <= 6 ? depth : 0;
+        if (next == DisplayDepth) return PendingZoomUpdate;
+        if (_settingsService is not null)
+        {
+            var settings = _settingsService.LoadSettings();
+            settings.TreemapDisplayDepth = next;
+            _settingsService.SaveSettings(settings);
+        }
+        DisplayDepth = next;
+        OnPropertyChanged(nameof(DisplayDepth));
+        return RequestZoomAsync(Zoom);
+    }
+
+    private CancellationTokenSource? _zoomRequest;
+    private readonly SemaphoreSlim _zoomWorker = new(1, 1);
+    private int _layoutGeneration;
+    internal Task PendingZoomUpdate { get; private set; } = Task.CompletedTask;
+    internal bool IsZoomLayoutPending { get; private set; }
+    internal int ZoomLayoutCommits { get; private set; }
+    internal string? ZoomLayoutError { get; private set; }
+
+    /// <summary>滚轮先更新几何视口，短延迟合并请求；后台细节只允许最新根、尺寸和缩放提交。</summary>
+    public Task RequestZoomAsync(float zoom)
+    {
+        CancelZoomUpdate();
+        Zoom = Math.Clamp(zoom, 1f, 8f);
+        var root = CurrentRoot;
+        if (root is null || ViewWidth <= 0 || ViewHeight <= 0) return Task.CompletedTask;
+        var source = _zoomRequest = new CancellationTokenSource();
+        int generation = _layoutGeneration;
+        float width = ViewWidth, height = ViewHeight, target = Zoom;
+        int mode = DisplayDepth, maxDepth = LayoutDepth;
+        var colors = _colorContext;
+        var dispatcher = System.Windows.Threading.Dispatcher.FromThread(Thread.CurrentThread);
+        IsZoomLayoutPending = true; ZoomLayoutError = null;
+        return PendingZoomUpdate = Update();
+
+        async Task Update()
+        {
+            try
+            {
+                await Task.Delay(65, source.Token);
+                await _zoomWorker.WaitAsync(source.Token);
+                List<TreemapNode> nodes;
+                try
+                {
+                    nodes = await Task.Run(() =>
+                    {
+                        source.Token.ThrowIfCancellationRequested();
+                        var result = _layoutEngine.ComputeLayout(root, width, height, maxDepth, target);
+                        source.Token.ThrowIfCancellationRequested();
+                        colors?.Apply(result);
+                        Controls.TreemapSceneIndex.Prepare(result);
+                        return result;
+                    }, source.Token);
+                }
+                finally { _zoomWorker.Release(); }
+                void Commit()
+                {
+                    if (source.IsCancellationRequested || generation != _layoutGeneration || !ReferenceEquals(root, CurrentRoot)
+                        || width != ViewWidth || height != ViewHeight || target != Zoom || mode != DisplayDepth) return;
+                    Nodes = nodes; ZoomLayoutCommits++;
+                }
+                if (dispatcher is not null && !dispatcher.CheckAccess()) await dispatcher.InvokeAsync(Commit);
+                else Commit();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception error)
+            {
+                // 失败时保留原场景和安全的交互；不以空图覆盖可用结果。
+                ZoomLayoutError = error.Message;
+                System.Diagnostics.Trace.TraceError("树图后台细节更新失败：{0}", error);
+            }
+            finally
+            {
+                void Finish()
+                {
+                    if (ReferenceEquals(_zoomRequest, source)) { IsZoomLayoutPending = false; _zoomRequest = null; }
+                    source.Dispose();
+                }
+                if (dispatcher is not null && !dispatcher.CheckAccess()) await dispatcher.InvokeAsync(Finish);
+                else Finish();
+            }
+        }
+    }
+
+    public void CancelZoomUpdate()
+    {
+        _layoutGeneration++;
+        var old = _zoomRequest; _zoomRequest = null;
+        old?.Cancel();
+        IsZoomLayoutPending = false;
+    }
     private readonly Stack<FileEntry> _navigationStack = new();
     private readonly Stack<FileEntry> _forwardStack = new();
     private FileEntry? _scanRoot;
@@ -61,13 +162,19 @@ public partial class TreemapViewModel : ObservableObject
     [ObservableProperty]
     private float _zoom = 1f;
 
-    public TreemapViewModel(ITreemapLayoutEngine layoutEngine)
+    public TreemapViewModel(ITreemapLayoutEngine layoutEngine) : this(layoutEngine, null) { }
+
+    public TreemapViewModel(ITreemapLayoutEngine layoutEngine, ISettingsService? settingsService)
     {
         _layoutEngine = layoutEngine;
+        _settingsService = settingsService;
+        DisplayDepth = settingsService?.LoadSettings().TreemapDisplayDepth ?? 0;
     }
 
     partial void OnCurrentRootChanged(FileEntry? value)
     {
+        SelectedNode = null;
+        MultiSelection = Array.Empty<TreemapNode>();
         // 每次进入新层级从完整视图起步，控制器负责恢复滚轮返回时的父级视口。
         Zoom = 1f;
     }
@@ -328,6 +435,7 @@ public partial class TreemapViewModel : ObservableObject
 
     public void UpdateSize(float width, float height)
     {
+        SelectedNode = null;
         ViewWidth = width;
         ViewHeight = height;
         RecomputeLayout();
@@ -381,7 +489,11 @@ public partial class TreemapViewModel : ObservableObject
 
     partial void OnNodesChanged(List<TreemapNode>? value)
     {
-        SelectedNode = null;
+        // 隐藏只影响高亮，不能把真实选择偷换为父目录；重新可见时绑定到新几何。
+        TreemapNode Remap(TreemapNode selected) => value?.FirstOrDefault(n => ReferenceEquals(n.Entry, selected.Entry)
+            && (n.AggregatedCount > 0) == (selected.AggregatedCount > 0)) ?? selected;
+        if (SelectedNode is { } selected) SelectedNode = Remap(selected);
+        MultiSelection = MultiSelection.Select(Remap).ToArray();
         HoveredNode = null;
     }
 
@@ -398,24 +510,23 @@ public partial class TreemapViewModel : ObservableObject
 
     private void RecomputeLayoutForCurrentRoot()
     {
+        CancelZoomUpdate();
         if (CurrentRoot is null || ViewWidth <= 0 || ViewHeight <= 0)
         {
             Nodes = null;
             return;
         }
 
-        var nodes = _layoutEngine.ComputeLayout(CurrentRoot, ViewWidth, ViewHeight, maxDepth: 64, zoom: Zoom);
+        var nodes = _layoutEngine.ComputeLayout(CurrentRoot, ViewWidth, ViewHeight, maxDepth: LayoutDepth, zoom: Zoom);
         _colorContext?.Apply(nodes);
         Nodes = nodes;
-        // 导航/钻取后清空多选集合。
-        MultiSelection = Array.Empty<TreemapNode>();
     }
 
     /// <summary>更新缩放级别并触发 LOD 重布局（zoom 增大展开更多层级）。</summary>
     public void SetZoom(float zoom)
     {
         var clamped = Math.Clamp(zoom, 1f, 8f);
-        if (Math.Abs(clamped - Zoom) < 1e-4f) return;
+        if (Math.Abs(clamped - Zoom) < 1e-4f && !IsZoomLayoutPending) return;
         Zoom = clamped;
         RecomputeLayoutForCurrentRoot();
     }

@@ -114,7 +114,14 @@
                             Command="{Binding ScanCommand}"
                             PreviewMouseLeftButtonDown="ScanButton_PreviewMouseLeftButtonDown"
                             Click="ScanButton_Click"
-                            ToolTip="{loc:Loc ScanButtonToolTip}" />
+                            >
+                        <Button.ToolTip>
+                            <StackPanel MaxWidth="540">
+                                <TextBlock Text="{loc:Loc ScanButtonToolTip}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ScanDecisionText}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                            </StackPanel>
+                        </Button.ToolTip>
+                    </Button>
 
                     <!-- Address bar: LAST child fills remaining space between nav and action buttons -->
                     <Border x:Name="AddressBarBorder"
