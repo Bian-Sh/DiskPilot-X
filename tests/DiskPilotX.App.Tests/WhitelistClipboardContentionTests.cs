@@ -75,22 +75,48 @@ public sealed class WhitelistClipboardContentionTests
         {
             _thread = new Thread(() =>
             {
-                var opened = false;
-                for (var attempt = 0; attempt < 20 && !opened; attempt++)
+                // NULL 窗口在本机不能形成跨线程竞争，使用仅消息窗口明确锁的归属。
+                var owner = CreateWindowEx(0, "STATIC", "剪贴板竞争测试", 0, 0, 0, 0, 0,
+                    new IntPtr(-3), IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                if (owner == IntPtr.Zero)
                 {
-                    opened = OpenClipboard(IntPtr.Zero);
-                    if (!opened) Thread.Sleep(20);
+                    _error = Marshal.GetLastWin32Error() is var error && error != 0 ? error : 5;
+                    _ready.Set();
+                    return;
                 }
-                if (!opened) _error = Marshal.GetLastWin32Error() is var error && error != 0 ? error : 5;
-                _ready.Set();
-                if (opened) { try { _release.Wait(); } finally { CloseClipboard(); } }
+                try
+                {
+                    var opened = false;
+                    for (var attempt = 0; attempt < 20 && !opened; attempt++)
+                    {
+                        opened = OpenClipboard(owner);
+                        if (!opened) Thread.Sleep(20);
+                    }
+                    if (!opened) _error = Marshal.GetLastWin32Error() is var error && error != 0 ? error : 5;
+                    _ready.Set();
+                    if (opened) { try { _release.Wait(); } finally { CloseClipboard(); } }
+                }
+                finally { DestroyWindow(owner); }
             });
             _thread.SetApartmentState(ApartmentState.STA);
             _thread.Start();
             if (!_ready.Wait(TimeSpan.FromSeconds(3))) throw new TimeoutException("未能建立剪贴板占用条件。");
             if (_error != 0) { Dispose(); throw new Win32Exception(_error, "未能锁定剪贴板以复现异常。"); }
+            // 先证明其他线程确实打不开，避免假占用使复制测试覆盖用户剪贴板。
+            if (OpenClipboard(IntPtr.Zero))
+            {
+                CloseClipboard();
+                Dispose();
+                throw new InvalidOperationException("剪贴板占用未生效，拒绝继续执行真实复制或粘贴。");
+            }
         }
         public void Dispose() { _release.Set(); _thread.Join(); _ready.Dispose(); _release.Dispose(); }
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr CreateWindowEx(int extendedStyle, string className, string windowName,
+            int style, int x, int y, int width, int height, IntPtr parent, IntPtr menu, IntPtr instance, IntPtr parameter);
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool DestroyWindow(IntPtr window);
         [DllImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool OpenClipboard(IntPtr owner);
