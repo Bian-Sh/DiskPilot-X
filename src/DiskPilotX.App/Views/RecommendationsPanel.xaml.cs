@@ -50,7 +50,7 @@ public partial class RecommendationsPanel : UserControl
             {
                 "RemoveRecommendationMenu" => ("RemoveRecommendation", "RemoveRecommendationToolTip"),
                 "ClearRecommendationsMenu" => ("ClearRecommendations", "ClearRecommendationsToolTip"),
-                "CleanupRecommendationsMenu" => ("CleanUpButton", "CleanUpToolTip"),
+                "CopyRecommendationPathMenu" => ("CopyPathMenu", "CopyPathMenu"),
                 _ => default
             };
             if (keys.Item1 is null) continue;
@@ -73,7 +73,7 @@ public partial class RecommendationsPanel : UserControl
             {
                 "RemoveRecommendationMenu" => CanRemoveRecommendations,
                 "ClearRecommendationsMenu" => CanRemoveRecommendations && vm.HasAnyRecommendations,
-                "CleanupRecommendationsMenu" => CanRemoveRecommendations && vm.HasAcceptedRecommendations,
+                "CopyRecommendationPathMenu" => menu.DataContext is CleanupRecommendation row && !string.IsNullOrWhiteSpace(row.TargetPath),
                 _ => item.IsEnabled
             };
     }
@@ -88,12 +88,25 @@ public partial class RecommendationsPanel : UserControl
         if (CanRemoveRecommendations && DataContext is RecommendationsViewModel vm
             && sender is MenuItem { DataContext: CleanupRecommendation item }) vm.DismissCommand.Execute(item);
     }
+    private void CopyRecommendationPath_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { DataContext: CleanupRecommendation item } || string.IsNullOrWhiteSpace(item.TargetPath)) return;
+        try
+        {
+            Clipboard.SetText(item.TargetPath);
+        }
+        catch (ExternalException ex)
+        {
+            MessageBox.Show(L.Format("CopyPathFailedMessage", ex.Message));
+        }
+    }
+
     private async void CleanUpButton_Click(object sender, RoutedEventArgs e)
     {
         if (await ShowWaitingForAiMessageIfNeededAsync())
             return;
 
-        // 仍只请求原清理批准入口；菜单不直接删除磁盘，也不改变已选项目。
+        // 仍只请求原清理批准入口，不改变已选项目。
         if (CanRemoveRecommendations && DataContext is RecommendationsViewModel { HasAcceptedRecommendations: true })
             CleanupRequested?.Invoke();
     }

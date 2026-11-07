@@ -251,8 +251,6 @@
                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListView.ContextMenu>
                 <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Opened="RecommendationContextMenu_Opened">
-                    <MenuItem x:Name="CleanupRecommendationsMenu" Header="{loc:Loc CleanUpButton}" Click="CleanUpButton_Click"
-                              ToolTip="{loc:Loc CleanUpToolTip}" />
                     <MenuItem x:Name="ClearRecommendationsMenu" Header="{loc:Loc ClearRecommendations}" Click="ClearRecommendations_Click"
                               ToolTip="{loc:Loc ClearRecommendationsToolTip}" />
                 </ContextMenu>
@@ -275,8 +273,8 @@
                                 <MenuItem x:Name="RemoveRecommendationMenu" Header="{loc:Loc RemoveRecommendation}" Click="RemoveRecommendation_Click"
                                           ToolTip="{loc:Loc RemoveRecommendationToolTip}" />
                                 <Separator />
-                                <MenuItem x:Name="CleanupRecommendationsMenu" Header="{loc:Loc CleanUpButton}" Click="CleanUpButton_Click"
-                                          ToolTip="{loc:Loc CleanUpToolTip}" />
+                                <MenuItem x:Name="CopyRecommendationPathMenu" Header="{loc:Loc CopyPathMenu}" Click="CopyRecommendationPath_Click"
+                                          ToolTip="{loc:Loc CopyPathMenu}" />
                                 <MenuItem x:Name="ClearRecommendationsMenu" Header="{loc:Loc ClearRecommendations}" Click="ClearRecommendations_Click"
                                           ToolTip="{loc:Loc ClearRecommendationsToolTip}" />
                             </ContextMenu>

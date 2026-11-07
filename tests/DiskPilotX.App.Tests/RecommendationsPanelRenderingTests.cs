@@ -125,22 +125,22 @@ public sealed class RecommendationsPanelRenderingTests
             && Equals(button.Content,DiskPilotX.App.Localization.L.Text("CleanUpButton")));
         var list=Visuals<ListView>(panel).Single(item=>item.Name=="RecommendationsList");
         Assert.NotNull(list.ContextMenu);
-        Assert.Contains(list.ContextMenu.Items.OfType<MenuItem>(),item=>item.Name=="CleanupRecommendationsMenu");
+        Assert.DoesNotContain(list.ContextMenu.Items.OfType<MenuItem>(),item=>item.Name=="CleanupRecommendationsMenu");
         Assert.Contains(list.ContextMenu.Items.OfType<MenuItem>(),item=>item.Name=="ClearRecommendationsMenu");
         var row=Visuals<Border>(panel).Single(border=>border.ContextMenu?.Items.OfType<MenuItem>().Any(item=>item.Name=="RemoveRecommendationMenu")==true);
-        Assert.Contains(row.ContextMenu.Items.OfType<MenuItem>(),item=>item.Name=="CleanupRecommendationsMenu");
+        Assert.DoesNotContain(row.ContextMenu.Items.OfType<MenuItem>(),item=>item.Name=="CleanupRecommendationsMenu");
+        Assert.Contains(row.ContextMenu.Items.OfType<MenuItem>(),item=>item.Name=="CopyRecommendationPathMenu");
         Assert.Contains(row.ContextMenu.Items.OfType<MenuItem>(),item=>item.Name=="ClearRecommendationsMenu");
     });
 
     [Fact]
-    public void 清理菜单仍只请求原批准入口而不直接删除或清空() => StaHost.Run(() =>
+    public void 底栏清理仍只请求原批准入口而不直接删除或清空() => StaHost.Run(() =>
     {
         using var host=CreateHost(out var panel,out var vm);
         vm.SetExternalRecommendations([new CleanupRecommendation {Id="1",TargetPath=@"D:\本任务菜单夹具",IsAccepted=true}]);
         Layout(panel);var requested=0;panel.CleanupRequested+=()=>requested++;
-        var menu=Visuals<ListView>(panel).Single(item=>item.Name=="RecommendationsList").ContextMenu;
-        Assert.NotNull(menu);
-        menu.Items.OfType<MenuItem>().Single(item=>item.Name=="CleanupRecommendationsMenu").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        var button=Visuals<Button>(panel).Single(item=>item.Name=="CleanupButton");
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.Equal(1,requested);Assert.Single(vm.Recommendations);
     });
 
@@ -184,9 +184,9 @@ public sealed class RecommendationsPanelRenderingTests
                 Assert.Equal(DiskPilotX.App.Localization.L.Text("CleanUpButton"),System.Windows.Automation.AutomationProperties.GetName(button));
                 foreach(var menu in new[]{list.ContextMenu,row.ContextMenu})
                 {
-                    Assert.Equal(DiskPilotX.App.Localization.L.Text("CleanUpButton"),menu.Items.OfType<MenuItem>().Single(item=>item.Name=="CleanupRecommendationsMenu").Header);
                     Assert.Equal(DiskPilotX.App.Localization.L.Text("ClearRecommendations"),menu.Items.OfType<MenuItem>().Single(item=>item.Name=="ClearRecommendationsMenu").Header);
                 }
+                Assert.Equal(DiskPilotX.App.Localization.L.Text("CopyPathMenu"),row.ContextMenu.Items.OfType<MenuItem>().Single(item=>item.Name=="CopyRecommendationPathMenu").Header);
                 Assert.Equal(DiskPilotX.App.Localization.L.Text("RemoveRecommendation"),row.ContextMenu.Items.OfType<MenuItem>().Single(item=>item.Name=="RemoveRecommendationMenu").Header);
             }
         }

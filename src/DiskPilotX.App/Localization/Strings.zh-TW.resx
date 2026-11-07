@@ -262,7 +262,7 @@
     <value>Open in Explorer</value>
   </data>
   <data name="CopyPathMenu" xml:space="preserve">
-    <value>Copy Path</value>
+    <value>複製路徑</value>
   </data>
   <data name="PropertiesMenu" xml:space="preserve">
     <value>Properties</value>
