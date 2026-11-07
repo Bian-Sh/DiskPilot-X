@@ -225,6 +225,52 @@ public partial class RecommendationsViewModel : ObservableObject
         OnPropertyChanged(nameof(Recommendations));
     }
 
+    /// <summary>仅追加手动候选；不重置清单、筛选或分析结论，也不构成删除授权。</summary>
+    public int AddManualRecommendations(ScanSession session, IReadOnlyList<FileEntry> entries) =>
+        AppendManualRecommendations(PrepareManualRecommendations(session, entries));
+
+    internal List<CleanupRecommendation> PrepareManualRecommendations(ScanSession session, IReadOnlyList<FileEntry> entries)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(entries);
+        if (session.RootEntry is null || session.IsCancelled)
+            throw new InvalidOperationException("扫描结果尚不可用，请完成扫描后再加入推荐清理。");
+
+        var query = new DiskPilotX.Core.Services.FileTree.FileTreeQueryService();
+        // 先检查整批真实实体；伪聚合和同路径的过期对象不能混入当前扫描。
+        foreach (var entry in entries)
+            if (entry is null || entry.IsDeleted || !ReferenceEquals(query.FindByPath(session, entry.Path), entry))
+                throw new InvalidOperationException("选择中包含已删除或过期的项目，请在当前扫描中重新选择。");
+
+        var candidates = entries.OrderBy(entry => entry.Path.Length).Select(entry => new CleanupRecommendation
+        {
+            Id = Guid.NewGuid().ToString("N"), TargetPath = entry.Path, Entry = entry, Size = entry.Size,
+            LastModified = entry.LastModified, SourceScanId = session.Id,
+            SourceScope = "手动添加 · " + session.TargetPath,
+            Category = RecommendationCategory.Other, SafetyRating = SafetyRating.ReviewFirst,
+            Explanation = "手动添加，需用户确认；未经 AI 风险评估。请核对用途和删除影响，再决定是否勾选清理。",
+            IsAccepted = false
+        }).ToList();
+        // 原建议优先；新批次先按父目录覆盖子项去重，既有对象及其勾选始终保留。
+        var incoming = RecommendationEngine.MergeRecommendations([], candidates);
+        var admitted = RecommendationEngine.MergeRecommendations(Recommendations, incoming).ToHashSet();
+        return incoming.Where(admitted.Contains).ToList();
+    }
+
+    internal int AppendManualRecommendations(IReadOnlyList<CleanupRecommendation> additions)
+    {
+        if (additions.Count == 0) return 0;
+        foreach (var item in additions) Recommendations.Add(item);
+        ApplyFilters();
+        UpdateTotals();
+        HasRecommendations = Recommendations.Count > 0;
+        OnPropertyChanged(nameof(HasAnyRecommendations));
+        NotifyAnalysisPresentation();
+        // 宿主据此推进 revision；不走 SetExternalRecommendations 的分析结果替换逻辑。
+        OnPropertyChanged(nameof(Recommendations));
+        return additions.Count;
+    }
+
     public void BeginExternalRecommendationLoad()
     {
         _emptyStateTitle = _emptyStateDescription = null;

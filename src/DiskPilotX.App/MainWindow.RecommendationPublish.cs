@@ -92,13 +92,14 @@ public partial class MainWindow
                     if (Changed() is { } changedBatch) return changedBatch;
                     Mark("boundary");
                     var final=mergeMode?MergePublishedRecommendations(merged):merged;
-                    var nextBatchSession=RegisterRecommendationScopes(batch.Scopes.Select(scope=>scope.Session),mergeMode);
+                    RegisterRecommendationScopes(batch.Scopes.Select(scope=>scope.Session),mergeMode);
                     for(var index=0;index<final.Count;index++) final[index].Id=(index+1).ToString();
                     Mark("merge_and_register");
                     _recommendationRevision++;
                     _recommendationsViewModel!.SetExternalRecommendations(final,diagnostics);
                     Mark("apply_cells");
-                    _assistantAnalysisSession=nextBatchSession;
+                    _assistantAnalysisSession=RebuildReferencedRecommendationSession()
+                        ?? throw new InvalidOperationException("推荐清单缺少可用的扫描来源，请重新扫描后再发布。");
                     EnsureBottomPanelVisible(); ShowRecommendationsPanel();
                     var receipt = RecommendationState(_assistantAnalysisSession,settings,analysisMode,originLabel:batch.Note??(batch.Scopes.Count==1?batch.Scopes[0].Label:$"{batch.Scopes.Count} 个位置"));
                     Mark("receipt");
@@ -123,11 +124,12 @@ public partial class MainWindow
                 if (main.CurrentSession?.Id != originalId) return CommitBoundaryError("scan_changed");
                 if (Changed() is { } changedFinal) return changedFinal;
                 var published=mergeMode?MergePublishedRecommendations(analysis.Recommendations):analysis.Recommendations;
-                var nextSession=RegisterRecommendationScopes([main.CurrentSession!],mergeMode);
+                RegisterRecommendationScopes([main.CurrentSession!],mergeMode);
                 for(var index=0;index<published.Count;index++) published[index].Id=(index+1).ToString();
                 _recommendationRevision++;
                     _recommendationsViewModel!.SetExternalRecommendations(published,analysis.Diagnostics);
-                _assistantAnalysisSession=nextSession;
+                _assistantAnalysisSession=RebuildReferencedRecommendationSession()
+                        ?? throw new InvalidOperationException("推荐清单缺少可用的扫描来源，请重新扫描后再发布。");
                 EnsureBottomPanelVisible(); ShowRecommendationsPanel();
                 return RecommendationState(_assistantAnalysisSession!,settings,analysisMode);
             
@@ -192,6 +194,9 @@ public partial class MainWindow
     private ScanSession RegisterRecommendationScopes(IEnumerable<ScanSession> sessions,bool merge)
     {
         var admitted=sessions.ToArray();
+        // 默认合并保留旧建议；同根新扫描不能先覆盖仍在引用的旧证据，拒绝必须早于任何清单/ID/owner修改。
+        if (merge)
+            foreach (var session in admitted) ValidateManualRecommendationScopes(session, _publishedScopes.Values);
         // 先统一准入；失败不能先替换用户清单或撤销旧证据。
         foreach(var session in admitted)
         {
@@ -204,10 +209,17 @@ public partial class MainWindow
             if(_publishedScopes.TryGetValue(session.TargetPath,out var old)) _scanSnapshots.Unprotect(old.Id,"recommendations");
             _publishedScopes[session.TargetPath]=session; _scanSnapshots.Protect(session.Id,"recommendations");
         }
-        var combined=new AssistantAnalysisBatch();
-        foreach(var session in _publishedScopes.Values) combined.AddOrReplace(new() {Path=session.TargetPath,Session=session,Label=ScopeLabel(session.TargetPath)});
+        return RebuildPublishedRecommendationSession()
+            ?? throw new InvalidOperationException("没有可用于推荐清理的扫描来源。");
+    }
+    /// <summary>注册与裁剪共享同一组合版本计算；没有范围时不构造空批次。</summary>
+    private ScanSession? RebuildPublishedRecommendationSession()
+    {
         var stamp=string.Join("|",_publishedScopes.OrderBy(pair=>pair.Key,StringComparer.OrdinalIgnoreCase).Select(pair=>pair.Value.Id.ToString()));
         if(_publishedScopeStamp!=stamp) { _publishedScopeStamp=stamp; _publishedCompositeId=Guid.NewGuid(); }
+        if(_publishedScopes.Count==0) return null;
+        var combined=new AssistantAnalysisBatch();
+        foreach(var session in _publishedScopes.Values) combined.AddOrReplace(new() {Path=session.TargetPath,Session=session,Label=ScopeLabel(session.TargetPath)});
         return combined.Scopes.Count==1?combined.Scopes[0].Session:combined.ToSession(_publishedCompositeId);
     }
     private JsonNode CommitBoundaryError(string code)

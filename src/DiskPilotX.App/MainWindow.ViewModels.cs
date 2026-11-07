@@ -76,13 +76,10 @@ public partial class MainWindow
         recsVm.PropertyChanged += (_, e) =>
         {
             if(e.PropertyName is nameof(RecommendationsViewModel.Recommendations) or nameof(RecommendationsViewModel.HasAcceptedRecommendations)) _recommendationRevision++;
-            if(e.PropertyName == nameof(RecommendationsViewModel.Recommendations) && recsVm.Recommendations.Count==0)
-            {
-                var finished = _publishedScopes.Values.Select(session => session.Id).Distinct().ToArray();
-                ResetAssistantBatch(); _assistantAnalysisSession=null; _publishedScopes.Clear(); _scanSnapshots.ReleaseOwner("recommendations");
-                foreach (var id in finished) _scanSnapshots.RemoveUnprotected(id);
-                RefreshScanSnapshotEntries();
-            }
+            // 外部加载的空集合不是提交；发布也要等最终清单写入后由提交点统一重建。
+            if (e.PropertyName == nameof(RecommendationsViewModel.Recommendations)
+                && !recsVm.IsWaitingForExternalRecommendations && !_recommendationPublishing)
+                _assistantAnalysisSession = RebuildReferencedRecommendationSession();
         };
         _settingsViewModel = settingsVm;
         if (DataContext is MainViewModel mainVm)
@@ -103,6 +100,7 @@ public partial class MainWindow
         RecommendationsPanel.CleanupRequested += OnCleanupRequested;
         RecommendationsPanel.RecommendationActivated += OnRecommendationActivated;
         TreemapView.DeleteEntryAsync = DeleteEntryAsync;
+        TreemapView.AddRecommendationsAsync = AddManualRecommendationsAsync;
         TreeViewControl.DeleteEntryAsync = DeleteEntryAsync;
         TreemapView.ShowMessageAsync = ShowAppMessageAsync;
         TreemapView.ShowContentAsync = ShowAppContentAsync;
@@ -252,16 +250,37 @@ public partial class MainWindow
         }
     }
 
-    private void OnRecommendationActivated(CleanupRecommendation recommendation)
+    private async void OnRecommendationActivated(CleanupRecommendation recommendation)
     {
-        if(_cleanupRunning || _chatViewModel?.IsOperationRunning==true || (DataContext as MainViewModel)?.IsScanning==true)
-        {if(_chatViewModel is not null)_chatViewModel.ErrorMessage="任务正在进行，请结束后再查看推荐的扫描版本。";return;}
-        if (_treemapViewModel is null)
+        if (TryShowBusyOperationToast("定位推荐项目")) return;
+        if (_treemapViewModel is null) return;
+        if (!IsSkillScopeAllowed(recommendation.TargetPath))
+        {
+            ShowOperationToast("当前设置不允许查看此推荐范围。");
             return;
-
-        if(!IsSkillScopeAllowed(recommendation.TargetPath)) {if(_chatViewModel is not null)_chatViewModel.ErrorMessage="当前设置不允许查看此推荐范围。";return;}
-        var shown=TryShowCachedAiScanForPath(recommendation.TargetPath,snapshotId:recommendation.SourceScanId);
-        if(_chatViewModel is not null)_chatViewModel.ErrorMessage=shown?null:"该推荐的扫描版本已不可用，请重新分析，不会改用另一个同路径快照。";
+        }
+        // 先取得精确来源，但不提前切根；缓存激活由 View 的截图过渡包裹。
+        var snapshot = recommendation.SourceScanId is { } id
+            ? _scanSnapshots.FindById(id) : _scanSnapshots.FindByPath(recommendation.TargetPath);
+        if (snapshot?.RootEntry is not { } root || snapshot.IsCancelled
+            || new DiskPilotX.Core.Services.FileTree.FileTreeQueryService().FindByPath(snapshot, recommendation.TargetPath) is not { IsDeleted: false })
+        {
+            ShowOperationToast("该推荐的扫描版本已不可用，请重新分析，不会改用另一个同路径快照。");
+            return;
+        }
+        try
+        {
+            if (!await TreemapView.FocusScanPathAsync(root,
+                    () => TryShowCachedAiScanForPath(recommendation.TargetPath, navigateToPath: false, snapshotId: snapshot.Id),
+                    recommendation.TargetPath, true))
+                ShowOperationToast("定位未完成，请在当前扫描中重新选择后再试。");
+        }
+        catch (OperationCanceledException) { /* 新定位或用户操作已取消旧 Ping，不再干扰用户。 */ }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "推荐项目定位未完成");
+            ShowOperationToast("定位未完成，请在当前扫描中重新选择后再试。");
+        }
     }
 
     private void CacheAiScanSession(ScanSession session)
@@ -272,32 +291,34 @@ public partial class MainWindow
         RegisterScanSnapshot(session);
     }
 
+    internal static bool ShouldResetCachedScanRoot(ScanSession? current, ScanSession target, FileEntry? scanRoot) =>
+        !ReferenceEquals(current, target) || !ReferenceEquals(scanRoot, target.RootEntry);
+
     private bool TryShowCachedAiScanForPath(string? path, bool navigateToPath = true, Guid? snapshotId = null)
     {
-        if (string.IsNullOrWhiteSpace(path) || _treemapViewModel is null)
-            return false;
+        if (string.IsNullOrWhiteSpace(path) || _treemapViewModel is null) return false;
+        var session = snapshotId is { } id ? _scanSnapshots.FindById(id) : _scanSnapshots.FindByPath(path);
+        if (session?.RootEntry is null || !IsPathUnder(path, session.RootEntry.Path)) return false;
+        var entry = new DiskPilotX.Core.Services.FileTree.FileTreeQueryService().FindByPath(session, path);
+        if (entry is null || entry.IsDeleted) return false;
 
-        var session = snapshotId is {} id?_scanSnapshots.FindById(id):_scanSnapshots.FindByPath(path);
-        if (session?.RootEntry is null || !IsPathUnder(path,session.RootEntry.Path))
-            return false;
-
-        if (DataContext is MainViewModel mainVm)
+        var mainVm = DataContext as MainViewModel;
+        if (ShouldResetCachedScanRoot(mainVm?.CurrentSession, session, _treemapViewModel.ScanRoot))
         {
-            mainVm.CurrentSession = session;
-            mainVm.UpdateStatusBar(session);
+            if (mainVm is not null)
+            {
+                mainVm.CurrentSession = session;
+                mainVm.UpdateStatusBar(session);
+            }
+            // 跨扫描必须切换真实根；层级视觉过渡由 Treemap 的定位实现负责。
+            _treemapViewModel.SetRoot(session.RootEntry, session);
+            _chatViewModel?.SetContext(session, session.RootEntry);
+            if (TreeViewControl.DataContext is TreeViewModel treeViewModel)
+                treeViewModel.SetRoot(session.RootEntry, session);
         }
-
-        _scanSnapshots.ReleaseOwner("view"); _scanSnapshots.Protect(session.Id,"view");
-        _treemapViewModel.SetRoot(session.RootEntry, session);
-        _chatViewModel?.SetContext(session, session.RootEntry);
-        if (TreeViewControl.DataContext is TreeViewModel treeViewModel)
-        {
-            treeViewModel.SetRoot(session.RootEntry, session);
-        }
-
-        if(!navigateToPath)return true;
-        var entry=new DiskPilotX.Core.Services.FileTree.FileTreeQueryService().FindByPath(session,path);
-        return entry is not null && _treemapViewModel.NavigateToEntry(entry);
+        _scanSnapshots.ReleaseOwner("view");
+        _scanSnapshots.Protect(session.Id, "view");
+        return !navigateToPath || _treemapViewModel.NavigateToEntry(entry);
     }
 
     private static bool IsPathUnder(string path, string rootPath)
