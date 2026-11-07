@@ -19,10 +19,42 @@ public partial class MainWindow
 {
     private JsonObject? _snapshotProbe;
     private string? _snapshotProbeBatch;
+    private readonly List<WeakReference<FileEntry>> _memoryProbeRoots = [];
     internal object AcceptanceScanSnapshots(string? action)
     {
         var settingsPath=Core.AppCompatibility.GetEnvironmentVariable("DISKPILOT_X_ACCEPTANCE_SETTINGS");
         if(!AcceptanceAutomationServer.IsEnabled() || string.IsNullOrWhiteSpace(settingsPath))throw new InvalidOperationException("需要独立验收环境。");
+        if (action == "memory-state")
+        {
+            // 仅独立验收入口主动收集，应用正常使用不调用强制 GC。
+            GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+            using var process = Process.GetCurrentProcess();
+            return new { managed_bytes = GC.GetTotalMemory(false), private_bytes = process.PrivateMemorySize64,
+                alive_fixture_roots = _memoryProbeRoots.Count(reference => reference.TryGetTarget(out _)),
+                rounds = _memoryProbeRoots.Count, budget = _scanSnapshots.GetBudget(),
+                recommendation_count = _recommendationsViewModel?.Recommendations.Count,
+                current_view_cached = (DataContext as MainViewModel)?.CurrentSession is { } current && _scanSnapshots.FindById(current.Id) is not null };
+        }
+        if (action == "memory")
+        {
+            if (_recommendationsViewModel is null || (DataContext as MainViewModel)?.IsScanning == true || _cleanupRunning)
+                throw new InvalidOperationException("验收前须结束磁盘任务。");
+            var path = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(settingsPath))!, "memory-fixture", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(path);
+            var root = new FileEntry { Path = path, Name = "只读内存生命周期夹具", IsDirectory = true, Size = 200_000, SubtreeFileCount = 200_000 };
+            for (var i = 0; i < 200_000; i++) root.Children.Add(new FileEntry
+                { Path = Path.Combine(path, $"cache-{i:000000}.bin"), Name = $"cache-{i:000000}.bin", Parent = root, Size = 1 });
+            var session = new ScanSession { RootEntry = root, TargetPath = path, TotalFiles = 200_000, TotalSize = root.Size,
+                StartTime = DateTime.Now, EndTime = DateTime.Now };
+            ResetAssistantBatch();
+            var batch = new AssistantAnalysisBatch(); batch.AddOrReplace(new() { Path = path, Session = session }); _analysisBatch = batch;
+            RegisterScanSnapshot(session, analysis: true);
+            _assistantAnalysisSession = RegisterRecommendationScopes([session], false);
+            _recommendationsViewModel.SetExternalRecommendations([new CleanupRecommendation
+                { Id = "memory-1", TargetPath = path, Entry = root, Size = root.Size, Explanation = "合成只读夹具；移除建议不删除文件。" }]);
+            _memoryProbeRoots.Add(new(root));
+            return new { prepared = true, count = 200_000, round = _memoryProbeRoots.Count };
+        }
         if(action=="performance")
         {
             _snapshotProbe=new JsonObject { ["running"]=true }; _=Performance(); return _snapshotProbe;
