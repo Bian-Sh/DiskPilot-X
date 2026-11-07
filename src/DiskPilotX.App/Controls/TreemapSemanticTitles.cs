@@ -83,6 +83,11 @@ internal sealed class TreemapSemanticTitles
             float opacity = state.Target ? .08f + .92f * t : 1 - t;
             if (opacity <= 0 || !currentNodes.TryGetValue(entry, out var c))
             { if (!state.Target || !currentNodes.ContainsKey(entry)) _states.Remove(entry); continue; }
+            // 新定位标题和固定标题优先；旧标题淡出不能在同一可见区域继续叠字。
+            // 保留原有压入自身cell、面积预算与滞回，仅取消会遮挡当前标题的淡出帧。
+            if (!state.Target && (fixedHeaders.Any(r => Overlaps(r, c.Rect))
+                || selected.Any(title => Overlaps(title.Rect, c.Rect))
+                || output.Any(title => Overlaps(title.Rect, c.Rect)))) continue;
             output.Add(new(c.Node, c.Rect, opacity));
         }
         return _titles = output.ToArray();
@@ -101,9 +106,9 @@ internal sealed class TreemapSemanticTitles
             && TreemapLabelPolicy.HasDirectoryTitleValue(secondaryShare, height);
     }
 
-    // 标题上下各2像素为留白；共边背景和浮点舍入不算文字遮挡，不以目录/祖先个数裁剪。
-    private static bool Overlaps(SKRect a, SKRect b) => Math.Min(a.Right, b.Right) - Math.Max(a.Left, b.Left) > .25f
-        && Math.Min(a.Bottom - 2, b.Bottom - 2) - Math.Max(a.Top + 2, b.Top + 2) > .25f;
+    // 完整标题条不能相交；只容忍浮点共边舍入，不以文字留白放行临界区叠压。
+    private static bool Overlaps(SKRect a, SKRect b) => Math.Min(a.Right, b.Right) - Math.Max(a.Left, b.Left) > .001f
+        && Math.Min(a.Bottom, b.Bottom) - Math.Max(a.Top, b.Top) > .001f;
 
     private static bool IsAncestor(FileEntry parent, FileEntry entry)
     {

@@ -112,13 +112,14 @@ public class TreemapTitleReadabilityTests
     }
 
     [Fact]
-    public void 顶部锚定标题不因相邻背景交叠两像素而隐藏文字()
+    public void 顶部临时标题不挤压固定子标题的完整区域()
     {
         var parent=Folder("父目录",null);AddFile(parent,"一.dll",100);AddFile(parent,"二.dll",100);
         var child=Folder("子目录",parent);AddFile(child,"三.dll",100);AddFile(child,"四.dll",100);
-        var first=new TreemapNode {Entry=parent,X=0,Y=0,Width=250,Height=260,Depth=1,HeaderHeight=18,ShowDirectoryFrame=true,Label=parent.Name,IsContentLeaf=false};
-        var second=new TreemapNode {Entry=child,X=0,Y=18,Width=240,Height=230,Depth=2,HeaderHeight=18,ShowDirectoryFrame=true,Label=child.Name,IsContentLeaf=false};
-        Assert.Contains(first,Titles(State(),[first,second],1,-2));
+        var first=new TreemapNode {Entry=parent,X=-10,Y=0,Width=250,Height=260,Depth=1,HeaderHeight=14,ShowDirectoryFrame=true,Label=parent.Name,IsContentLeaf=false};
+        var second=new TreemapNode {Entry=child,X=-10,Y=14,Width=240,Height=230,Depth=2,HeaderHeight=14,ShowDirectoryFrame=true,Label=child.Name,IsContentLeaf=false};
+        Assert.DoesNotContain(first,Titles(State(),[first,second],1,-2));
+        Assert.Contains(second,Titles(State(),[first,second],1,-2));
     }
 
     [Fact]

@@ -16,7 +16,7 @@ public class TreemapLayoutTests
         var rootNode = nodes.Single(n => n.Entry == root);
         var childNode = nodes.Single(n => n.Entry == child);
         var file = nodes.Single(n => !n.Entry.IsDirectory);
-        Assert.Equal(0.5f, childNode.X - rootNode.X);
+        Assert.Equal(0f, childNode.X - rootNode.X);
         Assert.Equal(0f, file.X - childNode.X);
         Assert.Equal(0f, childNode.X + childNode.Width - file.X - file.Width);
         Assert.False(childNode.ShowDirectoryFrame);
@@ -132,8 +132,7 @@ public class TreemapLayoutTests
         // 一级目录必须铺满根内容区，不能以父目录底色掩盖丢失的同级区域。
         double area = nodes.Where(n => n.Depth == 1).Sum(n => (double)n.Width * n.Height);
         var rootNode = nodes.Single(n => ReferenceEquals(n.Entry, root));
-        double border = rootNode.HeaderHeight > 0 ? .5 / zoom : 0;
-        double expected = (rootNode.Width - border * 2) * (rootNode.Height - (rootNode.HeaderHeight ?? 0) - border);
+        double expected = rootNode.Width * (rootNode.Height - (rootNode.HeaderHeight ?? 0));
         Assert.InRange(area / expected, 0.99999, 1.00001);
     }
 

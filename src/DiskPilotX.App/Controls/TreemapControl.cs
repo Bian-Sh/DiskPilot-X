@@ -127,6 +127,9 @@ public class TreemapControl : SKElement
             _nodes = value;
             _scene = value is null ? null : TreemapSceneIndex.Prepare(value);
             _sceneRevision++;
+            // 新场景立即断开上一帧节点引用，空视图不再等下一次绘制才释放旧树。
+            _visibleNodes = [];
+            if (value is null || value.Count == 0) { _baseImage?.Dispose(); _baseImage = null; }
             _rasterRequest?.Cancel();
             _deletionHintEntries = null;
             if (_scanRoot is null) _deletedEntries = null;
@@ -190,6 +193,7 @@ public class TreemapControl : SKElement
         _zoom = MinZoom;
         _panX = _panY = 0;
         _zoomAnchorEntry = null;
+        _zoomAnchorAncestors.Clear();
         if (!_wheelNavigating) { _wheelHistory.Clear(); _snapActive = false; }
         if (_isPanning) EndPan();
         ClearHover();
@@ -446,8 +450,25 @@ public class TreemapControl : SKElement
             var label = FormatLabel(title.Node.Entry.Name, title.Node.SizeLabel ?? FileSizeConverter.FormatSize(title.Node.Entry.Size), font, title.Rect.Width - 8);
             if (label is null) continue;
             paint.IsAntialias = true; paint.Color = new SKColor(245, 247, 250, alpha);
-            canvas.DrawText(label, title.Rect.Left + 4, title.Rect.Top + 12.5f, SKTextAlign.Left, font, paint);
+            // 文字与底图采用相同基线，并严格限制在自身标题条，避免下伸字形跨行。
+            canvas.Save(); canvas.ClipRect(title.Rect, SKClipOperation.Intersect, false);
+            canvas.DrawText(label, title.Rect.Left + 4, title.Rect.MidY + 3.5f, SKTextAlign.Left, font, paint);
+            canvas.Restore();
             paint.IsAntialias = false; RenderedLabelCount++;
+        }
+        // 横向重定位会覆盖底图的标题边界；所有背景完成后统一补回同色系单物理像素线。
+        // 邻接标题共边对齐到同一像素中心，不叠成双线，也不随缩放/DPI加粗。
+        using var border = new SKPaint { Style = SKPaintStyle.Stroke, StrokeWidth = 0, IsAntialias = false };
+        float SnapX(float x) => (MathF.Floor(x * _pixelScaleX) + .5f) / _pixelScaleX;
+        float SnapY(float y) => (MathF.Floor(y * _pixelScaleY) + .5f) / _pixelScaleY;
+        foreach (var title in _semanticTitles.Current)
+        {
+            var color = SKColor.Parse(title.Node.ColorHex);
+            border.Color = new SKColor((byte)(color.Red + (255 - color.Red) * .20f),
+                (byte)(color.Green + (255 - color.Green) * .20f), (byte)(color.Blue + (255 - color.Blue) * .20f),
+                (byte)Math.Clamp(title.Opacity * 255, 0, 255));
+            canvas.DrawRect(new SKRect(SnapX(title.Rect.Left), SnapY(title.Rect.Top),
+                SnapX(title.Rect.Right), SnapY(title.Rect.Bottom)), border);
         }
         canvas.Restore();
     }

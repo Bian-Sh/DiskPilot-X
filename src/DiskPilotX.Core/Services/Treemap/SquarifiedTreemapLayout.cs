@@ -106,9 +106,9 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         if (depth >= maxDepth)
             return;
 
-        float borderPad = headerHeight > 0 ? Spec(0.5f, zoom) : 0f;
-        var contentRect = new Rect(rect.X + borderPad, rect.Y + headerHeight,
-            rect.Width - borderPad * 2, rect.Height - headerHeight - borderPad);
+        // 展开目录只为标题预留高度；侧边和底边直接复用子内容，不逐层内缩累积框线。
+        var contentRect = new Rect(rect.X, rect.Y + headerHeight,
+            rect.Width, rect.Height - headerHeight);
         if (children.Count == 0 || contentRect.Width <= 0 || contentRect.Height <= 0) return;
         node.IsContentLeaf = false;
         SquarifyChildren(children, contentRect, depth + 1, maxDepth, zoom, result,

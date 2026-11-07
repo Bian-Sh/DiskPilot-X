@@ -62,7 +62,13 @@ internal static class TreemapRasterizer
                     Label(n,n.X+Spec(4),n.Y+header/2+Spec(3.5f),n.Width-Spec(8),color);
                     canvas.DrawLine(frame.Left,Y(rect.Top+header),frame.Right,Y(rect.Top+header),border);
                 }
-                if (n.ShowDirectoryFrame) canvas.DrawRect(frame,border);
+                // 展开容器只描标题条；内容轮廓交给子块，折叠的真实内容块仍保留完整外框。
+                if (n.ShowDirectoryFrame)
+                {
+                    if (n.IsContentLeaf) canvas.DrawRect(frame,border);
+                    else if (header >= Spec(14))
+                        canvas.DrawRect(new SKRect(frame.Left,frame.Top,frame.Right,Y(rect.Top+header)),border);
+                }
             }
             else
             {

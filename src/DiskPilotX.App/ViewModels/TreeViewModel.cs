@@ -40,6 +40,8 @@ public partial class TreeViewModel : ObservableObject
     public void SetRoot(FileEntry root, ScanSession? session = null)
     {
         CrashDiagnostics.Log("TreeView.SetRoot", $"root={root.Path}, children={root.Children.Count}, size={root.Size}, cancelled={session?.IsCancelled}");
+        // 换扫描时旧选择不能借父引用继续持有上一棵完整扫描树。
+        if (!ReferenceEquals(_scanRoot, root)) SelectedItem = null;
         _scanRoot = root;
         _session = session;
         _statsCache.Clear();
