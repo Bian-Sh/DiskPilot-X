@@ -14,6 +14,18 @@
              FontFamily="{DynamicResource VP.FontFamily}">
 
     <UserControl.Resources>
+        <Style x:Key="RecommendationPathButton" TargetType="Button">
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+                <Border x:Name="PathFeedback" Background="Transparent" BorderThickness="1" BorderBrush="Transparent" CornerRadius="3" Padding="2,1">
+                    <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="PathFeedback" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}"/></Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="PathFeedback" Property="BorderBrush" Value="{DynamicResource VP.BorderLightBrush}"/></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value></Setter>
+        </Style>
         <converters:FileSizeConverter x:Key="FileSizeConverter" />
         <converters:SafetyRatingToBrushConverter x:Key="SafetyRatingToBrushConverter" />
         <converters:NullToVisibilityConverter x:Key="NullVis" />
@@ -236,8 +248,15 @@
                   ItemsSource="{Binding FilteredRecommendations}"
                   Margin="4,0,4,4"
                   Padding="0"
-                  MouseDoubleClick="RecommendationsList_MouseDoubleClick"
                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListView.ContextMenu>
+                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Opened="RecommendationContextMenu_Opened">
+                    <MenuItem x:Name="CleanupRecommendationsMenu" Header="{loc:Loc CleanUpButton}" Click="CleanUpButton_Click"
+                              ToolTip="{loc:Loc CleanUpToolTip}" />
+                    <MenuItem x:Name="ClearRecommendationsMenu" Header="{loc:Loc ClearRecommendations}" Click="ClearRecommendations_Click"
+                              ToolTip="{loc:Loc ClearRecommendationsToolTip}" />
+                </ContextMenu>
+            </ListView.ContextMenu>
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem" BasedOn="{StaticResource VP.ListViewItem}">
                     <EventSetter Event="RequestBringIntoView" Handler="RecommendationItem_RequestBringIntoView" />
@@ -252,9 +271,14 @@
                             Padding="10,6"
                             Margin="2,2">
                         <Border.ContextMenu>
-                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Opened="RecommendationContextMenu_Opened">
                                 <MenuItem x:Name="RemoveRecommendationMenu" Header="{loc:Loc RemoveRecommendation}" Click="RemoveRecommendation_Click"
                                           ToolTip="{loc:Loc RemoveRecommendationToolTip}" />
+                                <Separator />
+                                <MenuItem x:Name="CleanupRecommendationsMenu" Header="{loc:Loc CleanUpButton}" Click="CleanUpButton_Click"
+                                          ToolTip="{loc:Loc CleanUpToolTip}" />
+                                <MenuItem x:Name="ClearRecommendationsMenu" Header="{loc:Loc ClearRecommendations}" Click="ClearRecommendations_Click"
+                                          ToolTip="{loc:Loc ClearRecommendationsToolTip}" />
                             </ContextMenu>
                         </Border.ContextMenu>
                         <Grid>
@@ -298,6 +322,10 @@
                                     BorderThickness="0"
                                     Cursor="Hand"
                                     Foreground="{DynamicResource VP.TextPrimaryBrush}"
+                                    Style="{StaticResource RecommendationPathButton}"
+                                    PreviewMouseLeftButtonDown="RecommendationPath_PreviewMouseLeftButtonDown"
+                                    AutomationProperties.Name="{Binding TargetPath}"
+                                    AutomationProperties.HelpText="{loc:Loc RecommendationPathHelp}"
                                     Click="RecommendationPath_Click"
                                     ToolTip="{Binding TargetPath}">
                                 <TextBlock Text="{Binding TargetPath}"
@@ -382,25 +410,10 @@
                 Padding="10,5">
             <DockPanel LastChildFill="False">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <Button x:Name="ClearRecommendationsButton" Content="{loc:Loc ClearRecommendations}" Padding="10,5" Margin="0,0,6,0"
-                            Click="ClearRecommendations_Click" ToolTip="{loc:Loc ClearRecommendationsToolTip}">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource VP.Button}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasAnyRecommendations}" Value="False"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
-                                    <DataTrigger Binding="{Binding IsAnalyzing}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
-                                    <DataTrigger Binding="{Binding IsWaitingForExternalRecommendations}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
-                                    <DataTrigger Binding="{Binding DataContext.IsCopilotBusy, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-                    <Button Content="{loc:Loc CleanUpButton}"
-                            Padding="16,5"
-                            Click="CleanUpButton_Click"
-                            ToolTipService.ShowOnDisabled="True"
-                            ToolTip="{loc:Loc CleanUpToolTip}"
-                            >
+                    <Button x:Name="CleanupButton" Content="{loc:Loc CleanUpButton}"
+                            Padding="16,5" Click="CleanUpButton_Click"
+                            ToolTipService.ShowOnDisabled="True" ToolTip="{loc:Loc CleanUpToolTip}"
+                            AutomationProperties.Name="{loc:Loc CleanUpButton}">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource VP.DangerButton}">
                                 <Style.Triggers>

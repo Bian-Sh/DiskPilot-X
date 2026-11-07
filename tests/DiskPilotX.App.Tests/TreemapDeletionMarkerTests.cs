@@ -58,7 +58,7 @@ public class TreemapDeletionMarkerTests
         var (folder, deleted, _) = Fixture();
         var control = Sized([Node(folder, 0, 0, 400, 300), Node(deleted, 20, 20, 80, 80)]);
         using var image = Render(control);
-        Assert.Equal(DeletedColor, image.GetPixel(18, 60));
+        Assert.Equal(DeletedColor, image.GetPixel(20, 60));
         Assert.NotEqual(DeletedColor, image.GetPixel(398, 2));
         Assert.NotEqual(DeletedColor, image.GetPixel(98, 22));
     });
@@ -70,7 +70,7 @@ public class TreemapDeletionMarkerTests
         folder.IsDeleted = true;
         var control = Sized([Node(folder, 20, 20, 80, 80)]);
         using var image = Render(control);
-        Assert.Equal(DeletedColor, image.GetPixel(18, 60));
+        Assert.Equal(DeletedColor, image.GetPixel(20, 60));
         Assert.NotEqual(DeletedColor, image.GetPixel(98, 22));
     });
 
@@ -120,7 +120,7 @@ public class TreemapDeletionMarkerTests
         var nodes = control.Nodes;
         control.SelectedNode = nodes![0];
         var deletedNode = nodes.Single(n => ReferenceEquals(n.Entry, deleted));
-        int markX = (int)(deletedNode.X - 1), markY = (int)(deletedNode.Y + deletedNode.Height / 2);
+        int markX = (int)Math.Ceiling(deletedNode.X), markY = (int)(deletedNode.Y + deletedNode.Height / 2);
         using (var image = Render(control)) Assert.NotEqual(DeletedColor, image.GetPixel(markX, markY));
 
         vm.ApplyCleanupResults([new CleanupAction { Result = CleanupResult.Success,
@@ -207,7 +207,13 @@ public class TreemapDeletionMarkerTests
         var hints = (HashSet<FileEntry>)typeof(TreemapControl).GetMethod("GetDeletionHintEntries", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(control, null)!;
         Assert.Contains(folder, hints);
         using var image = Render(control);
-        Assert.Equal(DeletedColor, image.GetPixel(396, 4));
+        var headerBottom = (int)Math.Ceiling(nodes[0].Y + (nodes[0].HeaderHeight ?? 0));
+        var red = new List<(int X, int Y)>();
+        for (int y = 0; y < 40; y++) for (int x = 388; x < 400; x++)
+            if (image.GetPixel(x, y) == DeletedColor) red.Add((x, y));
+        Assert.NotEmpty(red);
+        Assert.All(red, pixel => Assert.True(pixel.Y >= headerBottom, "承接角标不能进入标题文字区域。"));
+        Assert.NotEqual(DeletedColor, image.GetPixel(396, 4));
     });
 
     private static (FileEntry Folder, FileEntry Deleted, FileEntry Live) Fixture()

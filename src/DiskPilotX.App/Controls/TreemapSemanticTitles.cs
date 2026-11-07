@@ -37,7 +37,7 @@ internal sealed class TreemapSemanticTitles
                 var headerRect = new SKRect(left, y, right, y + titleH);
                 fixedHeaders.Add(headerRect);
                 // 已预留的标题不重复收取覆盖预算；横向裁剪只重排文字，不隐藏整行。
-                if (x < 0 || x + w > width) fixedCaptions.Add(new(n, headerRect, 1));
+                fixedCaptions.Add(new(n, headerRect, 1));
                 continue;
             }
             // 当前根的离屏标题由面包屑承担；局部目录仍可读时锚定到自身与视口的交集。

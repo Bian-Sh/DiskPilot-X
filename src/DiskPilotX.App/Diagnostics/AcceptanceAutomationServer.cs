@@ -138,6 +138,7 @@ internal sealed class AcceptanceAutomationServer : IDisposable
             "retry_status" => _window.AcceptanceRetryStatus(request.Text=="start"),
             "cleanup_fixture" => _window.AcceptanceCleanupFixture(request.Text),
             "cleanup_fixture_state" => _window.AcceptanceCleanupFixtureState(),
+            "system_delete_progress" => _window.AcceptanceSystemDeleteProgress(request.Text),
             "scan_snapshots" => _window.AcceptanceScanSnapshots(request.Text),
             "scan_snapshot_state" => _window.AcceptanceScanSnapshotState(),
             "source_probe" => _window.AcceptanceSourceProbe(),

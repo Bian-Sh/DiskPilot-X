@@ -354,7 +354,7 @@ public class AnalysisPresentationTests
             attribute.Value += ";assembly=DiskPilot-X";
         // 只移除依赖代码隐藏的事件；实际控件、模板、触发器和绑定均由 WPF 加载执行。
         foreach (var attribute in document.Descendants().Attributes().Where(attribute =>
-                     attribute.Name.LocalName is "Click" or "MouseDoubleClick" or "Checked" or "Unchecked").ToList()) attribute.Remove();
+                     attribute.Name.LocalName is "Click" or "MouseDoubleClick" or "PreviewMouseLeftButtonDown" or "Opened" or "Checked" or "Unchecked").ToList()) attribute.Remove();
         document.Descendants(presentation + "EventSetter").Remove();
         foreach (var element in document.Descendants().Where(element => element.Name.NamespaceName.StartsWith("clr-namespace:DiskPilotX.App.")).ToList())
             element.Name = XName.Get(element.Name.LocalName, element.Name.NamespaceName + ";assembly=DiskPilot-X");

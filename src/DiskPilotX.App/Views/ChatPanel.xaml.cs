@@ -140,6 +140,16 @@ public partial class ChatPanel : UserControl
         if(e.Key==Key.Escape) { viewModel.IsSlashCommandMenuOpen=false; viewModel.IsSkillMentionMenuOpen=false; return; }
         if(e.Key==Key.Enter && !Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && !viewModel.IsOperationRunning) { holdReading=false; followTail=true; QueueScroll(); viewModel.SubmitOrStopCommand.Execute(null); e.Handled=true; }
     }
+    private void CopyHistoryPath_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement { DataContext: DiskPilotX.Core.Services.Assistant.ConversationSummary summary } || viewModel is null) return;
+        try { Clipboard.SetText(viewModel.GetConversationFilePath(summary.Id)); }
+        catch (Exception exception) when (exception is System.Runtime.InteropServices.ExternalException or InvalidOperationException
+            || DiskPilotX.Core.Services.Assistant.ConversationStore.IsStorageError(exception))
+        { viewModel.ErrorMessage = L.Text("CopilotHistoryCopyPathFailed"); }
+    }
+
     private void Copy_Click(object sender,RoutedEventArgs e)
     {
         if(sender is FrameworkElement {DataContext:ChatMessage message} && !string.IsNullOrWhiteSpace(message.CopyText))

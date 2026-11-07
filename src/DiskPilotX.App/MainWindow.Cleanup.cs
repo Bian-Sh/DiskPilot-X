@@ -37,8 +37,11 @@ public partial class MainWindow
     {
         // 清理基准会话：可能是无头批次会话（多范围分析整合后的清单），不强行要求工作区已有扫描。
         var planSession=_assistantAnalysisSession??(DataContext as MainViewModel)?.CurrentSession;
-        if(_cleanupRunning||DataContext is not MainViewModel main||planSession is null||main.IsScanning||_recommendationsViewModel is null||_recommendationsViewModel.IsAnalyzing)
-            return AssistantError("当前有磁盘任务正在运行，或尚无可清理结果。");
+        if (DataContext is not MainViewModel main || planSession is null || _recommendationsViewModel is null)
+            return AssistantError("尚无可清理结果，请先分析并发布具体清单。");
+        var busyReason = GetCleanupBusyReason(_cleanupRunning, main.IsScanning, _recommendationPublishing,
+            _recommendationsViewModel.IsAnalyzing, _recommendationsViewModel.IsWaitingForExternalRecommendations, fromAssistant);
+        if (busyReason is not null) return AssistantError(busyReason);
         if(ids.Count==0)return AssistantError("请先选择具体清理项。");
         _cleanupRunning=true;main.IsCopilotBusy=true;
         var completedActions = new List<CleanupAction>();
@@ -105,6 +108,17 @@ public partial class MainWindow
         catch(UnauthorizedAccessException){return AssistantError("无法完整读取清理目录，未继续清理。请检查访问权限。");}
         finally{try{App.Services!.GetRequiredService<DiskAssistantService>().RecordCleanupUsage(completedActions);}catch(Exception e){Serilog.Log.Debug("可选使用记录未能保存 {ExceptionType}",e.GetType().Name);}finally{_cleanupRunning=false;main.IsCopilotBusy=_chatViewModel?.IsOperationRunning==true;}}
     }
+    // 同轮 AI 可在发布结果后请求确认；分析对话仍运行不等于磁盘正在读写。
+    private static string? GetCleanupBusyReason(bool cleanup, bool scan, bool publish, bool analysis, bool waiting, bool fromAssistant)
+    {
+        if (cleanup) return "正在执行另一项清理，请等待完成。";
+        if (scan) return "磁盘扫描尚未完成，请等待完成。";
+        if (publish) return "推荐清单正在发布，请等待完成。";
+        if (waiting) return "AI 分析尚未发布可执行结果，请等待完成。";
+        if (analysis && !fromAssistant) return "AI 分析仍在进行，请等待完成。";
+        return null;
+    }
+
     private static JsonNode CleanupPlanFailure(CleanupPlanValidationException error) => new JsonObject
     {
         ["ok"] = false, ["code"] = error.Code, ["error"] = error.Message,

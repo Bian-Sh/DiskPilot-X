@@ -115,14 +115,98 @@ public sealed class RecommendationsPanelRenderingTests
     }
 
     [Fact]
-    public void 面板提供不删除文件的清空与单项移除入口() => StaHost.Run(() =>
+    public void 底栏保留清理而清空只在右键菜单() => StaHost.Run(() =>
     {
         using var host = CreateHost(out var panel, out var vm);
-        vm.SetExternalRecommendations([new CleanupRecommendation { Id="1", TargetPath=@"D:\缓存\样本", Size=100 }]);
+        vm.SetExternalRecommendations([new CleanupRecommendation { Id="1", TargetPath=@"D:\缓存\样本", Size=100, IsAccepted=true }]);
         Layout(panel);
-        Assert.Contains(Visuals<Button>(panel), button => button.Name == "ClearRecommendationsButton");
-        Assert.Contains(Visuals<Border>(panel), border => border.ContextMenu?.Items.OfType<MenuItem>().Any(item => item.Name == "RemoveRecommendationMenu") == true);
+        Assert.DoesNotContain(Visuals<Button>(panel), button => button.Name == "ClearRecommendationsButton");
+        Assert.Contains(Visuals<Button>(panel), button => button.Name == "CleanupButton"
+            && Equals(button.Content,DiskPilotX.App.Localization.L.Text("CleanUpButton")));
+        var list=Visuals<ListView>(panel).Single(item=>item.Name=="RecommendationsList");
+        Assert.NotNull(list.ContextMenu);
+        Assert.Contains(list.ContextMenu.Items.OfType<MenuItem>(),item=>item.Name=="CleanupRecommendationsMenu");
+        Assert.Contains(list.ContextMenu.Items.OfType<MenuItem>(),item=>item.Name=="ClearRecommendationsMenu");
+        var row=Visuals<Border>(panel).Single(border=>border.ContextMenu?.Items.OfType<MenuItem>().Any(item=>item.Name=="RemoveRecommendationMenu")==true);
+        Assert.Contains(row.ContextMenu.Items.OfType<MenuItem>(),item=>item.Name=="CleanupRecommendationsMenu");
+        Assert.Contains(row.ContextMenu.Items.OfType<MenuItem>(),item=>item.Name=="ClearRecommendationsMenu");
     });
+
+    [Fact]
+    public void 清理菜单仍只请求原批准入口而不直接删除或清空() => StaHost.Run(() =>
+    {
+        using var host=CreateHost(out var panel,out var vm);
+        vm.SetExternalRecommendations([new CleanupRecommendation {Id="1",TargetPath=@"D:\本任务菜单夹具",IsAccepted=true}]);
+        Layout(panel);var requested=0;panel.CleanupRequested+=()=>requested++;
+        var menu=Visuals<ListView>(panel).Single(item=>item.Name=="RecommendationsList").ContextMenu;
+        Assert.NotNull(menu);
+        menu.Items.OfType<MenuItem>().Single(item=>item.Name=="CleanupRecommendationsMenu").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        Assert.Equal(1,requested);Assert.Single(vm.Recommendations);
+    });
+
+    [Fact]
+    public void 失败后空白区域右键清空不删除真实夹具文件() => StaHost.Run(() =>
+    {
+        var directory=System.IO.Path.Combine(System.IO.Path.GetTempPath(),"DiskPilot-X-menu-test-"+Guid.NewGuid().ToString("N"));
+        var file=System.IO.Path.Combine(directory,"必须保留.txt");System.IO.Directory.CreateDirectory(directory);System.IO.File.WriteAllText(file,"只清建议，不删文件");
+        try
+        {
+            using var host=CreateHost(out var panel,out var vm);
+            vm.SetExternalRecommendations([new CleanupRecommendation {Id="1",TargetPath=file}]);
+            vm.SetAnalysisTask(new(Guid.NewGuid(),Guid.NewGuid(),directory,DiskPilotX.Core.Services.Analysis.AnalysisTaskStatus.Failed,
+                DiskPilotX.Core.Services.Analysis.AnalysisOutcome.Unknown,0,[],new Dictionary<string,string>()));
+            Layout(panel);var menu=Visuals<ListView>(panel).Single(item=>item.Name=="RecommendationsList").ContextMenu;Assert.NotNull(menu);
+            menu.Items.OfType<MenuItem>().Single(item=>item.Name=="ClearRecommendationsMenu").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Assert.Empty(vm.Recommendations);Assert.True(System.IO.File.Exists(file));
+        }
+        finally{System.IO.File.Delete(file);System.IO.Directory.Delete(directory);}
+    });
+    [Fact]
+    public void 底栏和右键菜单都随语言模块切换() => StaHost.Run(() =>
+    {
+        var previous=DiskPilotX.App.Localization.L.CurrentLanguageName;
+        try
+        {
+            using var host=CreateHost(out var panel,out var vm);
+            vm.SetExternalRecommendations([new CleanupRecommendation {Id="1",TargetPath=@"D:\本任务语言夹具",IsAccepted=true}]);
+            Layout(panel);
+            var button=Visuals<Button>(panel).Single(item=>item.Name=="CleanupButton");
+            var list=Visuals<ListView>(panel).Single(item=>item.Name=="RecommendationsList");
+            var row=Visuals<Border>(panel).Single(border=>border.ContextMenu?.Items.OfType<MenuItem>().Any(item=>item.Name=="RemoveRecommendationMenu")==true);
+            // 菜单首次打开时由现有多语言绑定接管条目模板初值。
+            list.ContextMenu.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent));
+            row.ContextMenu.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent));
+            foreach(var language in new[]{"en","zh-CN","zh-TW","en"})
+            {
+                DiskPilotX.App.Localization.L.SetLanguage(language);Layout(panel);
+                Assert.Equal(DiskPilotX.App.Localization.L.Text("CleanUpButton"),button.Content);
+                Assert.Equal(DiskPilotX.App.Localization.L.Text("CleanUpToolTip"),button.ToolTip);
+                Assert.Equal(DiskPilotX.App.Localization.L.Text("CleanUpButton"),System.Windows.Automation.AutomationProperties.GetName(button));
+                foreach(var menu in new[]{list.ContextMenu,row.ContextMenu})
+                {
+                    Assert.Equal(DiskPilotX.App.Localization.L.Text("CleanUpButton"),menu.Items.OfType<MenuItem>().Single(item=>item.Name=="CleanupRecommendationsMenu").Header);
+                    Assert.Equal(DiskPilotX.App.Localization.L.Text("ClearRecommendations"),menu.Items.OfType<MenuItem>().Single(item=>item.Name=="ClearRecommendationsMenu").Header);
+                }
+                Assert.Equal(DiskPilotX.App.Localization.L.Text("RemoveRecommendation"),row.ContextMenu.Items.OfType<MenuItem>().Single(item=>item.Name=="RemoveRecommendationMenu").Header);
+            }
+        }
+        finally{DiskPilotX.App.Localization.L.SetLanguage(previous);}
+    });
+
+    [Fact]
+    public void 三种语言都包含菜单文案而非回退英文()
+    {
+        var directory=new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while(directory is not null && !System.IO.Directory.Exists(System.IO.Path.Combine(directory.FullName,"src/DiskPilotX.App/Localization")))directory=directory.Parent;
+        Assert.NotNull(directory);
+        foreach(var file in new[]{"Strings.resx","Strings.zh-CN.resx","Strings.zh-TW.resx"})
+        {
+            var document=System.Xml.Linq.XDocument.Load(System.IO.Path.Combine(directory.FullName,"src/DiskPilotX.App/Localization",file));
+            foreach(var key in new[]{"CleanUpButton","AnalyzeButton","CleanUpToolTip","ClearRecommendations","ClearRecommendationsToolTip","RemoveRecommendation","RemoveRecommendationToolTip"})
+                Assert.Contains(document.Root!.Elements("data"),element=>(string?)element.Attribute("name")==key && !string.IsNullOrWhiteSpace(element.Element("value")?.Value));
+        }
+    }
+
     private static void EnsureTheme()
     {
         var source = new Uri("/DiskPilot-X;component/Themes/VisionProTheme.xaml", UriKind.Relative);

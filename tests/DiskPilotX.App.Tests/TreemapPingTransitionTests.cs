@@ -63,7 +63,7 @@ public class TreemapPingTransitionTests
         {
             Assert.Null(Field(control!, "_focusTransitionImage"));
             Assert.False((bool)Property(control!, "IsFocusAnimating")!);
-            Assert.Null(Property(control!, "PingEntry"));
+            Assert.Null(Property(control!, "ActivePingEntry"));
         });
     }
 
@@ -123,7 +123,7 @@ public class TreemapPingTransitionTests
             }
             Assert.Null(Field(control!, "_focusTransitionImage"));
             Assert.False((bool)Property(control!, "IsFocusAnimating")!);
-            Assert.Same(target, Property(control!, "PingEntry"));
+            Assert.Same(target, Property(control!, "ActivePingEntry"));
             Call(control!, "CancelFocusAnimation");
         });
     }
@@ -146,7 +146,7 @@ public class TreemapPingTransitionTests
             Paint(control!,surface); using var image=surface.Snapshot(); using var bitmap=SKBitmap.FromImage(image);
             Assert.Equal(new SKColor(254,164,0),bitmap.GetPixel(49,100));
             Call(control!,"HandleClick",new Point(100,100),1,false);
-            Assert.Null(Property(control!,"PingEntry"));
+            Assert.Null(Property(control!,"ActivePingEntry"));
         });
     }
 
@@ -201,7 +201,7 @@ public class TreemapPingTransitionTests
         Assert.True(success,string.Join(";",observations));
         StaHost.Run(() =>
         {
-            Assert.Same(target,Property(control!,"PingEntry"));
+            Assert.Same(target,Property(control!,"ActivePingEntry"));
             Assert.Same(target,vm!.SelectedNode!.Entry);
             Assert.Contains(control!.Nodes!,n=>ReferenceEquals(n.Entry,target)&&n.AggregatedCount==0);
             Assert.InRange((float)Field(control, "_pingOpacity")!, 0.8f, 1f);
@@ -247,14 +247,14 @@ public class TreemapPingTransitionTests
         Assert.True(await first.WaitAsync(TimeSpan.FromSeconds(5)));
         StaHost.Run(() =>
         {
-            Assert.NotNull(Property(control!, "PingEntry"));
+            Assert.NotNull(Property(control!, "ActivePingEntry"));
             Assert.Equal(1f, (float)Property(control!, "PingOpacity")!);
             var selected = control!.SelectedNode;
             var viewport = Viewport(control);
             missing = scanActivationFails
                 ? view!.FocusScanPathAsync(root!, () => false, @"C:\Ping\不存在", true)
                 : view!.FocusPathAsync(@"C:\Ping\不存在", true);
-            Assert.Null(Property(control, "PingEntry"));
+            Assert.Null(Property(control, "ActivePingEntry"));
             Assert.Equal(0f, (float)Property(control, "PingOpacity")!);
             Assert.Equal(0f, (float)Property(control, "PingWaveOpacity")!);
             Assert.False((bool)Property(control, "IsFocusAnimating")!);
@@ -284,9 +284,9 @@ public class TreemapPingTransitionTests
         StaHost.Run(() => second=view!.FocusPathAsync(@"C:\Ping\大",true));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>first);
         Assert.True(await second.WaitAsync(TimeSpan.FromSeconds(5)));
-        StaHost.Run(()=>Assert.Equal(@"C:\Ping\大",((FileEntry)Property(control!,"PingEntry")!).Path));
+        StaHost.Run(()=>Assert.Equal(@"C:\Ping\大",((FileEntry)Property(control!,"ActivePingEntry")!).Path));
         await Task.Delay(500);
-        StaHost.Run(()=>Assert.Equal(@"C:\Ping\大",((FileEntry)Property(control!,"PingEntry")!).Path));
+        StaHost.Run(()=>Assert.Equal(@"C:\Ping\大",((FileEntry)Property(control!,"ActivePingEntry")!).Path));
     }
 
     [Fact]
@@ -308,7 +308,7 @@ public class TreemapPingTransitionTests
         Assert.True(await pending.WaitAsync(TimeSpan.FromSeconds(6)));
         StaHost.Run(() =>
         {
-            Assert.Same(target,Property(control!,"PingEntry"));
+            Assert.Same(target,Property(control!,"ActivePingEntry"));
             Assert.Contains(control!.Nodes!,n=>ReferenceEquals(n.Entry,target)&&n.AggregatedCount==0);
         });
     }
@@ -383,7 +383,7 @@ public class TreemapPingTransitionTests
         Assert.True(await pending.WaitAsync(TimeSpan.FromSeconds(5)));
         StaHost.Run(() =>
         {
-            Assert.Same(node.Entry, Property(control!, "PingEntry"));
+            Assert.Same(node.Entry, Property(control!, "ActivePingEntry"));
             Assert.InRange((float)Field(control!, "_pingOpacity")!, 0.8f, 1f);
             var viewport = Viewport(control!);
             Assert.InRange(node.X * viewport.Zoom + viewport.X, 11.9f, 388f);
@@ -393,7 +393,7 @@ public class TreemapPingTransitionTests
         await Task.Delay(1000);
         StaHost.Run(() =>
         {
-            Assert.Null(Property(control!, "PingEntry"));
+            Assert.Null(Property(control!, "ActivePingEntry"));
             Assert.Equal(0f, Field(control!, "_pingOpacity"));
             Assert.Same(node, control!.SelectedNode);
         });
@@ -484,7 +484,7 @@ public class TreemapPingTransitionTests
         StaHost.Run(() =>
         {
             control!.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
-            Assert.Null(Property(control, "PingEntry"));
+            Assert.Null(Property(control, "ActivePingEntry"));
             Assert.False(((System.Windows.Threading.DispatcherTimer)Field(control, "_pingTimer")!).IsEnabled);
         });
     }
@@ -567,7 +567,7 @@ public class TreemapPingTransitionTests
         await Task.Delay(550);
         StaHost.Run(() =>
         {
-            Assert.Same(second.Entry, Property(control!, "PingEntry"));
+            Assert.Same(second.Entry, Property(control!, "ActivePingEntry"));
             Assert.InRange((float)Field(control!, "_pingOpacity")!, 0.05f, 1f);
             Call(control!, "CancelFocusAnimation");
         });

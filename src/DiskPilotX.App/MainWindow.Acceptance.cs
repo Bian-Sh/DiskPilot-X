@@ -64,7 +64,7 @@ public partial class MainWindow
             Width = control.ActualWidth,
             Height = control.ActualHeight,
             Viewport = new { control.Viewport.Zoom, PanX = control.Viewport.X, PanY = control.Viewport.Y },
-            Ping = new { Path = control.PingEntry?.Path, Animating = control.IsFocusAnimating, Opacity = control.PingOpacity,
+            Ping = new { Path = control.ActivePingEntry?.Path, Animating = control.IsFocusAnimating, Opacity = control.PingOpacity,
                 WaveOffset = control.PingWaveOffset, WaveOpacity = control.PingWaveOpacity },
             TypeColors = _treemapViewModel?.TypeColors,
             RenderStats = new { control.RenderedNodeCount, control.TitleClipNodeCount, control.RenderedLabelCount, control.BaseRenderCount, control.PreviewRenderCount, control.GeometryFallbackNodeCount, control.RasterPending, control.RasterError },

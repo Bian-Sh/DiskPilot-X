@@ -1,4 +1,3 @@
-using Microsoft.VisualBasic.FileIO;
 using DiskPilotX.Core.Enums;
 using DiskPilotX.Core.Models;
 
@@ -44,38 +43,9 @@ public class CleanupService : ICleanupService
                     if (expected is not null && current.Fingerprint != expected)
                         throw new InvalidOperationException("清理目标已改变，必须重新批准。");
                     cancellationToken.ThrowIfCancellationRequested();
-                    bool isDirectory = current.IsDirectory;
 
-                    switch (mode)
-                    {
-                        case DeletionMode.PermanentDelete:
-                            if (isDirectory)
-                            {
-                                Directory.Delete(targetPath, recursive: true);
-                            }
-                            else
-                            {
-                                File.Delete(targetPath);
-                            }
-                            break;
-
-                        case DeletionMode.MoveToRecycleBin:
-                            if (isDirectory)
-                            {
-                                FileSystem.DeleteDirectory(
-                                    targetPath,
-                                    UIOption.OnlyErrorDialogs,
-                                    RecycleOption.SendToRecycleBin);
-                            }
-                            else
-                            {
-                                FileSystem.DeleteFile(
-                                    targetPath,
-                                    UIOption.OnlyErrorDialogs,
-                                    RecycleOption.SendToRecycleBin);
-                            }
-                            break;
-                    }
+                    // 已完成批准及指纹复核，系统只展示执行进度，不再次要求确认。
+                    SystemDeleteProgress.Delete(targetPath, mode);
                     return current;
                 }, cancellationToken).ConfigureAwait(false);
 

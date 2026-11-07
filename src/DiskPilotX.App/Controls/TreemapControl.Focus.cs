@@ -27,7 +27,7 @@ public partial class TreemapControl
     private (float Zoom, float X, float Y) _focusTransitionStart;
     private float _focusTransitionOpacity;
     internal bool IsFocusAnimating => _focusAnimation is not null || _focusLevelChanging || _focusPreparing;
-    internal FileEntry? PingEntry => _pingEntry;
+    internal FileEntry? ActivePingEntry => _pingEntry;
     internal float PingOpacity => _pingOpacity;
     internal float PingWaveOffset => _pingWaveOffset;
     internal float PingWaveOpacity => _pingWaveOpacity;
@@ -150,8 +150,12 @@ public partial class TreemapControl
         FocusInterrupted?.Invoke(this, EventArgs.Empty);
     }
 
-    private void RemapPingNode() => _pingNode = _nodes?.FirstOrDefault(n =>
-        ReferenceEquals(n.Entry, _pingEntry) && n.AggregatedCount == 0 && !n.Entry.IsDeleted);
+    private void RemapPingNode()
+    {
+        _pingNode = _nodes?.FirstOrDefault(n =>
+            ReferenceEquals(n.Entry, _pingEntry) && n.AggregatedCount == 0 && !n.Entry.IsDeleted);
+        if (_pingEntry is not null && _pingNode is null) ClearPingHighlight();
+    }
 
     public Task<bool> FocusNodeAsync(TreemapNode node, bool highlight = true, CancellationToken cancellationToken = default,
         bool deferHighlight = false) => FocusNodeCoreAsync(node, highlight, cancellationToken, deferHighlight, null);

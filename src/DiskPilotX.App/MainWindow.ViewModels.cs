@@ -99,6 +99,7 @@ public partial class MainWindow
         RecommendationsPanel.AnalyzeRequested += OnAnalyzeRequested;
         RecommendationsPanel.CleanupRequested += OnCleanupRequested;
         RecommendationsPanel.RecommendationActivated += OnRecommendationActivated;
+        RecommendationsPanel.RecommendationPingRequested += OnRecommendationPingRequested;
         TreemapView.DeleteEntryAsync = DeleteEntryAsync;
         TreemapView.AddRecommendationsAsync = AddManualRecommendationsAsync;
         TreeViewControl.DeleteEntryAsync = DeleteEntryAsync;
@@ -250,37 +251,59 @@ public partial class MainWindow
         }
     }
 
-    private async void OnRecommendationActivated(CleanupRecommendation recommendation)
+    private (ScanSession Session, FileEntry Entry)? ResolveRecommendationTarget(CleanupRecommendation recommendation)
     {
-        if (TryShowBusyOperationToast("定位推荐项目")) return;
-        if (_treemapViewModel is null) return;
+        if (TryShowBusyOperationToast("查看推荐项目")) return null;
+        if (_recommendationPublishing)
+        { ShowOperationToast("推荐清单正在更新，请等本次更新结束后再查看。"); return null; }
+        if (DataContext is not MainViewModel main || _treemapViewModel is null) return null;
         if (!IsSkillScopeAllowed(recommendation.TargetPath))
-        {
-            ShowOperationToast("当前设置不允许查看此推荐范围。");
-            return;
-        }
-        // 先取得精确来源，但不提前切根；缓存激活由 View 的截图过渡包裹。
-        var snapshot = recommendation.SourceScanId is { } id
-            ? _scanSnapshots.FindById(id) : _scanSnapshots.FindByPath(recommendation.TargetPath);
-        if (snapshot?.RootEntry is not { } root || snapshot.IsCancelled
-            || new DiskPilotX.Core.Services.FileTree.FileTreeQueryService().FindByPath(snapshot, recommendation.TargetPath) is not { IsDeleted: false })
-        {
-            ShowOperationToast("该推荐的扫描版本已不可用，请重新分析，不会改用另一个同路径快照。");
-            return;
-        }
+        { if (_chatViewModel is not null) _chatViewModel.ErrorMessage = "当前设置不允许查看此推荐范围。"; return null; }
+        var session = recommendation.SourceScanId is { } id
+            ? main.CurrentSession?.Id == id ? main.CurrentSession : _scanSnapshots.FindById(id)
+            : main.CurrentSession;
+        var entry = session is null ? null : new DiskPilotX.Core.Services.FileTree.FileTreeQueryService().FindByPath(session, recommendation.TargetPath);
+        if (session is null || session.IsCancelled || entry is null || entry.IsDeleted)
+        { if (_chatViewModel is not null) _chatViewModel.ErrorMessage = "该推荐的扫描版本已不可用，请重新分析，不会改用另一个同路径快照。"; return null; }
+        return (session, entry);
+    }
+
+    private async void OnRecommendationPingRequested(CleanupRecommendation recommendation)
+    {
+        if (ResolveRecommendationTarget(recommendation) is not { } target) return;
         try
         {
-            if (!await TreemapView.FocusScanPathAsync(root,
-                    () => TryShowCachedAiScanForPath(recommendation.TargetPath, navigateToPath: false, snapshotId: snapshot.Id),
-                    recommendation.TargetPath, true))
-                ShowOperationToast("定位未完成，请在当前扫描中重新选择后再试。");
+            // 单击沿用稳定布局定位；双击仍由独立激活入口打开文件或进入目录。
+            var pinged = await TreemapView.FocusScanPathAsync(target.Session.RootEntry!,
+                () => TryShowCachedAiScanForPath(recommendation.TargetPath, navigateToPath: false, snapshotId: target.Session.Id),
+                recommendation.TargetPath, true);
+            if (!pinged) ShowOperationToast("定位未完成，请在当前扫描中重新选择后再试。");
+            else if (_chatViewModel is not null) _chatViewModel.ErrorMessage = null;
         }
-        catch (OperationCanceledException) { /* 新定位或用户操作已取消旧 Ping，不再干扰用户。 */ }
+        catch (OperationCanceledException) { /* 后续定位或用户操作取消旧请求，不再干扰用户。 */ }
         catch (Exception ex)
         {
             Serilog.Log.Warning(ex, "推荐项目定位未完成");
             ShowOperationToast("定位未完成，请在当前扫描中重新选择后再试。");
         }
+    }
+
+    private void OnRecommendationActivated(CleanupRecommendation recommendation)
+    {
+        if (ResolveRecommendationTarget(recommendation) is not { } target) return;
+        try
+        {
+            if (target.Entry.IsDirectory)
+            {
+                if ((DataContext as MainViewModel)?.CurrentSession?.Id != target.Session.Id
+                    && !TryShowCachedAiScanForPath(recommendation.TargetPath, navigateToPath: false, snapshotId: target.Session.Id)) return;
+                _treemapViewModel!.NavigateToEntry(target.Entry);
+            }
+            else DiskPilotX.App.Services.FileEntryShellService.Open(target.Entry);
+            if (_chatViewModel is not null) _chatViewModel.ErrorMessage = null;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        { if (_chatViewModel is not null) _chatViewModel.ErrorMessage = "无法打开推荐路径：" + error.Message; }
     }
 
     private void CacheAiScanSession(ScanSession session)

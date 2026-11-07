@@ -240,13 +240,20 @@ public sealed class ManualRecommendationsTests
             directory = directory.Parent;
         Assert.NotNull(directory);
         var source = File.ReadAllText(Path.Combine(directory.FullName, "src", "DiskPilotX.App", "MainWindow.ViewModels.cs"));
-        var start = source.IndexOf("private async void OnRecommendationActivated", StringComparison.Ordinal);
-        var end = source.IndexOf("private void CacheAiScanSession", start, StringComparison.Ordinal);
+        var start = source.IndexOf("private async void OnRecommendationPingRequested", StringComparison.Ordinal);
+        Assert.True(start >= 0);
+        var end = source.IndexOf("private void OnRecommendationActivated", start, StringComparison.Ordinal);
+        Assert.True(end > start);
         var handler = source[start..end];
         Assert.Contains("await TreemapView.FocusScanPathAsync", handler);
         Assert.Contains("() => TryShowCachedAiScanForPath", handler);
-        Assert.Contains("snapshotId: snapshot.Id", handler);
+        Assert.Contains("snapshotId: target.Session.Id", handler);
         Assert.DoesNotContain("var shown = TryShowCachedAiScanForPath", handler);
+        Assert.DoesNotContain("NavigateToEntry", handler);
+        var activated = source[end..source.IndexOf("private void CacheAiScanSession", end, StringComparison.Ordinal)];
+        Assert.Contains("NavigateToEntry(target.Entry)", activated);
+        Assert.Contains("FileEntryShellService.Open(target.Entry)", activated);
+        Assert.DoesNotContain("FocusScanPathAsync", activated);
     }
 
     [Fact]
