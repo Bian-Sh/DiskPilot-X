@@ -22,8 +22,8 @@ public partial class MainWindow
 
     private async Task DeleteEntryAsync(FileEntry entry)
     {
-        if (entry.IsDeleted || _cleanupRunning || DataContext is not MainViewModel main || main.IsScanning
-            || main.IsCopilotBusy || main.CurrentSession is not { } session) return;
+        if (TryShowBusyOperationToast()) return;
+        if (entry.IsDeleted || DataContext is not MainViewModel main || main.CurrentSession is not { } session) return;
         if (!ReferenceEquals(new FileTreeQueryService().FindByPath(session, entry.Path), entry)) return;
         _cleanupRunning = true;
         main.IsCopilotBusy = true;

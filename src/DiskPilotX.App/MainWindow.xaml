@@ -543,6 +543,21 @@
             </Grid>
         </Grid>
 
+        <!-- 非模态提示不抢焦点、不拦截输入，也不遮挡原有确认覆盖层。 -->
+        <Border x:Name="OperationToast"
+                Grid.Row="1" Panel.ZIndex="100"
+                Visibility="Collapsed" IsHitTestVisible="False" Focusable="False"
+                HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                MaxWidth="560" Margin="16,0,16,24" Padding="16,12"
+                CornerRadius="10"
+                Background="{DynamicResource VP.BackgroundBrush}"
+                BorderBrush="{DynamicResource VP.BorderSubtleBrush}" BorderThickness="1"
+                AutomationProperties.LiveSetting="Polite">
+            <TextBlock x:Name="OperationToastText"
+                       TextWrapping="Wrap" FontSize="14"
+                       Foreground="{DynamicResource VP.TextPrimaryBrush}" />
+        </Border>
+
         <!-- App Modal Overlay -->
         <controls:AppModalHost x:Name="ModalHost"
                                Grid.RowSpan="2"
