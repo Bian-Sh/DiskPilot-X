@@ -1212,4 +1212,7 @@
   <data name="RemoveRecommendationToolTip" xml:space="preserve"><value>只移除建议，不删除文件。</value></data>
   <data name="ClearRecommendations" xml:space="preserve"><value>清空清单</value></data>
   <data name="ClearRecommendationsToolTip" xml:space="preserve"><value>清空所有建议，不删除文件。</value></data>
+  <data name="CopilotHistoryCopyPath" xml:space="preserve"><value>复制对话文件路径</value></data>
+  <data name="CopilotHistoryCopyPathFailed" xml:space="preserve"><value>复制对话文件路径失败，请稍后重试。</value></data>
+  <data name="RecommendationPathHelp" xml:space="preserve"><value>单击定位块；双击进入目录或打开文件。</value></data>
 </root>

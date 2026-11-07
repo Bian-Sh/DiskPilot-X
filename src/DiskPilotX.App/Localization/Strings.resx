@@ -1212,4 +1212,7 @@ This cannot be undone.</value></data>
   <data name="RemoveRecommendationToolTip" xml:space="preserve"><value>Remove this recommendation only; no files are deleted.</value></data>
   <data name="ClearRecommendations" xml:space="preserve"><value>Clear list</value></data>
   <data name="ClearRecommendationsToolTip" xml:space="preserve"><value>Clear all recommendations; no files are deleted.</value></data>
+  <data name="CopilotHistoryCopyPath" xml:space="preserve"><value>Copy conversation file path</value></data>
+  <data name="CopilotHistoryCopyPathFailed" xml:space="preserve"><value>Could not copy the conversation file path. Please try again.</value></data>
+  <data name="RecommendationPathHelp" xml:space="preserve"><value>Click to locate the cell; double-click to enter the folder or open the file.</value></data>
 </root>

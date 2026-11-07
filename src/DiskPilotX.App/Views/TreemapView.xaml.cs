@@ -171,6 +171,8 @@ public partial class TreemapView : UserControl
     }
 
     /// <summary>定位到指定路径并高亮，供 AI focus_path 调用。返回是否命中。</summary>
+    public bool PingEntry(FileEntry entry) => Treemap.PingEntry(entry);
+
     public bool FocusPath(string path, bool highlight)
     {
         var node = _viewModel?.FocusPath(path, highlight);

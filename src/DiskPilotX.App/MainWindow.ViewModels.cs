@@ -102,6 +102,7 @@ public partial class MainWindow
         RecommendationsPanel.AnalyzeRequested += OnAnalyzeRequested;
         RecommendationsPanel.CleanupRequested += OnCleanupRequested;
         RecommendationsPanel.RecommendationActivated += OnRecommendationActivated;
+        RecommendationsPanel.RecommendationPingRequested += OnRecommendationPingRequested;
         TreemapView.DeleteEntryAsync = DeleteEntryAsync;
         TreeViewControl.DeleteEntryAsync = DeleteEntryAsync;
         TreemapView.ShowMessageAsync = ShowAppMessageAsync;
@@ -252,16 +253,47 @@ public partial class MainWindow
         }
     }
 
+    private (ScanSession Session, FileEntry Entry)? ResolveRecommendationTarget(CleanupRecommendation recommendation)
+    {
+        if (_cleanupRunning || _recommendationPublishing || _chatViewModel?.IsOperationRunning == true
+            || DataContext is not MainViewModel main || main.IsScanning || _treemapViewModel is null)
+        { if (_chatViewModel is not null) _chatViewModel.ErrorMessage = "任务正在进行，请结束后再查看推荐的扫描版本。"; return null; }
+        if (!IsSkillScopeAllowed(recommendation.TargetPath))
+        { if (_chatViewModel is not null) _chatViewModel.ErrorMessage = "当前设置不允许查看此推荐范围。"; return null; }
+        var session = recommendation.SourceScanId is { } id
+            ? main.CurrentSession?.Id == id ? main.CurrentSession : _scanSnapshots.FindById(id)
+            : main.CurrentSession;
+        var entry = session is null ? null : new DiskPilotX.Core.Services.FileTree.FileTreeQueryService().FindByPath(session, recommendation.TargetPath);
+        if (session is null || entry is null || entry.IsDeleted)
+        { if (_chatViewModel is not null) _chatViewModel.ErrorMessage = "该推荐的扫描版本已不可用，请重新分析，不会改用另一个同路径快照。"; return null; }
+        return (session, entry);
+    }
+
+    private void OnRecommendationPingRequested(CleanupRecommendation recommendation)
+    {
+        if (ResolveRecommendationTarget(recommendation) is not { } target) return;
+        if ((DataContext as MainViewModel)?.CurrentSession?.Id != target.Session.Id
+            && !TryShowCachedAiScanForPath(recommendation.TargetPath, navigateToPath: false, snapshotId: target.Session.Id)) return;
+        var pinged = TreemapView.PingEntry(target.Entry);
+        if (_chatViewModel is not null) _chatViewModel.ErrorMessage = pinged ? null : "当前目录或显示深度未展示此块；单击不会自动进入目录。";
+    }
+
     private void OnRecommendationActivated(CleanupRecommendation recommendation)
     {
-        if(_cleanupRunning || _chatViewModel?.IsOperationRunning==true || (DataContext as MainViewModel)?.IsScanning==true)
-        {if(_chatViewModel is not null)_chatViewModel.ErrorMessage="任务正在进行，请结束后再查看推荐的扫描版本。";return;}
-        if (_treemapViewModel is null)
-            return;
-
-        if(!IsSkillScopeAllowed(recommendation.TargetPath)) {if(_chatViewModel is not null)_chatViewModel.ErrorMessage="当前设置不允许查看此推荐范围。";return;}
-        var shown=TryShowCachedAiScanForPath(recommendation.TargetPath,snapshotId:recommendation.SourceScanId);
-        if(_chatViewModel is not null)_chatViewModel.ErrorMessage=shown?null:"该推荐的扫描版本已不可用，请重新分析，不会改用另一个同路径快照。";
+        if (ResolveRecommendationTarget(recommendation) is not { } target) return;
+        try
+        {
+            if (target.Entry.IsDirectory)
+            {
+                if ((DataContext as MainViewModel)?.CurrentSession?.Id != target.Session.Id
+                    && !TryShowCachedAiScanForPath(recommendation.TargetPath, navigateToPath: false, snapshotId: target.Session.Id)) return;
+                _treemapViewModel!.NavigateToEntry(target.Entry);
+            }
+            else DiskPilotX.App.Services.FileEntryShellService.Open(target.Entry);
+            if (_chatViewModel is not null) _chatViewModel.ErrorMessage = null;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        { if (_chatViewModel is not null) _chatViewModel.ErrorMessage = "无法打开推荐路径：" + error.Message; }
     }
 
     private void CacheAiScanSession(ScanSession session)
