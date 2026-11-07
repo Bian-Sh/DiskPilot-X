@@ -114,6 +114,15 @@ public sealed class RecommendationsPanelRenderingTests
         return new Disposer(source.Dispose);
     }
 
+    [Fact]
+    public void 面板提供不删除文件的清空与单项移除入口() => StaHost.Run(() =>
+    {
+        using var host = CreateHost(out var panel, out var vm);
+        vm.SetExternalRecommendations([new CleanupRecommendation { Id="1", TargetPath=@"D:\缓存\样本", Size=100 }]);
+        Layout(panel);
+        Assert.Contains(Visuals<Button>(panel), button => button.Name == "ClearRecommendationsButton");
+        Assert.Contains(Visuals<Border>(panel), border => border.ContextMenu?.Items.OfType<MenuItem>().Any(item => item.Name == "RemoveRecommendationMenu") == true);
+    });
     private static void EnsureTheme()
     {
         var source = new Uri("/DiskPilot-X;component/Themes/VisionProTheme.xaml", UriKind.Relative);

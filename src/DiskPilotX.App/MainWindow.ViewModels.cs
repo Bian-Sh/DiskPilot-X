@@ -78,7 +78,10 @@ public partial class MainWindow
             if(e.PropertyName is nameof(RecommendationsViewModel.Recommendations) or nameof(RecommendationsViewModel.HasAcceptedRecommendations)) _recommendationRevision++;
             if(e.PropertyName == nameof(RecommendationsViewModel.Recommendations) && recsVm.Recommendations.Count==0)
             {
+                var finished = _publishedScopes.Values.Select(session => session.Id).Distinct().ToArray();
                 ResetAssistantBatch(); _assistantAnalysisSession=null; _publishedScopes.Clear(); _scanSnapshots.ReleaseOwner("recommendations");
+                foreach (var id in finished) _scanSnapshots.RemoveUnprotected(id);
+                RefreshScanSnapshotEntries();
             }
         };
         _settingsViewModel = settingsVm;

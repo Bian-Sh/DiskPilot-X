@@ -54,6 +54,8 @@ public sealed class ScanSnapshotCache(int maximumSnapshots = 12, long maximumEnt
     public void Protect(Guid id, string owner = "default") { if (items.ContainsKey(id)) protectedItems.Add((id, owner)); }
     public void Unprotect(Guid id, string owner = "default") => protectedItems.Remove((id, owner));
     public void ReleaseOwner(string owner) => protectedItems.RemoveWhere(item => item.Owner == owner);
+    /// <summary>只回收明确结束且没有任何活动所有者的快照。</summary>
+    public bool RemoveUnprotected(Guid id) => !protectedItems.Any(item => item.Id == id) && items.Remove(id);
     public ScanSession? FindById(Guid id)
     {
         if(!items.TryGetValue(id,out var item))return null;

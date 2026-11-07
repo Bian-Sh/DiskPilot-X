@@ -137,6 +137,21 @@ public class RecommendationEngineTests
         settings.Received(1).LoadSettings();
     }
 
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void 含链接或不可读取后代的目录不会被发布为可删除项(bool link, bool denied)
+    {
+        var root = Directory(@"D:\工程");
+        var cache = Directory(@"D:\工程\node_modules");
+        var nested = Directory(@"D:\工程\node_modules\alias");
+        nested.IsReparsePoint = link; nested.IsAccessDenied = denied;
+        AddChild(root, cache); AddChild(cache, nested);
+        var result = new RecommendationEngine().ValidateCandidates(Session(root), Candidates(cache.Path));
+        result.Recommendations.Should().BeEmpty();
+        result.Diagnostics.ProtectedFilteredCount.Should().Be(1);
+    }
+
     private static FileEntry Directory(string path, long size = 0) => new()
     {
         Path = path, Name = path.Split('\\').Last(), IsDirectory = true, Size = size

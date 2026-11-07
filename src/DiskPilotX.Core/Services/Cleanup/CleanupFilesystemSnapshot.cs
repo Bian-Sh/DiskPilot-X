@@ -94,7 +94,7 @@ internal sealed record CleanupFilesystemSnapshot(string Fingerprint, long Size, 
             throw new InvalidOperationException("清理目录包含受保护项。");
         var attributes = File.GetAttributes(path);
         if ((attributes & FileAttributes.ReparsePoint) != 0)
-            throw new InvalidOperationException("禁止清理链接或重解析点。");
+            throw new CleanupPlanValidationException("cleanup_reparse_point", $"清理项目包含链接或重解析点：{path}。未执行删除；请移除此建议或选择不含链接的具体子目录。");
         FileSystemInfo info = (attributes & FileAttributes.Directory) != 0 ? new DirectoryInfo(path) : new FileInfo(path);
         info.Refresh();
         var metadata = new Metadata(path, attributes, info is FileInfo file ? file.Length : 0,
@@ -116,7 +116,7 @@ internal sealed record CleanupFilesystemSnapshot(string Fingerprint, long Size, 
             try { attributes = File.GetAttributes(ancestor); }
             catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException) { break; }
             if ((attributes & FileAttributes.ReparsePoint) != 0)
-                throw new InvalidOperationException("清理路径经过链接或重解析点。");
+                throw new CleanupPlanValidationException("cleanup_reparse_point", $"清理路径经过链接或重解析点：{ancestor}。未执行删除；请移除此建议并核对真实路径。");
         }
     }
 

@@ -92,7 +92,9 @@ public class CleanupFilesystemSnapshotTests
 
             plan.IsCurrent(session, [item], DeletionMode.PermanentDelete).Should().BeFalse();
             Action capture = () => CleanupPlan.Capture(session, [item], ["1"], DeletionMode.PermanentDelete);
-            capture.Should().Throw<InvalidOperationException>();
+            var failure = capture.Should().Throw<CleanupPlanValidationException>().Which;
+            failure.Code.Should().Be("cleanup_reparse_point");
+            failure.Message.Should().Contain(junction);
             Action throughJunction = () => CleanupPlan.Capture(session,
                 [new() { Id = "1", TargetPath = System.IO.Path.Combine(junction, "file.bin") }], ["1"], DeletionMode.PermanentDelete);
             throughJunction.Should().Throw<InvalidOperationException>();

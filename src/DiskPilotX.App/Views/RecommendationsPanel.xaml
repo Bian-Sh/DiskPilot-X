@@ -251,6 +251,12 @@
                             CornerRadius="6"
                             Padding="10,6"
                             Margin="2,2">
+                        <Border.ContextMenu>
+                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                <MenuItem x:Name="RemoveRecommendationMenu" Header="{loc:Loc RemoveRecommendation}" Click="RemoveRecommendation_Click"
+                                          ToolTip="{loc:Loc RemoveRecommendationToolTip}" />
+                            </ContextMenu>
+                        </Border.ContextMenu>
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -376,6 +382,19 @@
                 Padding="10,5">
             <DockPanel LastChildFill="False">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button x:Name="ClearRecommendationsButton" Content="{loc:Loc ClearRecommendations}" Padding="10,5" Margin="0,0,6,0"
+                            Click="ClearRecommendations_Click" ToolTip="{loc:Loc ClearRecommendationsToolTip}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource VP.Button}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasAnyRecommendations}" Value="False"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding IsAnalyzing}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding IsWaitingForExternalRecommendations}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding DataContext.IsCopilotBusy, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                     <Button Content="{loc:Loc CleanUpButton}"
                             Padding="16,5"
                             Click="CleanUpButton_Click"

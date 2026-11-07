@@ -221,6 +221,8 @@ public partial class RecommendationsViewModel : ObservableObject
         HasRecommendations = Recommendations.Count > 0;
         OnPropertyChanged(nameof(HasAnyRecommendations));
         NotifyAnalysisPresentation();
+        // 集合原地更新也必须通知宿主，释放已结束清单的扫描证据并更新版本。
+        OnPropertyChanged(nameof(Recommendations));
     }
 
     public void BeginExternalRecommendationLoad()
@@ -253,8 +255,16 @@ public partial class RecommendationsViewModel : ObservableObject
     private void Dismiss(CleanupRecommendation rec)
     {
         _logger.LogInformation("Recommendation dismissed: id={Id}, path={TargetPath}", rec.Id, rec.TargetPath);
-        rec.IsDismissed = true;
-        UpdateTotals();
+        if (IsAnalyzing || IsWaitingForExternalRecommendations) return;
+        SetExternalRecommendations(Recommendations.Where(item => !ReferenceEquals(item, rec)), LastDiagnostics);
+    }
+
+    /// <summary>只移除建议，不执行任何文件操作。</summary>
+    [RelayCommand]
+    private void ClearRecommendations()
+    {
+        if (IsAnalyzing || IsWaitingForExternalRecommendations) return;
+        SetExternalRecommendations([]);
     }
 
     [RelayCommand]

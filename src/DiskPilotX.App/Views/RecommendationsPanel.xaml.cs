@@ -23,6 +23,20 @@ public partial class RecommendationsPanel : UserControl
         DataContext = vm;
     }
 
+    // 两个入口只改变建议集合；磁盘任务运行期间不允许撤销其批准清单。
+    private bool CanRemoveRecommendations => DataContext is RecommendationsViewModel { IsAnalyzing: false, IsWaitingForExternalRecommendations: false }
+        && Window.GetWindow(this)?.DataContext is not MainViewModel { IsCopilotBusy: true, };
+
+    private void ClearRecommendations_Click(object sender, RoutedEventArgs e)
+    {
+        if (CanRemoveRecommendations && DataContext is RecommendationsViewModel vm) vm.ClearRecommendationsCommand.Execute(null);
+    }
+
+    private void RemoveRecommendation_Click(object sender, RoutedEventArgs e)
+    {
+        if (CanRemoveRecommendations && DataContext is RecommendationsViewModel vm
+            && sender is MenuItem { DataContext: CleanupRecommendation item }) vm.DismissCommand.Execute(item);
+    }
     private async void CleanUpButton_Click(object sender, RoutedEventArgs e)
     {
         if (await ShowWaitingForAiMessageIfNeededAsync())

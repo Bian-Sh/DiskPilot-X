@@ -1208,4 +1208,8 @@ This cannot be undone.</value></data>
   <data name="TreemapDepthAuto" xml:space="preserve"><value>Automatic</value></data>
   <data name="TreemapDepthLayers" xml:space="preserve"><value>{0} layers</value></data>
   <data name="TreemapDepthSaveFailed" xml:space="preserve"><value>Unable to save display depth: {0}</value></data>
+  <data name="RemoveRecommendation" xml:space="preserve"><value>Remove recommendation</value></data>
+  <data name="RemoveRecommendationToolTip" xml:space="preserve"><value>Remove this recommendation only; no files are deleted.</value></data>
+  <data name="ClearRecommendations" xml:space="preserve"><value>Clear list</value></data>
+  <data name="ClearRecommendationsToolTip" xml:space="preserve"><value>Clear all recommendations; no files are deleted.</value></data>
 </root>

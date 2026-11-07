@@ -1208,4 +1208,8 @@
   <data name="TreemapDepthAuto" xml:space="preserve"><value>自动</value></data>
   <data name="TreemapDepthLayers" xml:space="preserve"><value>{0} 层</value></data>
   <data name="TreemapDepthSaveFailed" xml:space="preserve"><value>保存显示深度失败：{0}</value></data>
+  <data name="RemoveRecommendation" xml:space="preserve"><value>移除这条建议</value></data>
+  <data name="RemoveRecommendationToolTip" xml:space="preserve"><value>只移除建议，不删除文件。</value></data>
+  <data name="ClearRecommendations" xml:space="preserve"><value>清空清单</value></data>
+  <data name="ClearRecommendationsToolTip" xml:space="preserve"><value>清空所有建议，不删除文件。</value></data>
 </root>

@@ -42,4 +42,20 @@ public class ScanSnapshotCacheTests
         var large = () => new ScanSnapshotCache(2, 1).Add(Session(@"D:\大", 20));
         large.Should().Throw<InvalidOperationException>();
     }
+    [Fact]
+    public void 显式释放过期清单快照但保留当前视图或其他活动所有者()
+    {
+        var cache = new ScanSnapshotCache();
+        var reference = cache.Add(Session(@"D:\样本"));
+        cache.Protect(reference.Id, "recommendations"); cache.Protect(reference.Id, "view");
+        var method = typeof(ScanSnapshotCache).GetMethod("RemoveUnprotected");
+        method.Should().NotBeNull();
+        cache.ReleaseOwner("recommendations");
+        ((bool)method!.Invoke(cache, [reference.Id])!).Should().BeFalse();
+        cache.TryGet(reference, out _).Should().BeTrue();
+        cache.ReleaseOwner("view");
+        ((bool)method.Invoke(cache, [reference.Id])!).Should().BeTrue();
+        cache.TryGet(reference, out _).Should().BeFalse();
+        cache.GetBudget().UsedSnapshots.Should().Be(0);
+    }
 }

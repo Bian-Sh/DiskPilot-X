@@ -202,7 +202,9 @@ public partial class RecommendationEngine
     private void AddValidatedRecommendation(AnalysisResult result, CleanupRecommendation recommendation, IReadOnlyList<PathWhitelistEntry> whitelist)
     {
         // 目录清理会同时删除后代，必须检查整棵候选子树以免绕过保护或白名单。
-        if (EnumerateEntries(recommendation.Entry!).Any(entry => IsDeletionProtected(entry.Path)))
+        if (EnumerateEntries(recommendation.Entry!).Any(entry => entry.IsReparsePoint || entry.IsAccessDenied
+            || entry.Attributes is { } attributes && attributes.HasFlag(FileAttributes.ReparsePoint)
+            || IsDeletionProtected(entry.Path)))
         {
             result.Diagnostics.ProtectedFilteredCount++;
             return;
