@@ -78,6 +78,8 @@ public partial class ChatViewModel
         }
     }
 
+    public string GetConversationFilePath(string id) => assistant.GetConversationFilePath(id);
+
     public bool HasConversationHistory => ConversationHistory.Count > 0;
     public bool CanChangeConversation => !IsOperationRunning && !assistant.IsRunning;
 

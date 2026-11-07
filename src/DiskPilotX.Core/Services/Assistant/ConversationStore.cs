@@ -161,6 +161,9 @@ public sealed partial class ConversationStore(string rootDirectory)
 
     public static bool IsStorageError(Exception exception) => exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException;
 
+    /// <summary>返回真实存储根下的会话文件绝对路径，沿用会话标识校验。</summary>
+    public string GetFilePath(string id) => Path.GetFullPath(PathFor(id));
+
     private string PathFor(string id)
     {
         if (!Guid.TryParseExact(id, "N", out _)) throw new InvalidDataException("历史对话标识无效。");

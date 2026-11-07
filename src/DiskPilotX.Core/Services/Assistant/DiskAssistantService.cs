@@ -140,6 +140,9 @@ public sealed partial class DiskAssistantService
         if (currentConversationId == id) ClearHistory();
     }
 
+    public string GetConversationFilePath(string id) => conversationStore?.GetFilePath(id)
+        ?? throw new InvalidOperationException("对话存储尚未准备好。");
+
     public IReadOnlyList<ConversationSummary> GetConversations() => conversationStore?.List() ?? [];
 
     public void SaveConversation(IEnumerable<DiskPilotX.Core.Models.ChatMessage> messages)
