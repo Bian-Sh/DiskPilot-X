@@ -53,6 +53,7 @@ public partial class TreemapViewModel : ObservableObject
         float width = ViewWidth, height = ViewHeight, target = Zoom;
         int mode = DisplayDepth, maxDepth = LayoutDepth;
         var colors = _colorContext;
+        var focus = _focusLayoutEntry;
         var dispatcher = System.Windows.Threading.Dispatcher.FromThread(Thread.CurrentThread);
         IsZoomLayoutPending = true; ZoomLayoutError = null;
         return PendingZoomUpdate = Update();
@@ -69,7 +70,7 @@ public partial class TreemapViewModel : ObservableObject
                     nodes = await Task.Run(() =>
                     {
                         source.Token.ThrowIfCancellationRequested();
-                        var result = _layoutEngine.ComputeLayout(root, width, height, maxDepth, target);
+                        var result = ComputeFocusLayout(root, width, height, maxDepth, target, focus);
                         source.Token.ThrowIfCancellationRequested();
                         colors?.Apply(result);
                         Controls.TreemapSceneIndex.Prepare(result);
@@ -181,6 +182,7 @@ public partial class TreemapViewModel : ObservableObject
 
     public void SetRoot(FileEntry root, ScanSession? session = null)
     {
+        _focusLayoutEntry = null;
         _scanRoot = root;
         _colorContext = TreemapColorContext.Create(root);
         _session = session;
@@ -449,16 +451,22 @@ public partial class TreemapViewModel : ObservableObject
 
     /// <summary>
     /// 定位到指定节点（目录或文件）并返回对应节点，供 focus_path 调用。
-    /// 目录直接钻取；文件则定位到其父目录并高亮该文件节点。
+    /// 当前地图已有真实 cell 时保留层级；否则进入可展示目标的父层级。交互入口使用异步缓动版本。
     /// </summary>
     public TreemapNode? FocusPath(string path, bool highlight)
     {
         if (string.IsNullOrWhiteSpace(path) || _scanRoot is null) return null;
-        var entry = FindEntryByPath(_scanRoot, path.Trim());
+        var entry = FindFocusEntry(path);
         if (entry is null) return null;
 
-        var viewRoot = entry.IsDirectory ? entry : entry.Parent;
-        if (viewRoot is null) return null;
+        var visible = Nodes?.FirstOrDefault(n => ReferenceEquals(n.Entry, entry) && n.AggregatedCount == 0 && !entry.IsDeleted);
+        if (visible is not null)
+        {
+            if (highlight) SelectedNode = visible;
+            return visible;
+        }
+        var viewRoot = entry.Parent ?? (entry.IsDirectory ? entry : null);
+        if (viewRoot is null || entry.IsDeleted) return null;
 
         if (viewRoot != CurrentRoot)
         {
@@ -466,7 +474,7 @@ public partial class TreemapViewModel : ObservableObject
         }
 
         // 在重算后的布局里定位目标节点。
-        var target = Nodes?.FirstOrDefault(n => n.Entry.Path.Equals(entry.Path, StringComparison.OrdinalIgnoreCase));
+        var target = Nodes?.FirstOrDefault(n => ReferenceEquals(n.Entry, entry) && n.AggregatedCount == 0);
         if (target is not null && highlight)
             SelectedNode = target;
         return target;
@@ -517,7 +525,7 @@ public partial class TreemapViewModel : ObservableObject
             return;
         }
 
-        var nodes = _layoutEngine.ComputeLayout(CurrentRoot, ViewWidth, ViewHeight, maxDepth: LayoutDepth, zoom: Zoom);
+        var nodes = ComputeFocusLayout(CurrentRoot, ViewWidth, ViewHeight, LayoutDepth, Zoom, _focusLayoutEntry);
         _colorContext?.Apply(nodes);
         Nodes = nodes;
     }

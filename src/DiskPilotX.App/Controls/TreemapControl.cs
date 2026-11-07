@@ -13,7 +13,7 @@ using DiskPilotX.Core.Services.Treemap;
 
 namespace DiskPilotX.App.Controls;
 
-public class TreemapControl : SKElement
+public partial class TreemapControl : SKElement
 {
     private const string TreemapGlyphProbe = "中文";
 
@@ -143,8 +143,10 @@ public class TreemapControl : SKElement
                 _multiSelection.Clear();
                 foreach (var node in selection) _multiSelection.Add(node);
             }
+            RemapPingNode();
+            MultiSelectionChanged?.Invoke(this, EventArgs.Empty);
             ClearHover();
-            ApplyZoomAnchor();
+            if (!IsFocusAnimating) ApplyZoomAnchor();
             UpdateSemanticTitles();
             if (_pointerInside && !_isPanning) HandleHover(_hoverPosition);
             InvalidateVisual();
@@ -186,7 +188,9 @@ public class TreemapControl : SKElement
         _scanRoot = scanRoot;
         if (scanChanged) RefreshDeletionMarks();
         if (ReferenceEquals(root, _viewRoot)) return;
+        if (!_focusLevelChanging) InterruptFocus();
         _viewRoot = root;
+        _pingEntry = null; _pingNode = null;
         SelectedNode = null;
         ClearMultiSelection();
         _semanticTitles.Clear();
@@ -204,6 +208,7 @@ public class TreemapControl : SKElement
     {
         Focusable = true;
         PaintSurface += OnPaintSurface;
+        _pingTimer.Tick += (_, _) => UpdatePingHighlight();
         _detailTimer.Tick += (_, _) => { _detailTimer.Stop(); InvalidateVisual(); };
         _titleTimer.Tick += (_, _) => { if (!_semanticTitles.Animating) _titleTimer.Stop(); InvalidateVisual(); };
 
@@ -228,6 +233,7 @@ public class TreemapControl : SKElement
         };
         Unloaded += (_, _) =>
         {
+            CancelFocusAnimation();
             ClearHover(); _detailTimer.Stop(); _titleTimer.Stop();
             _rasterRequest?.Cancel();
             _baseImage?.Dispose(); _baseImage = null;
@@ -264,11 +270,16 @@ public class TreemapControl : SKElement
         canvas.ClipPath(clipPath);
 
         // 视口变换：screen = logical * zoom + pan。cell 规格（标题栏/字号/边框）由布局按 zoom 折算，屏幕上恒定。
+        canvas.Save();
         canvas.Translate(_panX, _panY);
         canvas.Scale(_zoom);
 
         if (_nodes is null || _nodes.Count == 0)
+        {
+            canvas.Restore();
+            DrawFocusTransition(canvas);
             return;
+        }
 
         using var textPaint = new SKPaint
         {
@@ -328,6 +339,10 @@ public class TreemapControl : SKElement
             else if (node.AggregatedCount == 0 && deletionHints.Contains(node.Entry))
                 DrawDeletionHint(canvas, node);
         }
+        if (_pingNode is { Entry.IsDeleted: false } ping && _nodes?.Contains(ping) == true)
+            DrawPingOutline(canvas, ping);
+        canvas.Restore();
+        DrawFocusTransition(canvas);
 
     }
 
@@ -647,6 +662,7 @@ public class TreemapControl : SKElement
     {
         base.OnMouseLeftButtonDown(e);
         Focus();
+        InterruptFocus();
         HandleLeftPress(e.GetPosition(this), e.ClickCount, Keyboard.Modifiers.HasFlag(ModifierKeys.Control));
         CaptureMouse();
         e.Handled = true;
@@ -699,7 +715,12 @@ public class TreemapControl : SKElement
         _toolTipTimer.Stop();
         _toolTip.IsOpen = false;
         var node = HitTest(position.X, position.Y);
-        if (node is null) return;
+        InterruptFocus();
+        if (node is null)
+        {
+            SelectedNode = null; ClearMultiSelection();
+            return;
+        }
 
         if (ctrlHeld)
         {
@@ -709,8 +730,7 @@ public class TreemapControl : SKElement
         }
 
         // 普通单击：选中（不钻取）。
-        if (!_multiSelection.Contains(node))
-            ClearMultiSelection();
+        ClearMultiSelection();
         SelectedNode = node;
         NodeClicked?.Invoke(this, node);
 
@@ -729,10 +749,14 @@ public class TreemapControl : SKElement
 
     private void ToggleMultiSelection(TreemapNode node)
     {
+        if (_multiSelection.Count == 0 && SelectedNode is { } current && current != node && _nodes?.Contains(current) == true)
+            _multiSelection.Add(current);
         if (_multiSelection.Contains(node))
             _multiSelection.Remove(node);
         else
             _multiSelection.Add(node);
+        SelectedNode = _multiSelection.Contains(node) ? node : _multiSelection.LastOrDefault();
+        if (SelectedNode is { } selected) NodeClicked?.Invoke(this, selected);
         MultiSelectionChanged?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
     }
@@ -789,6 +813,7 @@ public class TreemapControl : SKElement
     protected override void OnMouseWheel(MouseWheelEventArgs e)
     {
         base.OnMouseWheel(e);
+        InterruptFocus();
         var pos = e.GetPosition(this);
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
         {
@@ -838,7 +863,7 @@ public class TreemapControl : SKElement
             return;
         }
         // 缩小时不能因指针碰到另一目录而突然跳变到更小的适配上限。
-        float newZoom = Math.Clamp(_zoom * factor, MinZoom, factor > 1f ? Math.Max(_zoom, ceiling) : MaxZoom);
+        float newZoom = Math.Clamp(_zoom * factor, MinZoom, factor > 1f ? Math.Max(_zoom, ceiling) : Math.Max(_zoom, MaxZoom));
         if (Math.Abs(newZoom - _zoom) < 1e-6f) return;
 
         // 记录锚点：指针下的节点及其内部相对位置，LOD 重布局后对齐回来。
@@ -983,19 +1008,21 @@ public class TreemapControl : SKElement
         }
     }
 
-    /// <summary>始终把视口约束在地图内，1x 时平移归零。</summary>
+    /// <summary>把平移约束在地图内，1x 时平移归零；Ping 不额外放宽边界。</summary>
     private void ClampPan()
     {
         if (ActualWidth <= 0 || ActualHeight <= 0)
             return;
         float minX = (float)ActualWidth * (1f - _zoom);
         float minY = (float)ActualHeight * (1f - _zoom);
-        _panX = Math.Clamp(_panX, minX, 0f);
-        _panY = Math.Clamp(_panY, minY, 0f);
+        // 层级过渡可能暂时小于 1x；用户打断时允许在空余范围内平移，不能给 Clamp 反向上下界。
+        _panX = Math.Clamp(_panX, Math.Min(minX, 0f), Math.Max(minX, 0f));
+        _panY = Math.Clamp(_panY, Math.Min(minY, 0f), Math.Max(minY, 0f));
     }
 
     public void ResetView()
     {
+        InterruptFocus();
         _snapActive = false;
         if (_zoom != 1f || _panX != 0f || _panY != 0f)
         {
@@ -1010,6 +1037,7 @@ public class TreemapControl : SKElement
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        InterruptFocus();
         switch (e.Key)
         {
             case Key.Apps:
@@ -1159,11 +1187,13 @@ public class TreemapControl : SKElement
     /// <summary>真实右键与后台验收共用，空白不改变选择。</summary>
     internal void HandleContextMenu(Point position)
     {
+        InterruptFocus();
         var node = HitTest(position.X, position.Y);
         _toolTipTimer.Stop();
         _toolTip.IsOpen = false;
         if (node is not null)
         {
+            if (!_multiSelection.Contains(node)) ClearMultiSelection();
             SelectedNode = node;
             NodeClicked?.Invoke(this, node);
             NodeRightClicked?.Invoke(this, node);
@@ -1198,27 +1228,6 @@ public class TreemapControl : SKElement
         return lo == 0 ? null : string.Concat(name.AsSpan(0, starts[lo]), "...", suffix);
     }
 
-    /// <summary>
-    /// 将视图定位（focus）到指定节点并高亮。供 AI focus_path 与外部定位调用。
-    /// 布局已在 ViewModel 层完成导航/钻取，这里负责：清空视口缩放并高亮目标。
-    /// </summary>
-    public void FocusNode(TreemapNode node, bool highlight = true)
-    {
-        if (_nodes is null || !_nodes.Contains(node)) return;
-
-        // 复位视口缩放/平移，确保目标以 1:1 可见，并同步 LOD 级别。
-        _snapActive = false;
-        _zoom = 1f;
-        _panX = 0f;
-        _panY = 0f;
-        _zoomAnchorEntry = null;
-        ZoomChanged?.Invoke(this, _zoom);
-
-        if (highlight)
-        {
-            SelectedNode = node;
-            ClearMultiSelection();
-        }
-        InvalidateVisual();
-    }
+    /// <summary>以连续视口缓动定位并用独立橙框标出目标。</summary>
+    public void FocusNode(TreemapNode node, bool highlight = true) => _ = FocusNodeAsync(node, highlight);
 }

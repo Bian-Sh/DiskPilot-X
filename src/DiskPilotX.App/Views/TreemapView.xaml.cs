@@ -28,6 +28,7 @@ public partial class TreemapView : UserControl
     public Action<object?>? CloseContentModal { get; set; }
 
     public Func<FileEntry, Task>? DeleteEntryAsync { get; set; }
+    public Func<IReadOnlyList<FileEntry>, Task>? AddRecommendationsAsync { get; set; }
 
     public event Action<FileEntry>? AskAiRequested;
 
@@ -39,8 +40,10 @@ public partial class TreemapView : UserControl
     {
         get
         {
-            var selected = _viewModel?.MultiSelection ?? Array.Empty<TreemapNode>();
-            return CollapseToTopLevel(selected.Select(n => n.Entry).ToList());
+            var selected = Treemap.MultiSelection.Where(n => n.AggregatedCount == 0 && !n.Entry.IsDeleted).ToList();
+            if (selected.Count == 0 && Treemap.SelectedNode is { AggregatedCount: 0, Entry.IsDeleted: false } node)
+                selected.Add(node);
+            return CollapseToTopLevel(selected.Select(n => n.Entry).DistinctBy(e => e.Path, StringComparer.OrdinalIgnoreCase).ToList());
         }
     }
 
@@ -65,7 +68,14 @@ public partial class TreemapView : UserControl
         // 空状态覆盖层也能打开；限定树图容器，不接管窗口其他区域。
         TreemapContainer.MouseRightButtonUp += (_, e) => { OpenDepthMenu(); e.Handled = true; };
         // 事件只绑定一次，替换 ViewModel 不累积旧委托。
-        Treemap.MultiSelectionChanged += (_, _) => _viewModel?.SetMultiSelection(Treemap.MultiSelection.ToList());
+        Treemap.MultiSelectionChanged += (_, _) =>
+        {
+            _viewModel?.SetMultiSelection(Treemap.MultiSelection.ToList());
+            SelectionBadge.Visibility = Treemap.MultiSelection.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+            SelectionBadgeText.Text = $"已选择 {Treemap.MultiSelection.Count} 项 · Ctrl+单击增减";
+        };
+        Treemap.FocusInterrupted += (_, _) => { _focusRequest?.Cancel(); _viewModel?.SetFocusLayoutEntry(null); };
+        Unloaded += (_, _) => _focusRequest?.Cancel();
         Treemap.ZoomChanged += (_, zoom) => { if (_viewModel is { } vm) _ = vm.RequestZoomAsync(zoom); };
         Treemap.RootNavigationRequested += (_, entry) => _viewModel?.NavigateToEntry(entry);
 
@@ -173,9 +183,8 @@ public partial class TreemapView : UserControl
     /// <summary>定位到指定路径并高亮，供 AI focus_path 调用。返回是否命中。</summary>
     public bool FocusPath(string path, bool highlight)
     {
-        var node = _viewModel?.FocusPath(path, highlight);
-        if (node is null) return false;
-        Treemap.FocusNode(node, highlight);
+        if (_viewModel?.FindFocusEntry(path) is null) return false;
+        _ = FocusPathAsync(path, highlight);
         return true;
     }
 
@@ -215,6 +224,13 @@ public partial class TreemapView : UserControl
         if (node.AggregatedCount > 0)
         {
             var deletion = menu.Items.OfType<MenuItem>().Single(item => Equals(item.Header, L.Text("DeleteEntryMenu")));
+            foreach (var action in menu.Items.OfType<MenuItem>().Where(item =>
+                item.Header?.ToString()?.Contains("加入推荐清理") == true))
+            {
+                action.IsEnabled = false;
+                action.ToolTip = "聚合块不是独立文件或文件夹，请进入目录后选择具体项目。";
+                ToolTipService.SetShowOnDisabled(action, true);
+            }
             deletion.IsEnabled = false;
             deletion.ToolTip = "聚合块不是独立文件或文件夹，请进入目录后选择具体项目。";
             ToolTipService.SetShowOnDisabled(deletion, true);
@@ -230,6 +246,19 @@ public partial class TreemapView : UserControl
             contextMenu.Items.Add(BuildDisplayDepthMenu(contextMenu));
             return contextMenu;
         }
+
+        // 右键成员资格看原始集合；父子折叠仅决定操作目标，不能误判已选子项而丢掉其他选择。
+        bool selected = Treemap.MultiSelection.Any(n => ReferenceEquals(n.Entry, entry));
+        IReadOnlyList<FileEntry> selection = selected ? ReferencedEntries : new[] { entry };
+        if (selection.Count == 0) selection = [entry];
+        var addItem = new MenuItem
+        {
+            Header = selection.Count > 1 ? $"将 {selection.Count} 项加入推荐清理" : "加入推荐清理",
+            IsEnabled = AddRecommendationsAsync is not null && selection.All(e => !e.IsDeleted)
+        };
+        addItem.Click += async (_, _) => { if (AddRecommendationsAsync is not null) await AddRecommendationsAsync(selection); };
+        contextMenu.Items.Add(addItem);
+        contextMenu.Items.Add(new Separator());
 
         // 多选非空时提供「引用到对话框」。
         if (ReferencedEntries.Count > 1)
@@ -419,6 +448,9 @@ public partial class TreemapView : UserControl
 
     private void Treemap_SizeChanged(object sender, SizeChangedEventArgs e)
     {
+        // 首次 Arrange 的延迟事件可能与后台准备交错；尺寸未变时不要作废稳定布局。
+        if (_viewModel is { } vm && vm.ViewWidth == (float)e.NewSize.Width
+            && vm.ViewHeight == (float)e.NewSize.Height) return;
         _viewModel?.UpdateSize((float)e.NewSize.Width, (float)e.NewSize.Height);
     }
 }

@@ -84,6 +84,13 @@
                                          NodeRightClicked="Treemap_NodeRightClicked"
                                          SizeChanged="Treemap_SizeChanged" />
 
+                <!-- 多选提示不接管指针，也不改变地图的可视预算。 -->
+                <Border x:Name="SelectionBadge" Visibility="Collapsed" IsHitTestVisible="False"
+                        HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12"
+                        Padding="10,6" CornerRadius="6" Background="{DynamicResource VP.BackgroundAltBrush}">
+                    <TextBlock x:Name="SelectionBadgeText" Foreground="{DynamicResource VP.TextPrimaryBrush}" FontSize="12" />
+                </Border>
+
                 <!-- Empty state: text overlay on canvas, no background panel -->
                 <StackPanel x:Name="EmptyStatePanel"
                             VerticalAlignment="Center"

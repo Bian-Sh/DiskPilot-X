@@ -6,7 +6,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
 {
     // 布局坐标保持真实层级；屏幕预算决定装饰和小于像素的同父尾部，而不是按目录面积截断文件。
     private static float Spec(float screenPx, float zoom) => screenPx / Math.Max(zoom, 1e-6f);
-    private readonly record struct LayoutBudget(float ViewportArea);
+    private readonly record struct LayoutBudget(float ViewportArea, FileEntry? FocusEntry = null);
 
     // 目录（含标题栏区域）使用中性深灰，不做彩色编码；仅文件 cell 按类型上色。
     private const string DirectoryColor = "#303030";
@@ -45,7 +45,14 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         public double ShorterSide => Math.Min(Width, Height);
     }
 
-    public List<TreemapNode> ComputeLayout(FileEntry root, float width, float height, int maxDepth, float zoom = 1f)
+    public List<TreemapNode> ComputeLayout(FileEntry root, float width, float height, int maxDepth, float zoom = 1f) =>
+        ComputeLayoutCore(root, width, height, maxDepth, zoom, null);
+
+    /// <summary>Ping 仅将指定真实实体从同父长尾中展开，不改字节比例，也不把聚合块冒充文件。</summary>
+    public List<TreemapNode> ComputeFocusedLayout(FileEntry root, float width, float height, int maxDepth, float zoom, FileEntry focus) =>
+        ComputeLayoutCore(root, width, height, maxDepth, zoom, focus);
+
+    private List<TreemapNode> ComputeLayoutCore(FileEntry root, float width, float height, int maxDepth, float zoom, FileEntry? focus)
     {
         var result = new List<TreemapNode>();
 
@@ -58,7 +65,7 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
         // 固定预留外描边空间（屏幕像素恒定），选中时无需缩小或重排任何 cell。
         float rootPad = Spec(2f, zoom);
         var rootRect = new Rect(rootPad, rootPad, width - rootPad * 2, height - rootPad * 2);
-        EmitDirectoryNode(root, rootRect, 0, effectiveMaxDepth, zoom, result, new(width * height));
+        EmitDirectoryNode(root, rootRect, 0, effectiveMaxDepth, zoom, result, new(width * height, focus));
 
         return result;
     }
@@ -132,9 +139,13 @@ public class SquarifiedTreemapLayout : ITreemapLayoutEngine
             // 测试和外部构造的树可能未设置 Parent；不虚构路径或跨父目录合并。
             if (parent is not null && items.Skip(tailStart).All(i => ReferenceEquals(i.Entry.Parent, parent)))
             {
-                var tail = items.Skip(tailStart).ToArray();
-                items = items.Take(tailStart).Append(new LayoutItem(parent, tail.Sum(i => i.Size), tail.Length))
-                    .OrderByDescending(i => i.Size).ToList();
+                var tail = items.Skip(tailStart).Where(item => !ReferenceEquals(item.Entry, budget.FocusEntry)).ToArray();
+                if (tail.Length > 1)
+                {
+                    var focused = items.Skip(tailStart).Where(item => ReferenceEquals(item.Entry, budget.FocusEntry));
+                    items = items.Take(tailStart).Concat(focused).Append(new LayoutItem(parent, tail.Sum(i => i.Size), tail.Length))
+                        .OrderByDescending(i => i.Size).ToList();
+                }
             }
         }
 

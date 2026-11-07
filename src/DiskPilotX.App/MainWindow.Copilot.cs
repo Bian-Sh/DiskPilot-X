@@ -101,7 +101,7 @@ public partial class MainWindow
                 if(main.CurrentSession is null || string.IsNullOrWhiteSpace(target)||Hidden(target)
                     ||App.Services!.GetRequiredService<IFileTreeQueryService>().FindByPath(main.CurrentSession,target) is null) return AssistantError("路径未扫描或不允许 AI 访问。");
                 SetAssistantView("treemap");
-                bool hit = TreemapView.FocusPath(target, highlight);
+                bool hit = await TreemapView.FocusPathAsync(target, highlight);
                 return hit
                     ? new JsonObject{["ok"]=true,["path"]=target,["focus_path"]=_treemapViewModel?.SelectedNode?.Entry.Path ?? target,["current_path"]=_treemapViewModel?.CurrentRoot?.Path}
                     : AssistantError("无法在地图上定位该路径。");
