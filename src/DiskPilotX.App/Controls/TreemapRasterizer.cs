@@ -9,12 +9,12 @@ internal static class TreemapRasterizer
 {
     internal sealed record Frame(SKImage Image, int Nodes, int Labels);
     internal static Frame Render(TreemapNode[] nodes, int width, int height, float dpiX, float dpiY,
-        float zoom, float panX, float panY, CancellationToken token)
+        float zoom, float panX, float panY, CancellationToken token, bool drawFileLabels = true)
     {
         using var surface = SKSurface.Create(new SKImageInfo(width, height));
         var canvas = surface.Canvas; canvas.Clear(SKColor.Parse("#1B2430"));
         canvas.Scale(dpiX, dpiY); canvas.Translate(panX, panY); canvas.Scale(zoom);
-        int labels = Draw(canvas, nodes, zoom, token, true);
+        int labels = Draw(canvas, nodes, zoom, token, true, drawFileLabels);
         return new(surface.Snapshot(), nodes.Length, labels);
     }
 
@@ -22,7 +22,7 @@ internal static class TreemapRasterizer
     internal static void DrawGeometry(SKCanvas canvas, TreemapNode[] nodes, float zoom) =>
         Draw(canvas, nodes, zoom, CancellationToken.None, false);
 
-    private static int Draw(SKCanvas canvas, TreemapNode[] nodes, float zoom, CancellationToken token, bool drawLabels)
+    private static int Draw(SKCanvas canvas, TreemapNode[] nodes, float zoom, CancellationToken token, bool drawLabels, bool drawFileLabels = true)
     {
         using var fill = new SKPaint { IsAntialias = false };
         using var border = new SKPaint { Style = SKPaintStyle.Stroke, IsAntialias = false };
@@ -79,7 +79,7 @@ internal static class TreemapRasterizer
                 fill.Shader=shader;canvas.DrawRect(rect,fill);fill.Shader=null;
                 border.Color=Darken(color,.14f);border.StrokeWidth=Spec(.5f);
                 var frame=rect;frame.Inflate(-Spec(.25f),-Spec(.25f));if(detailed)canvas.DrawRect(frame,border);
-                if (n.Label is not null && drawLabels)
+                if (n.Label is not null && drawLabels && drawFileLabels)
                 {
                     // 文字属于文件自身的可见交集，不能因左上角移出视口就整行消失。
                     var clip = canvas.LocalClipBounds;

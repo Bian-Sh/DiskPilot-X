@@ -17,6 +17,11 @@ public class TreemapControl : SKElement
 {
     private const string TreemapGlyphProbe = "中文";
 
+    private const float DeletedOutlineScreenWidth = 1f;
+    private TreemapNode? _pingNode;
+    private readonly DispatcherTimer _pingTimer = new() { Interval = TimeSpan.FromMilliseconds(900) };
+    internal FileEntry? PingedEntry => _pingNode?.Entry;
+
     private const float MinZoom = 1f;
     private const float MaxZoom = 8f;
     private const float DragThreshold = 4f;
@@ -123,6 +128,7 @@ public class TreemapControl : SKElement
         set
         {
             bool sameTree = _nodes?.FirstOrDefault()?.Entry is { } oldRoot && ReferenceEquals(oldRoot, value?.FirstOrDefault()?.Entry);
+            _pingNode = null; _pingTimer.Stop();
             if (!sameTree) { SelectedNode = null; ClearMultiSelection(); }
             _nodes = value;
             _scene = value is null ? null : TreemapSceneIndex.Prepare(value);
@@ -204,6 +210,7 @@ public class TreemapControl : SKElement
     {
         Focusable = true;
         PaintSurface += OnPaintSurface;
+        _pingTimer.Tick += (_, _) => { _pingTimer.Stop(); _pingNode = null; InvalidateVisual(); };
         _detailTimer.Tick += (_, _) => { _detailTimer.Stop(); InvalidateVisual(); };
         _titleTimer.Tick += (_, _) => { if (!_semanticTitles.Animating) _titleTimer.Stop(); InvalidateVisual(); };
 
@@ -228,7 +235,7 @@ public class TreemapControl : SKElement
         };
         Unloaded += (_, _) =>
         {
-            ClearHover(); _detailTimer.Stop(); _titleTimer.Stop();
+            ClearHover(); _detailTimer.Stop(); _titleTimer.Stop(); _pingTimer.Stop(); _pingNode = null;
             _rasterRequest?.Cancel();
             _baseImage?.Dispose(); _baseImage = null;
         };
@@ -288,7 +295,7 @@ public class TreemapControl : SKElement
                 RequestRaster(sortedNodes, e.Info.Width, e.Info.Height, dpiScaleX, dpiScaleY);
             else
                 InstallRaster(TreemapRasterizer.Render(sortedNodes, e.Info.Width, e.Info.Height, dpiScaleX, dpiScaleY,
-                    _zoom, _panX, _panY, CancellationToken.None), e.Info.Width, e.Info.Height, _sceneRevision, _zoom, _panX, _panY);
+                    _zoom, _panX, _panY, CancellationToken.None, false), e.Info.Width, e.Info.Height, _sceneRevision, _zoom, _panX, _panY);
         }
         // 同步安装可能刚替换底图；异步未完成时，旧根/旧场景底图不能充当新场景内容。
         bool usableRaster = _baseImage is not null && _cachedRevision == _sceneRevision
@@ -309,7 +316,10 @@ public class TreemapControl : SKElement
         RenderedNodeCount = usableRaster ? _cachedNodeCount : GeometryFallbackNodeCount;
         RenderedLabelCount = usableRaster ? _cachedLabelCount : 0;
         DrawPointerLight(canvas, sortedNodes);
+        // 按用户要求恢复状态框置顶；标题先画，Selected粗框/Deleted细框再覆盖其边界。
+        DrawFileTitles(canvas, sortedNodes);
         DrawSemanticTitles(canvas, textPaint);
+
 
         // 多选集合先画纯白描边（除当前选中焦点外）。
         foreach (var node in _multiSelection)
@@ -324,10 +334,12 @@ public class TreemapControl : SKElement
         var deletionHints = GetDeletionHintEntries();
         if (_deletedEntries is { Count: > 0 }) foreach (var node in sortedNodes)
         {
-            if (node.Entry.IsDeleted) DrawOutline(canvas, node, Spec(2.5f), DeletedColor);
+            if (node.Entry.IsDeleted) DrawOutline(canvas, node, Spec(DeletedOutlineScreenWidth), DeletedColor);
             else if (node.AggregatedCount == 0 && deletionHints.Contains(node.Entry))
                 DrawDeletionHint(canvas, node);
         }
+
+        if (_pingNode is not null) DrawOutline(canvas, _pingNode, Spec(2f), new SKColor(129, 193, 229));
 
     }
 
@@ -392,7 +404,7 @@ public class TreemapControl : SKElement
             try
             {
                 await _rasterWorker.WaitAsync(source.Token);
-                try { frame = await Task.Run(() => TreemapRasterizer.Render(nodes,width,height,dpiX,dpiY,zoom,panX,panY,source.Token),source.Token); }
+                try { frame = await Task.Run(() => TreemapRasterizer.Render(nodes,width,height,dpiX,dpiY,zoom,panX,panY,source.Token,false),source.Token); }
                 finally { _rasterWorker.Release(); }
                 await Dispatcher.InvokeAsync(() =>
                 {
@@ -447,8 +459,7 @@ public class TreemapControl : SKElement
         {
             byte alpha = (byte)Math.Clamp(title.Opacity * 255, 0, 255);
             paint.Color = new SKColor(48, 48, 48, alpha); canvas.DrawRect(title.Rect, paint);
-            var label = FormatLabel(title.Node.Entry.Name, title.Node.SizeLabel ?? FileSizeConverter.FormatSize(title.Node.Entry.Size), font, title.Rect.Width - 8);
-            if (label is null) continue;
+            var label = FormatRetainedTitleLabel(title.Node.Entry.Name, title.Node.SizeLabel ?? FileSizeConverter.FormatSize(title.Node.Entry.Size), font, title.Rect.Width - 8);
             paint.IsAntialias = true; paint.Color = new SKColor(245, 247, 250, alpha);
             // 文字与底图采用相同基线，并严格限制在自身标题条，避免下伸字形跨行。
             canvas.Save(); canvas.ClipRect(title.Rect, SKClipOperation.Intersect, false);
@@ -578,6 +589,10 @@ public class TreemapControl : SKElement
     private void DrawDeletionHint(SKCanvas canvas, TreemapNode node)
     {
         var rect = NodeRect(node);
+        // 承接角标属于内容状态，避开当前标题区域，不被标题盖住也不压住标题文字。
+        var title = _semanticTitles.Current.LastOrDefault(t => ReferenceEquals(t.Node.Entry, node.Entry));
+        if (title is not null) rect.Top = Math.Max(rect.Top, (title.Rect.Bottom - _panY) / _zoom);
+        if (rect.Height <= 0) return;
         float side = Math.Min(Spec(8f), Math.Min(rect.Width, rect.Height));
         using var corner = new SKPath();
         corner.MoveTo(rect.Right - side, rect.Top);
@@ -1202,6 +1217,53 @@ public class TreemapControl : SKElement
     /// 将视图定位（focus）到指定节点并高亮。供 AI focus_path 与外部定位调用。
     /// 布局已在 ViewModel 层完成导航/钻取，这里负责：清空视口缩放并高亮目标。
     /// </summary>
+    internal static string FormatRetainedTitleLabel(string name, string size, SKFont font, float maxWidth) =>
+        FormatLabel(name, size, font, maxWidth) ?? (string.IsNullOrEmpty(name) ? "…" : name);
+
+    internal static SKRect? GetFileTitleRect(TreemapNode node, float zoom, float panX, float panY, float width, float height)
+    {
+        if (node.Label is null || node.Entry.IsDirectory && node.AggregatedCount == 0
+            || !TreemapLabelPolicy.ShowFileLabel(node.Width, node.Height, zoom)) return null;
+        float left = Math.Max(0, node.X * zoom + panX), top = Math.Max(0, node.Y * zoom + panY);
+        float right = Math.Min(width, (node.X + node.Width) * zoom + panX);
+        float bottom = Math.Min(height, (node.Y + node.Height) * zoom + panY);
+        return right > left && bottom > top ? new SKRect(left, top, right, Math.Min(bottom, top + 16)) : null;
+    }
+
+    private void DrawFileTitles(SKCanvas canvas, IEnumerable<TreemapNode> nodes)
+    {
+        canvas.Save(); canvas.ResetMatrix(); canvas.Scale(_pixelScaleX, _pixelScaleY);
+        using var font = CreateTreemapFont(TreemapLabelPolicy.FileLabelFontSize);
+        using var paint = new SKPaint { IsAntialias = true };
+        foreach (var node in nodes)
+        {
+            if (GetFileTitleRect(node, _zoom, _panX, _panY, (float)ActualWidth, (float)ActualHeight) is not { } rect) continue;
+            var color = SKColor.Parse(node.ColorHex);
+            paint.Color = .299f * color.Red + .587f * color.Green + .114f * color.Blue >= 150
+                ? new SKColor(26, 30, 40) : new SKColor(245, 247, 250);
+            var label = FormatRetainedTitleLabel(node.Label!, node.SizeLabel ?? FileSizeConverter.FormatSize(node.AggregatedSize ?? node.Entry.Size), font, rect.Width - 6);
+            canvas.Save(); canvas.ClipRect(rect, SKClipOperation.Intersect, false);
+            canvas.DrawText(label, rect.Left + 3, rect.Top + 11, SKTextAlign.Left, font, paint);
+            canvas.Restore(); RenderedLabelCount++;
+        }
+        canvas.Restore();
+    }
+
+    /// <summary>只提示已有 cell；不钻取目录、不改选择，不用旧树节点替代当前节点。</summary>
+    public bool PingEntry(FileEntry entry)
+    {
+        var node = _nodes?.FirstOrDefault(n => n.IsVisible && n.AggregatedCount == 0 && ReferenceEquals(n.Entry, entry));
+        if (node is null) return false;
+        // 只平移到目标可见位置，保持当前缩放、目录根和选择集合。
+        float left = node.X * _zoom + _panX, top = node.Y * _zoom + _panY;
+        float right = left + node.Width * _zoom, bottom = top + node.Height * _zoom;
+        if (right <= 0 || left >= ActualWidth) _panX += (float)ActualWidth / 2 - (left + right) / 2;
+        if (bottom <= 0 || top >= ActualHeight) _panY += (float)ActualHeight / 2 - (top + bottom) / 2;
+        ClampPan(); MarkViewportInput();
+        _pingNode = node; _pingTimer.Stop(); _pingTimer.Start(); InvalidateVisual();
+        return true;
+    }
+
     public void FocusNode(TreemapNode node, bool highlight = true)
     {
         if (_nodes is null || !_nodes.Contains(node)) return;
