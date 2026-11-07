@@ -1,0 +1,496 @@
+schema: comet.native.v4
+name: treemap-selection-ping-20261107
+language: zh-CN
+phase: verify
+status: await-user
+state_version: 41
+brief: brief.md
+document_constraints_version: 3
+shape_confirmation_hash: 1dd0b5345a4a3cc4d544d1da0430421ae83bd15ce701747f27597ee003cbba22
+spec_changes:
+  - capability: treemap-selection-ping
+    operation: create
+    source: specs/treemap-selection-ping/spec.md
+workspace:
+  isolation: current
+  change_branch: codex/treemap-selection-ping-20261107
+  target_branch: codex/treemap-selection-ping-20261107
+  finish: null
+loop:
+  stage: await-user
+  goal_cycle: 5
+  iteration: 1
+  attempt: 1
+  retry_epoch: 0
+  failed_iteration_count: 0
+  no_progress_count: 0
+  execution_failure_count: 0
+  previous_unresolved_ids: []
+  next_action: confirm-skill-coordinated-pass
+acceptance:
+  - id: A1
+    source: brief.md
+    text: 普通点击单选；Ctrl 点击在首次单选基础上增减多选；右键已选项保留集合，右键未选项切换目标；拖动不能误选，选择状态和数量可见。
+    result: passed
+    reason:
+      text: 实际点击/Ctrl/右键成员资格和拖动阈值路径、当前Treemap选择及拖动断言、未变行为的repair-single/repair-multi原始UI证据一致；多选描边与数量反馈保留。
+      truncated: false
+  - id: A2
+    source: brief.md
+    text: 右键支持将单项或多项加入推荐清理；重复路径和父子重叠不重复累计；保留旧建议和旧勾选，手动条目标明来源，添加不执行删除。Treemap
+      右键不再显示定位（Ping）调试按钮，推荐列表与对话引用的定位功能保持。
+    result: passed
+    reason:
+      text: 手动追加保留旧建议对象及勾选，去重父子重叠、标注手动来源、默认不勾选且不删除，现代码/ManualRecommendationsTests及新recommendations.json匹配；实际BuildContextMenu和menu.json已无Ping调试项。“定位文件”是保留的资源管理器动作。推荐UIA前后zoom从1到22.077143并选中同一079.bin，推荐/对话focus_path共享定位能力仍接线。
+      truncated: false
+  - id: A3
+    source: brief.md
+    text: 仅添加当前扫描内真实、未删除、非聚合 IOEntity；不伪造 AI 风险评估或绕过原清理确认、安全保护和来源校验。
+    result: passed
+    reason:
+      text: 准入逐项核对真实扫描实体引用、已删除/取消状态，聚合菜单禁用，同根另一扫描在注册前拒绝；保留原CleanupPlan、来源和安全复核及确认，手动追加未伪造AI评估。当前候选全套覆盖整批拒绝与同根扫描保护。
+      truncated: false
+  - id: A4
+    source: brief.md
+    text: AI 忙碌时右键删除点击后显示约 5 秒
+      toast，说明正在查看文件、避免文件变化影响判断及回复结束后可重试；不静默返回、不弹阻断对话框，也不执行删除。
+    result: passed
+    reason:
+      text: 共享DeleteEntryAsync首句忙碌提示后返回，不删除、不弹模态；现中文文案包含查看文件、避免变化及回复结束后重试，非命中toast计时5秒。复用未变实现的repair-busy-toast-state/repair-toast-dismissed实图和当前BusyOperationToastTests。
+      truncated: false
+  - id: A5
+    source: brief.md
+    text: "Ping 存在的文件或目录用 #FEA400 橙色独立描边；在最终视野动画和布局更新完成后，前约 80
+      毫秒快速压实亮起边框，再由边框向外轻微扩散光晕并衰减，总长约 800 毫秒。不得周期闪烁、抖动视野或改变真实 cell
+      面积；结束释放提示状态，不遗留常驻橙框。后续 Ping、用户操作或控件卸载取消旧提示；不存在或不可定位时明确提示，普通白色选择与 Ping
+      高亮区分。地图边缘允许橙框与光晕自然裁剪，不强求完整显示。"
+    result: passed
+    reason:
+      text: 真实PingColor为FEA400；80ms压实与720ms扩散衰减公式/像素断言、highlight/spread/dismissed实图一致。原始50采样无提前亮框，814ms可见区间，opacity不回升且停稳视口不动；末尾与missing-cancel清除旧提示。取消、新Ping、卸载、普通白框及真实面积均由当前实现/回归支持。
+      truncated: false
+  - id: A6
+    source: brief.md
+    text: Ping
+      太小则放大、太大则缩小，目标尽可能进入可视区域；恢复原地图边界钳制，不为提示留白而越过地图边界。已有合适位置不强制居中；层级外目标切换到可展示层级。
+    result: passed
+    reason:
+      text: 现视口计算/回归支持小放大、大缩小、合适位置不强制居中、层级外真实目标及细长可见预算。新包目标最终32.000023x87.59845DIP、22.077143x进入视口；全部50原始采样原边界违规为0，边缘自然裁剪不额外留白。
+      truncated: false
+  - id: A7
+    source: brief.md
+    text: Ping
+      的平移、缩放和层级改变保持缓动连续视野追踪；普通定位开始前使用目标倍率的稳定布局和原地图钳制计算真实落点，避免到达后再重布局并启动第二段拉回。后台准备期间保留当前画面，布局接管保持视觉连续；目标接近方向不因布局提交反向回摆。动画可被手动操作或后续
+      Ping 打断，异步布局完成后仍指向正确实体，不回弹到过期目标。
+    result: passed
+    reason:
+      text: 动画前后台收敛最终布局并仅提交一次，准备保留旧截图、接管交叠缓动，稳定路径完成后不发ZoomChanged重排；相同尺寸事件直接返回。独立原始帧计算50点几何唯一/Commits=1，49放大后采样无反向回摆，停稳至2818ms无二次移动；真实布局与准备失败/外部取消/新Ping/层级断言在当前全套中通过。
+      truncated: false
+  - id: A8
+    source: brief.md
+    text: 全部相关测试通过；在非提权完整文件夹发布环境用应用窗口 UI 验收选择、推荐、toast、平滑定位和源码规则编译/安全执行。
+    result: passed
+    reason:
+      text: 复用并独立读回本候选Runtime App832通过1既有跳过/Core888通过/package
+        exit0，无重复全套。现完整非提权包进程路径、后台CUA扫描及推荐前后状态匹配；未变选择/推荐/toast复用前轮有效UI。真实包源码probe验证、digest授权只读发现两个目录/两列表格，并返回错误源码CS1519行列诊断；不假称实际删除、原生遮挡坐标或提权UI成功。
+      truncated: false
+  - id: A9
+    source: brief.md
+    text: 主仓库 outputs 下生成可读时间命名的测试包和用户交付包；实际 EXE 清单分别 asInvoker 与
+      requireAdministrator，保留运行时 DLL、Core DLL 和 skills，不生成 ZIP。
+    result: passed
+    reason:
+      text: 独立读回主outputs当前双包EXE实际RT_MANIFEST为asInvoker/requireAdministrator，SHA256与发布记录匹配；来源指定worktree/codex分支/02e66a6基础且含未提交改动。每包453文件、19skills，运行时/Core/skills齐全、无ZIP；App/Core/TinyHarness
+        IL、异常区及资源比较一致，其他444文件哈希一致。未运行交付包UAC。
+      truncated: false
+builder_handoff:
+  candidate_id: ad463d49-6c01-4ac2-8347-af5c21e3c8db
+  identity_provider: skill-coordinated
+  builder_execution_ref: skill-coordinated:builder:df8de047-2aee-4907-b3b6-ba1a9151e320
+  iteration: 1
+  summary:
+    text: 按已确认要求，普通Ping先后台收敛最终LOD布局，只提交一次稳定几何，再按原地图边界计算真实落点并一次缓动追踪，到达后不再重排或二次拉回；删除Treemap右键Ping调试入口，其他定位保留。修复相同尺寸延迟事件作废准备与取消截图残留。228项聚焦回归通过，新双包49帧稳定几何/单提交/无反向回摆，约22.08x和32DIP，冲击814ms，真实CUA/源码/清单/程序集/skills证据完整。
+    truncated: false
+  addressed_acceptance_ids:
+    - A1
+    - A2
+    - A3
+    - A4
+    - A5
+    - A6
+    - A7
+    - A8
+    - A9
+  acceptance_review:
+    - id: A1
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.App/Controls/TreemapControl.cs
+        - tests/DiskPilotX.App.Tests/TreemapSelectionPingTests.cs
+        - work/treemap-selection-ping-20261107/ping-lifetime-tests/ping-final-green.trx
+        - work/treemap-selection-ping-20261107/ping-stable-final-focused.log
+      note: 多选规则及右键成员资格保持，相关回归已通过。
+    - id: A2
+      status: implemented-with-evidence
+      evidence:
+        - tests/DiskPilotX.App.Tests/TreemapPingTransitionTests.cs
+        - work/treemap-selection-ping-20261107/ping-stable-final-focused.log
+        - src/DiskPilotX.App/Views/TreemapView.xaml.cs
+        - tests/DiskPilotX.App.Tests/ManualRecommendationsTests.cs
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/recommendations.json
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/menu.json
+      note: 手动推荐保留原对象、勾选和真实扫描来源；实际菜单及测试不含Ping调试入口。正常资源管理器定位及推荐/引用定位保留。
+    - id: A3
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.App/MainWindow.RecommendationPublish.cs
+        - tests/DiskPilotX.App.Tests/ManualRecommendationsTests.cs
+        - work/treemap-selection-ping-20261107/same-root-green.log
+        - work/treemap-selection-ping-20261107/ping-stable-final-focused.log
+      note: 真实扫描、聚合/删除拒绝及版本保护沿用前轮已验证实现，无绕过授权或风险评估。
+    - id: A4
+      status: implemented-with-evidence
+      evidence:
+        - src/DiskPilotX.App/MainWindow.Notifications.cs
+        - tests/DiskPilotX.App.Tests/BusyOperationToastTests.cs
+        - work/treemap-selection-ping-20261107/acceptance/repair-busy-toast-state.json
+        - work/treemap-selection-ping-20261107/ping-stable-final-focused.log
+      note: 忙碌 toast 未改动，前轮真实 UI 证据保留；本候选全套回归覆盖。
+    - id: A5
+      status: implemented-with-evidence
+      evidence:
+        - tests/DiskPilotX.App.Tests/TreemapPingTransitionTests.cs
+        - work/treemap-selection-ping-20261107/ping-stable-final-focused.log
+        - src/DiskPilotX.App/Controls/TreemapControl.Focus.cs
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/frames.json
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/highlight.png
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/spread.png
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/dismissed.png
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/missing-cancel.json
+      note: FEA400停稳后冲击扩散约800ms，非周期闪烁，真实包可见采样814ms；提示结束、缺失目标、新请求与卸载释放，不改变普通选择与真实面积。
+    - id: A6
+      status: implemented-with-evidence
+      evidence:
+        - tests/DiskPilotX.App.Tests/TreemapPingTransitionTests.cs
+        - work/treemap-selection-ping-20261107/ping-stable-final-focused.log
+        - src/DiskPilotX.App/Controls/TreemapControl.Focus.cs
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/result.json
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/frames.json
+      note: 角落真实小文件充分放大至32DIP、约22.08x；计算与每帧遵守原边界，自然裁剪、不强制居中，大小及层级回归覆盖。
+    - id: A7
+      status: implemented-with-evidence
+      evidence:
+        - tests/DiskPilotX.App.Tests/TreemapPingTransitionTests.cs
+        - work/treemap-selection-ping-20261107/ping-stable-final-focused.log
+        - src/DiskPilotX.App/ViewModels/TreemapViewModel.Focus.cs
+        - src/DiskPilotX.App/Views/TreemapView.Focus.cs
+        - src/DiskPilotX.App/Controls/TreemapControl.Focus.cs
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/stable-trajectory.json
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/frames.json
+        - work/treemap-selection-ping-20261107/ping-stable-red.log
+        - work/treemap-selection-ping-20261107/ping-prepare-red.log
+        - work/treemap-selection-ping-20261107/ping-transition-cancel-red.log
+      note: 动画前准备稳定最终布局，旧截图覆盖准备并连续交叠；单次追踪不在到达后重排。真实放大49采样帧几何及Commits=1不变，目标接近无反向回摆；新目标及用户/外部取消不残留过渡图。
+    - id: A8
+      status: implemented-with-evidence
+      evidence:
+        - tests/DiskPilotX.App.Tests/TreemapPingTransitionTests.cs
+        - work/treemap-selection-ping-20261107/ping-stable-final-focused.log
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/source.json
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/process.json
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/cua-scan-click.json
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/cua-scan-after.json
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/cua-recommendation-state.json
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/result.json
+      note: 228聚焦检查通过，新包非提权后台CUA扫描与推荐路径定位，发布源码编译/授权只读执行2项/行列诊断通过；全套回归交给Runtime执行。
+    - id: A9
+      status: implemented-with-evidence
+      evidence:
+        - tests/DiskPilotX.App.Tests/TreemapPingTransitionTests.cs
+        - work/treemap-selection-ping-20261107/ping-stable-final-focused.log
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/assembly-equivalence.json
+        - work/treemap-selection-ping-20261107/ping-stable-acceptance/result.json
+        - scripts/publish-release.ps1
+      note: outputs/2026-11-08_02-05-01_Ping稳定落点与移除调试菜单
+        双文件夹包；实际asInvoker/requireAdministrator、运行时DLL/Core/skills完整，IL/异常区/资源及skills一致，无ZIP。
+  checks:
+    - name:
+        text: 已确认范围聚焦TDD
+        truncated: false
+      result: passed
+      note:
+        text: 真实布局/菜单与取消截图回归先RED，最终Treemap/手动推荐/忙碌toast共228通过
+        truncated: false
+    - name:
+        text: 新发布包逐帧/UI/源码/权限
+        truncated: false
+      result: passed
+      note:
+        text: 49放大帧稳定几何、单布局提交、无回摆、22.08x/32DIP、814ms冲击；CUA、缺失取消、源码授权只读、双清单和一致性通过
+        truncated: false
+  checks_truncated: false
+  known_limits:
+    - text: 未实际运行用户交付包 UAC 弹窗或提权后的 UI，只核对真实清单及包内容一致性。
+      truncated: false
+    - text: 真实 cell 保持面积；极端细长目标在视口预算内优先完整可见，短边低于像素时仅扩大提示框，不改变命中或文件面积。
+      truncated: false
+    - text: 无 Git 提交、合并、推送；保留本工作树及其他会话全部产物。
+      truncated: false
+  known_limits_truncated: false
+  review: null
+  submitted_at: 2026-11-07T18:11:03.893Z
+blockers:
+  - owner: user
+    reason:
+      text: The generic Skill bridge cannot prove an independent Verifier execution;
+        user confirmation is required before Archive.
+      truncated: false
+    acceptance_ids: []
+    resolution_action: await-user
+verification:
+  candidate_id: ad463d49-6c01-4ac2-8347-af5c21e3c8db
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:73ab0389-8497-4745-915e-47b5777c702c
+  iteration: 1
+  attempt: 1
+  assurance: skill-coordinated
+  verdict: pass
+  checks:
+    - id: app-ping-stable
+      name:
+        text: App 候选全套回归
+        truncated: false
+      argv_display:
+        - text: test
+          truncated: false
+        - text: tests/DiskPilotX.App.Tests/DiskPilotX.App.Tests.csproj
+          truncated: false
+        - text: --no-build
+          truncated: false
+        - text: --no-restore
+          truncated: false
+        - text: --verbosity
+          truncated: false
+        - text: quiet
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 70246
+    - id: core-ping-stable
+      name:
+        text: Core 全套回归
+        truncated: false
+      argv_display:
+        - text: test
+          truncated: false
+        - text: tests/DiskPilotX.Core.Tests/DiskPilotX.Core.Tests.csproj
+          truncated: false
+        - text: --no-build
+          truncated: false
+        - text: --no-restore
+          truncated: false
+        - text: --verbosity
+          truncated: false
+        - text: quiet
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 21143
+    - id: package-ping-stable
+      name:
+        text: 发布包与帧证据核验
+        truncated: false
+      argv_display:
+        - text: -NoProfile
+          truncated: false
+        - text: -File
+          truncated: false
+        - text: ./work/treemap-selection-ping-20261107/ping-lifetime-acceptance.ps1
+          truncated: false
+        - text: -FrameClamp
+          truncated: false
+        - text: -Stable
+          truncated: false
+        - text: 核验
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 959
+  summary:
+    text: 独立只读Verifier完成当前brief/spec、实际实现/回归断言、候选绑定Runtime记录及原始发布帧/真实清单/包文件核查，最后交叉Builder
+      handoff；A1-A9各一次passed，整体pass，无failed/blocked。原样startupInput已获确认；复用App832通过1既有跳过/Core888/package通过，未重复全套。独立50点几何唯一、单提交、49放大后采样无反向回摆/原边界违规，停稳后无二次移动；双包实际权限及内容等价确认。仅本任务work中立证据和公开CLI提交，无产品/测试/规格/Runtime直接编辑，无其他代理、Git、accept-result或archive。中立报告与证据：work/treemap-selection-ping-20261107/ping-stable-acceptance/independent-verifier-73ab0389-report.md、independent-verifier-73ab0389-evidence.json。真实限制完整保留，等待用户接受最终结果。
+    truncated: false
+  risks:
+    - text: 交付包仅读回真实提权清单和内容一致性，UAC弹窗及提权后UI未实测。
+      truncated: false
+    - text: 原生画布被遮挡时共用处理路径不能算作原生坐标成功；菜单截图不含弹出菜单，菜单结论来自实际对象记录、代码与回归。CUA点击回执effect=unverifiable已用后续状态与截图补证。
+      truncated: false
+    - text: 50离散采样/49放大后采样不证明任意两个采样点之间绝无瞬态问题；结合真实布局和逐帧约束回归判断。814ms是可见采样区间，不是精确计时播放值。
+      truncated: false
+    - text: 极細长目标保留真实面积，提示叠层可扩大但不保证所有短边达到32DIP。
+      truncated: false
+    - text: 双包项目DLL/PDB及清单来源记录存在独立构建差异；已比较App/Core/TinyHarness方法IL、异常区和资源，并核对其余444文件哈希，不声称整包逐字节一致。
+      truncated: false
+    - text: 测试总计1721，1720通过、1既有Windows彩色国旗字体跳过、0失败；228聚焦回归是App子集不重复累计。保留既有兼容性/可空构建警告。
+      truncated: false
+    - text: 公开CLI当前没有native
+        check-status命令，使用status返回原始Runtime路径只读检查记录/日志；未改Runtime自有文件。
+      truncated: false
+    - text: 源码来源为指定worktree的02e66a6126674575f3fea87d47845c611c55476a基础及未提交候选改动，不是最新main。无Git交付授权，不提交、合并、推送或归档。
+      truncated: false
+    - text: 用户已确认实施，尚未接受最终验收结果；本次提交不执行accept-result。
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-11-07T18:22:43.272Z
+history:
+  - goal_cycle: 1
+    iteration: 1
+    attempt: 1
+    outcome: fail
+    unresolved_ids:
+      - A2
+      - A3
+    summary:
+      text: 独立只读最终Verifier：exactly A1-A9，7项passed、A2/A3
+        failed，整体fail。已按startupInput提交并获Runtime启动确认。未重跑完整套件、未重建共享obj、未修改源码/测试/规格/用户产物/Git，未请求用户验收/归档/提交/合并。要求Runtime依据完整失败结果回Build。
+      truncated: false
+    completed_at: 2026-11-07T10:39:53.860Z
+  - goal_cycle: 1
+    iteration: 2
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 本轮独立只读核对正式brief/spec、现候选实现、同根扫描修复与回归、修复发布/UI证据，逐项A1-A9通过。前轮A2/A3问题已确认在所有merge入口准入前修复，保留明确验收限制。本轮只写Verifier记录并通过公开CLI提交，不用户验收、不归档、不操作Git。
+      truncated: false
+    completed_at: 2026-11-07T10:55:15.845Z
+  - goal_cycle: 1
+    iteration: 2
+    attempt: 1
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: "用户要求将 Ping 颜色调整为 #FEA400，并在 cell 最终停稳后闪烁 1.5 秒再淡出；其余已确认行为不变。"
+      truncated: false
+    completed_at: 2026-11-07T15:21:31.493Z
+  - goal_cycle: 2
+    iteration: 1
+    attempt: 0
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: "Builder handoff Runtime checks failed: package-ping-lifetime"
+      truncated: false
+    completed_at: 2026-11-07T15:45:06.254Z
+  - goal_cycle: 2
+    iteration: 2
+    attempt: 1
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: 用户不接受周期闪烁，改要 Unity 编辑器式一次强烈撞击边框、轻微光晕扩散并消失，聚焦停稳后约 0.8 秒；颜色和定位修复保持。未启动上一候选
+        Verifier，不继续验收已过时效果。
+      truncated: false
+    completed_at: 2026-11-07T15:50:45.124Z
+  - goal_cycle: 3
+    iteration: 1
+    attempt: 1
+    outcome: fail
+    unresolved_ids:
+      - A5
+    summary:
+      text: 独立只读Verifier完整核对当前brief/spec、源码、匹配Runtime检查、真实发布包和应用窗口，最后交叉核对Builder
+        handoff。A1-A9各一次，8 passed、A5
+        failed，整体fail。首个Runtime操作已提交原样verifier-started。新增真实发布包夹具复现确认不存在的新Ping留下旧橙框；正常80ms/800ms冲击、定位及发布核验不替代该失败。仅创建中立证据和提交公开CLI，无产品/测试/规格/Runtime直接编辑，无Git、Builder、额外代理、accept-result或archive。完整证据：work/treemap-selection-ping-20261107/ping-impact-acceptance/verifier-45953328/report.md。
+      truncated: false
+    completed_at: 2026-11-07T16:26:35.488Z
+  - goal_cycle: 3
+    iteration: 2
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 独立只读Verifier完整核对当前正式brief/spec、源码/回归、候选绑定Runtime记录、原始发布帧、missing-cancel及应用窗口、实际双manifest和内容，最后交叉阅读Builder
+        handoff。A1-A9各一次passed，整体pass，无failed/blocked。首个Runtime操作原样verifier-started已获确认；复用App826通过1既有跳过/Core888/package通过，未重复全套或新建任务。仅创建中立报告/结果和只读快照并公开CLI提交，不产品/测试/规格/Runtime直接编辑，不Git/accept-result/archive/派代理。风险完整保留。报告：work/treemap-selection-ping-20261107/ping-impact-repair-acceptance/independent-verifier-7ffc02ef-report.md。
+      truncated: false
+    completed_at: 2026-11-07T16:48:49.893Z
+  - goal_cycle: 3
+    iteration: 2
+    attempt: 1
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: 用户明确改为恢复原地图边界钳制，不为橙框/光晕越界留白，边缘允许自然裁剪，自动放大小cell和平滑冲击保持。
+      truncated: false
+    completed_at: 2026-11-07T16:50:15.781Z
+  - goal_cycle: 4
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 独立只读Verifier完整核对当前brief/spec、新final
+        clamp/手动边界实现、匹配Runtime原始检查、旧未改功能事实及新包帧/实图/源码/实际manifest和双包内容，最后交叉阅读Builder
+        handoff。A1–A9各一次passed，整体pass，无failed/blocked。首个Runtime操作原样verifier-started已确认；复用App826通过1既有跳过/Core888/package通过，不重跑全套。边缘自然裁剪按现范围接受，瞬态缓动及未运行UAC/提权UI限制如实保留。仅中立报告/结果及public
+        CLI提交，不产品/测试/正式规格/Runtime直接编辑，不Git/accept-result/archive/其他代理。报告：work/treemap-selection-ping-20261107/ping-boundary-acceptance/independent-verifier-83d099b2-report.md。
+      truncated: false
+    completed_at: 2026-11-07T17:11:41.174Z
+  - goal_cycle: 4
+    iteration: 1
+    attempt: 1
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: 继续落实已确认的原边界钳制：独立验收记录普通Ping缓动两帧瞬态越界，补齐逐帧钳制，不改需求或层级过渡视觉。
+      truncated: false
+    completed_at: 2026-11-07T17:13:25.028Z
+  - goal_cycle: 4
+    iteration: 2
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 独立只读核验本候选 A1–A9 全量各一次，均 passed，整体 pass。完整读取当前 brief/spec、关键实现、回归断言、候选绑定
+        Runtime 原始记录及对应证据，最后才交叉读取 Builder handoff；不继承旧
+        verdict。本次49帧动态原边界合规，保留充分放大、最少平移、平滑追踪和停稳后FEA400单次冲击；双包真实清单和内容独立核验。详细中立事实见
+        work/treemap-selection-ping-20261107/ping-frame-clamp-acceptance/independent-verifier-797e15ea-evidence.json。本会话不修改产品/测试/规格/Runtime自有文件，不使用其他代理，不执行Git、accept-result或archive。
+      truncated: false
+    completed_at: 2026-11-07T17:28:43.968Z
+  - goal_cycle: 4
+    iteration: 2
+    attempt: 1
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: 用户反馈Ping落点后重布局导致第二段拉回，要求修复平稳定位；同时明确删除Treemap右键Ping调试按钮，保留推荐和引用定位。
+      truncated: false
+    completed_at: 2026-11-07T17:53:48.316Z
+  - goal_cycle: 5
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 独立只读Verifier完成当前brief/spec、实际实现/回归断言、候选绑定Runtime记录及原始发布帧/真实清单/包文件核查，最后交叉Builder
+        handoff；A1-A9各一次passed，整体pass，无failed/blocked。原样startupInput已获确认；复用App832通过1既有跳过/Core888/package通过，未重复全套。独立50点几何唯一、单提交、49放大后采样无反向回摆/原边界违规，停稳后无二次移动；双包实际权限及内容等价确认。仅本任务work中立证据和公开CLI提交，无产品/测试/规格/Runtime直接编辑，无其他代理、Git、accept-result或archive。中立报告与证据：work/treemap-selection-ping-20261107/ping-stable-acceptance/independent-verifier-73ab0389-report.md、independent-verifier-73ab0389-evidence.json。真实限制完整保留，等待用户接受最终结果。
+      truncated: false
+    completed_at: 2026-11-07T18:22:43.272Z
+history_overflow:
+  dropped_entries: 0
+  first_dropped_at: null
+  last_dropped_at: null
+  outcome_counts:
+    pass: 0
+    fail: 0
+    blocked: 0
+    execution-error: 0
+    recovery: 0
+verification_result: pass
+verification_report: verification.md
+archived: false
+created_at: 2026-11-07T08:33:08.738Z
