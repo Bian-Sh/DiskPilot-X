@@ -142,7 +142,7 @@ Observed flow:
 - TreemapViewModel.SetRoot accepts a FileEntry root and optional ScanSession, then computes Treemap layout from that tree.
 - TreemapView observes TreemapViewModel.PropertyChanged and updates the rendered Treemap when Nodes or navigation properties change.
 - TreemapView exposes a DeleteEntryAsync delegate for its context-menu delete action. The exact delegate wiring and the complete delete execution path were not established from the inspected files and must be traced before implementation.
-- TreemapViewModel.ApplyCleanupResults calls DeletedEntryState.Apply and raises DeletionRevision; TreemapView responds by refreshing deletion marks. This is cleanup-result visualization, not proof of an OS-level filesystem watcher event.
+- MainWindow.Cleanup.ApplyCleanupResults forwards completed cleanup actions to TreemapViewModel.ApplyCleanupResults. That method calls DeletedEntryState.Apply, which marks matching FileEntry objects as IsDeleted and adjusts the retained ScanSession counts/size; it then raises DeletionRevision, and TreemapView refreshes deletion marks. This is a post-cleanup result/visualization path, not an OS-level filesystem change feed. It should remain conceptually separate from USN-driven canonical index mutation.
 - MainWindow currently owns a ScanSnapshotCache for ScanSession retention.
 
 A repository-wide, conclusive FileSystemWatcher call graph was not established during this audit. Do not assume either that a watcher exists or that it does not. The implementation task must search all projects and trace any watcher, delete callback, cleanup execution, and Treemap refresh paths before removing or redirecting event wiring.
