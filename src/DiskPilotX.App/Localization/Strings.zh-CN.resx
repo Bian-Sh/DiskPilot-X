@@ -418,6 +418,11 @@
   <data name="ConsoleClearMenuItem" xml:space="preserve">
     <value>清空控制台</value>
   </data>
+  <data name="ConsoleSearchToolTip" xml:space="preserve"><value>搜索日志</value></data>
+  <data name="ConsoleSearchPlaceholder" xml:space="preserve"><value>搜索</value></data>
+  <data name="ConsoleClearSearchToolTip" xml:space="preserve"><value>清空搜索</value></data>
+  <data name="ConsoleLatestToolTip" xml:space="preserve"><value>回到最新日志</value></data>
+  <data name="ConsoleOpenLogsToolTip" xml:space="preserve"><value>打开日志目录</value></data>
   <data name="TreemapNoDataText" xml:space="preserve">
     <value>无数据可供展示，请扫描~</value>
   </data>

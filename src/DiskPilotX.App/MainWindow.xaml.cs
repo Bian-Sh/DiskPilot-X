@@ -64,9 +64,10 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _logEntriesView = CollectionViewSource.GetDefaultView(AppLog.Entries);
-        _logEntriesView.Filter = entry => entry is UiLogEntry logEntry && _visibleLogLevels.Includes(logEntry.Level);
+        _logEntriesView.Filter = MatchesConsoleFilter;
         ConsoleItemsControl.ItemsSource = _logEntriesView;
-        AppLog.UiSink.EntryAdded += ScrollLogToEnd;
+        AppLog.UiSink.BatchUpdating += ConsoleBatchUpdating;
+        AppLog.UiSink.EntryAdded += ConsoleBatchUpdated;
         Log.Information("MainWindow initialized; log directory: {LogDirectory}", AppLog.LogDirectory);
         Loaded += MainWindow_Loaded;
         Closing += MainWindow_Closing;
@@ -77,7 +78,9 @@ public partial class MainWindow : Window
             _chatViewModel?.CancelPendingInteractions();
             App.Services?.GetService<DiskPilotX.Core.Services.Assistant.DiskAssistantService>()?.CancelCurrentRun();
             foreach(var panel in skillPanels.Values) if(panel.Window is { } taskWindow) { taskWindow.Owner=null; taskWindow.Close(); }
-            AppLog.UiSink.EntryAdded -= ScrollLogToEnd;
+            AppLog.UiSink.BatchUpdating -= ConsoleBatchUpdating;
+            AppLog.UiSink.EntryAdded -= ConsoleBatchUpdated;
+            AppLog.UiSink.SetActive(false);
             _acceptanceAutomationServer?.Dispose();
         };
         TitleBar.CloseRequested += async (_, _) => await RequestCloseAsync();

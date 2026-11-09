@@ -56,15 +56,18 @@ public sealed class ConsolePanelTests
     [Fact]
     public void 清空当前列表后仍能接收新日志() => StaHost.Run(() =>
     {
-        var sink = new UiLogSink();
+        using var sink = new UiLogSink();
+        sink.SetActive(true);
         using var logger = new LoggerConfiguration().WriteTo.Sink(sink).CreateLogger();
         logger.Information("清空前的信息");
         logger.Warning("清空前的警告");
+        sink.Flush();
         Assert.Equal(2, sink.Entries.Count);
         sink.Clear();
         Assert.Empty(sink.Entries);
         sink.Clear();
         logger.Error("清空后仍继续记录");
+        sink.Flush();
         var entry = Assert.Single(sink.Entries);
         Assert.Equal(LogEventLevel.Error, entry.Level);
         Assert.Equal("清空后仍继续记录", entry.Message);
@@ -77,8 +80,9 @@ public sealed class ConsolePanelTests
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         var frame = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "ConsoleFrame");
         Assert.Equal("{StaticResource ConsoleContextMenu}", (string?)frame.Attribute("ContextMenu"));
-        var text = Assert.Single(frame.Descendants().Where(element => element.Name.LocalName == "TextBox"));
-        Assert.Equal("{StaticResource ConsoleContextMenu}", (string?)text.Attribute("ContextMenu"));
+        var list = frame.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "ConsoleItemsControl");
+        var row = Assert.Single(list.Descendants().Where(element => element.Name.LocalName == "DataTemplate")).Elements().Single();
+        Assert.Equal("{StaticResource ConsoleContextMenu}", (string?)row.Attribute("ContextMenu"));
         var menu = document.Descendants().Single(element => (string?)element.Attribute(x + "Key") == "ConsoleContextMenu");
         var clear = Assert.Single(menu.Elements());
         Assert.Equal("{loc:Loc ConsoleClearMenuItem}", (string?)clear.Attribute("Header"));

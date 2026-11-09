@@ -10,6 +10,8 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Data;
+using System.Windows.Threading;
+using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using Serilog.Events;
@@ -28,6 +30,118 @@ namespace DiskPilotX.App;
 
 public partial class MainWindow
 {
+    private ScrollViewer? _consoleScroll;
+    private bool _consoleFollowing = true, _consoleUpdating, _consoleScrollScheduled;
+    private long? _consoleAnchor;
+    private string _consoleQuery = "";
+    private int _consoleBatchCount;
+
+    private bool MatchesConsoleFilter(object entry) => entry is UiLogEntry logEntry && _visibleLogLevels.Includes(logEntry.Level) && MatchesConsoleSearch(logEntry);
+
+    private bool MatchesConsoleSearch(UiLogEntry logEntry) => _consoleQuery.Length == 0 || logEntry.DisplayText.Contains(_consoleQuery, StringComparison.OrdinalIgnoreCase)
+            || logEntry.SourceContext.Contains(_consoleQuery, StringComparison.OrdinalIgnoreCase);
+
+    private sealed record ConsoleLevelSummary(string Label, string Icon, Brush Brush, int Count);
+
+    private void UpdateConsoleLevelCounts()
+    {
+        var counts = new int[6];
+        foreach (var entry in AppLog.Entries)
+            if (MatchesConsoleSearch(entry)) counts[(int)entry.Level]++;
+        string[] icons = ["\uE8A5", "\uE943", "\uE946", "\uE7BA", "\uEA39", "\uE814"];
+        ConsoleLevelCounts.ItemsSource = Enum.GetValues<LogEventLevel>().Where(level => _visibleLogLevels.Includes(level)).Select(level =>
+        {
+            var sample = new UiLogEntry(default, level, "", null);
+            return new ConsoleLevelSummary(sample.LevelText.Trim('[', ']'), icons[(int)level], sample.LevelBrush, counts[(int)level]);
+        }).ToArray();
+    }
+
+    private void ConsoleFrame_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (_logEntriesView is null) return;
+        AppLog.UiSink.SetActive(ConsoleFrame.IsVisible);
+        if (ConsoleFrame.IsVisible) ConsoleBatchUpdated();
+    }
+
+    private void ConsoleBatchUpdating()
+    {
+        _consoleUpdating = true;
+        if (!_consoleFollowing && _consoleScroll is not null && ConsoleItemsControl.Items.Count > 0)
+        {
+            var index = Math.Clamp((int)_consoleScroll.VerticalOffset, 0, ConsoleItemsControl.Items.Count - 1);
+            _consoleAnchor = (ConsoleItemsControl.Items[index] as UiLogEntry)?.Sequence;
+        }
+    }
+
+    private void ConsoleBatchUpdated()
+    {
+        _consoleBatchCount++;
+        UpdateConsoleLevelCounts();
+        ConsoleLatestButton.Visibility = _consoleFollowing ? Visibility.Collapsed : Visibility.Visible;
+        if (!ConsoleFrame.IsVisible || _consoleScrollScheduled) return;
+        _consoleScrollScheduled = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            _consoleScrollScheduled = false;
+            if (!ConsoleFrame.IsVisible) { _consoleUpdating = false; return; }
+            _consoleScroll ??= FindConsoleScroll(ConsoleItemsControl);
+            if (_consoleFollowing) ScrollLogToEnd();
+            else if (_consoleScroll is not null && _consoleAnchor is { } sequence)
+            {
+                var index = 0;
+                while (index < ConsoleItemsControl.Items.Count && ConsoleItemsControl.Items[index] is UiLogEntry entry && entry.Sequence < sequence) index++;
+                _consoleScroll.ScrollToVerticalOffset(Math.Min(index, Math.Max(0, ConsoleItemsControl.Items.Count - 1)));
+            }
+            _consoleUpdating = false;
+        });
+    }
+
+    private static ScrollViewer? FindConsoleScroll(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is ScrollViewer scroll) return scroll;
+            if (FindConsoleScroll(child) is { } nested) return nested;
+        }
+        return null;
+    }
+
+    private void ConsoleScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.OriginalSource is not ScrollViewer scroll || _consoleUpdating || e.ExtentHeightChange != 0) return;
+        _consoleScroll = scroll;
+        if (e.VerticalChange != 0) _consoleFollowing = scroll.VerticalOffset >= scroll.ScrollableHeight - 1;
+        ConsoleLatestButton.Visibility = _consoleFollowing ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void ConsoleLatest_Click(object sender, RoutedEventArgs e) { _consoleFollowing = true; _consoleAnchor = null; ConsoleBatchUpdated(); }
+    private void ConsoleSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_logEntriesView is null) return;
+        _consoleQuery = ConsoleSearchBox.Text.Trim();
+        RefreshLogView();
+    }
+
+    private void ConsoleSearchClear_Click(object sender, RoutedEventArgs e)
+    {
+        ConsoleSearchBox.Clear();
+        ConsoleSearchBox.Focus();
+    }
+
+    private void ConsoleOpenLogs_Click(object sender, RoutedEventArgs e)
+    {
+        try { Process.Start(new ProcessStartInfo(AppLog.LogDirectory) { UseShellExecute = true }); }
+        catch (Exception error) { Log.Warning(error, "无法打开日志目录"); }
+    }
+
+    private void ConsoleItems_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.C || !Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
+        var text = string.Join(Environment.NewLine, ConsoleItemsControl.SelectedItems.Cast<UiLogEntry>().OrderBy(entry => entry.Sequence).Select(entry => entry.DisplayText));
+        if (text.Length > 0) { try { Clipboard.SetText(text); } catch (Exception error) { Log.Warning(error, "日志复制失败"); } }
+        e.Handled = true;
+    }
     private void BottomPanelShadow_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (sender is FrameworkElement shadow && e.NewSize.Width > 0 && e.NewSize.Height > 0)
@@ -51,15 +165,17 @@ public partial class MainWindow
 
     private void RefreshLogView()
     {
+        ConsoleBatchUpdating();
         _logEntriesView.Refresh();
-        ScrollLogToEnd();
+        ConsoleBatchUpdated();
     }
 
     private void ScrollLogToEnd()
     {
-        if (ConsoleScrollViewer is not null)
+        if (_consoleFollowing && ConsoleItemsControl.Items.Count > 0)
         {
-            ConsoleScrollViewer.ScrollToEnd();
+            _consoleScroll ??= FindConsoleScroll(ConsoleItemsControl);
+            ConsoleItemsControl.ScrollIntoView(ConsoleItemsControl.Items[^1]);
         }
     }
 
@@ -69,12 +185,16 @@ public partial class MainWindow
 
         if (ConsoleLevelVerboseMenuItem.IsChecked)
             _visibleLogLevels |= AppLogLevelFilter.Verbose;
+        if (ConsoleLevelDebugMenuItem.IsChecked)
+            _visibleLogLevels |= AppLogLevelFilter.Debug;
         if (ConsoleLevelInfoMenuItem.IsChecked)
             _visibleLogLevels |= AppLogLevelFilter.Information;
         if (ConsoleLevelWarningMenuItem.IsChecked)
             _visibleLogLevels |= AppLogLevelFilter.Warning;
         if (ConsoleLevelErrorMenuItem.IsChecked)
-            _visibleLogLevels |= AppLogLevelFilter.Error | AppLogLevelFilter.Fatal;
+            _visibleLogLevels |= AppLogLevelFilter.Error;
+        if (ConsoleLevelFatalMenuItem.IsChecked)
+            _visibleLogLevels |= AppLogLevelFilter.Fatal;
 
         RefreshLogView();
     }

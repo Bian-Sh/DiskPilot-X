@@ -278,6 +278,7 @@
                                     Margin="4,0"
                                     Visibility="Collapsed"
                                     ToolTip="{loc:Loc ConsoleFilterToolTip}"
+                                    AutomationProperties.Name="{loc:Loc ConsoleFilterToolTip}"
                                     Foreground="{DynamicResource VP.TextSecondaryBrush}"
                                     Background="Transparent"
                                     BorderThickness="0"
@@ -308,9 +309,13 @@
                                 <Button.ContextMenu>
                                     <ContextMenu>
                                         <MenuItem x:Name="ConsoleLevelVerboseMenuItem" Header="Verbose" IsCheckable="True" StaysOpenOnClick="True" Click="LogLevelFilter_Click" />
+                                        <MenuItem x:Name="ConsoleLevelDebugMenuItem" Header="Debug" IsCheckable="True" StaysOpenOnClick="True" Click="LogLevelFilter_Click" />
                                         <MenuItem x:Name="ConsoleLevelInfoMenuItem" Header="Info" IsCheckable="True" IsChecked="True" StaysOpenOnClick="True" Click="LogLevelFilter_Click" />
                                         <MenuItem x:Name="ConsoleLevelWarningMenuItem" Header="Warning" IsCheckable="True" IsChecked="True" StaysOpenOnClick="True" Click="LogLevelFilter_Click" />
                                         <MenuItem x:Name="ConsoleLevelErrorMenuItem" Header="Error" IsCheckable="True" IsChecked="True" StaysOpenOnClick="True" Click="LogLevelFilter_Click" />
+                                        <MenuItem x:Name="ConsoleLevelFatalMenuItem" Header="Fatal" IsCheckable="True" IsChecked="True" StaysOpenOnClick="True" Click="LogLevelFilter_Click" />
+                                        <Separator />
+                                        <MenuItem x:Name="ConsoleOpenLogsMenuItem" Header="{loc:Loc ConsoleOpenLogsToolTip}" Click="ConsoleOpenLogs_Click" />
                                     </ContextMenu>
                                 </Button.ContextMenu>
                             </Button>
@@ -363,29 +368,94 @@
                                         CornerRadius="{DynamicResource VP.CardBottomCornerRadius}"
                                         ClipToBounds="True"
                                         ContextMenu="{StaticResource ConsoleContextMenu}"
+                                        IsVisibleChanged="ConsoleFrame_IsVisibleChanged"
                                         Visibility="Collapsed">
-                                    <ScrollViewer x:Name="ConsoleScrollViewer"
-                                                  Padding="12,10"
-                                                  VerticalScrollBarVisibility="Auto"
-                                                  HorizontalScrollBarVisibility="Disabled">
-                                        <ItemsControl x:Name="ConsoleItemsControl"
-                                                      Width="{Binding ViewportWidth, ElementName=ConsoleScrollViewer}"
-                                                      FontFamily="Cascadia Code, SF Mono, Menlo, Consolas, monospace"
-                                                      FontSize="12.5">
-                                            <ItemsControl.ItemTemplate>
+                                    <Grid>
+                                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                        <Grid Margin="12,6,12,4">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="80" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                            <Grid x:Name="ConsoleSearchSlot">
+                                            <Border x:Name="ConsoleSearchField" Width="{Binding ActualWidth, ElementName=ConsoleSearchSlot}" MaxWidth="220" Height="28" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                    CornerRadius="14" BorderThickness="0.5">
+                                                <Border.Style><Style TargetType="Border">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource VP.BorderLightBrush}" />
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource VP.AccentBrush}" /></Trigger>
+                                                        <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}" /></Trigger>
+                                                    </Style.Triggers>
+                                                </Style></Border.Style>
+                                                <Grid>
+                                                    <TextBox x:Name="ConsoleSearchBox" MinWidth="40" Height="26" Margin="10,0,32,0" Padding="0" BorderThickness="0"
+                                                             Background="Transparent" Foreground="{DynamicResource VP.TextPrimaryBrush}" CaretBrush="{DynamicResource VP.TextPrimaryBrush}"
+                                                             VerticalContentAlignment="Center" FontSize="12"
+                                                             ToolTip="{loc:Loc ConsoleSearchToolTip}" AutomationProperties.Name="{loc:Loc ConsoleSearchToolTip}" TextChanged="ConsoleSearch_TextChanged">
+                                                        <TextBox.Template><ControlTemplate TargetType="TextBox"><ScrollViewer x:Name="PART_ContentHost" /></ControlTemplate></TextBox.Template>
+                                                    </TextBox>
+                                                    <TextBlock x:Name="ConsoleSearchPlaceholder" Text="{loc:Loc ConsoleSearchPlaceholder}" Margin="10,0,32,0" FontSize="12"
+                                                               VerticalAlignment="Center" Foreground="{DynamicResource VP.TextTertiaryBrush}" IsHitTestVisible="False">
+                                                        <TextBlock.Style><Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers><DataTrigger Binding="{Binding Text.Length, ElementName=ConsoleSearchBox}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                                                        </Style></TextBlock.Style>
+                                                    </TextBlock>
+                                                    <TextBlock x:Name="ConsoleSearchIcon" Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="12" Margin="0,0,10,0"
+                                                               HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource VP.TextSecondaryBrush}" IsHitTestVisible="False">
+                                                        <TextBlock.Style><Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers><DataTrigger Binding="{Binding Text.Length, ElementName=ConsoleSearchBox}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                                                        </Style></TextBlock.Style>
+                                                    </TextBlock>
+                                                    <Button x:Name="ConsoleSearchClearButton" Width="20" Height="20" Margin="0,0,4,0" Padding="0"
+                                                            HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource VP.TextSecondaryBrush}"
+                                                            ToolTip="{loc:Loc ConsoleClearSearchToolTip}" AutomationProperties.Name="{loc:Loc ConsoleClearSearchToolTip}" Click="ConsoleSearchClear_Click">
+                                                        <Button.Style><Style TargetType="Button">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Setter Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Text.Length, ElementName=ConsoleSearchBox}" Value="0"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                                                <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource VP.TextPrimaryBrush}" /></Trigger>
+                                                            </Style.Triggers>
+                                                        </Style></Button.Style>
+                                                        <Button.Template><ControlTemplate TargetType="Button">
+                                                            <Border CornerRadius="10" Background="{TemplateBinding Background}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+                                                        </ControlTemplate></Button.Template>
+                                                        <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="8" />
+                                                    </Button>
+                                                </Grid>
+                                            </Border>
+                                            </Grid>
+                                            <ItemsControl x:Name="ConsoleLevelCounts" Grid.Column="1" MaxWidth="280" Margin="12,0,0,0" VerticalAlignment="Center">
+                                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate><DataTemplate>
+                                                    <StackPanel Orientation="Horizontal" Margin="8,4,0,4" ToolTip="{Binding Label}" AutomationProperties.Name="{Binding Label}">
+                                                        <TextBlock Text="{Binding Icon}" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{Binding Brush}" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding Count, StringFormat={}{0:N0}}" FontSize="11" Margin="4,0,0,0" Foreground="{DynamicResource VP.TextSecondaryBrush}" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </DataTemplate></ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Grid>
+                                        <ListBox x:Name="ConsoleItemsControl" Grid.Row="1" Padding="12,4,12,8" Background="Transparent" BorderThickness="0"
+                                                 FontFamily="Cascadia Code, SF Mono, Menlo, Consolas, monospace" FontSize="12.5"
+                                                 SelectionMode="Extended" ScrollViewer.CanContentScroll="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 ScrollViewer.VerticalScrollBarVisibility="Auto" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                                                 VirtualizingPanel.ScrollUnit="Item" VirtualizingPanel.CacheLength="1" VirtualizingPanel.CacheLengthUnit="Page"
+                                                 ScrollViewer.ScrollChanged="ConsoleScrollChanged" PreviewKeyDown="ConsoleItems_PreviewKeyDown">
+                                            <ListBox.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+                                            <ListBox.ItemContainerStyle>
+                                                <Style TargetType="ListBoxItem">
+                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" />
+                                                    <Setter Property="Margin" Value="0" /><Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
+                                                        <Border x:Name="Row" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"><ContentPresenter /></Border>
+                                                        <ControlTemplate.Triggers><Trigger Property="IsSelected" Value="True"><Setter TargetName="Row" Property="Background" Value="{DynamicResource VP.SurfaceHoverBrush}" /></Trigger></ControlTemplate.Triggers>
+                                                    </ControlTemplate></Setter.Value></Setter>
+                                                </Style>
+                                            </ListBox.ItemContainerStyle>
+                                            <ListBox.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Grid Margin="0,0,0,2">
-                                                        <TextBlock TextWrapping="Wrap" Margin="0,0,28,0"><Run Text="{Binding TimeText, Mode=OneWay}" Foreground="{Binding TimeBrush, Mode=OneWay}" /><Run Text=" " /><Run Text="{Binding LevelText, Mode=OneWay}" Foreground="{Binding LevelBrush, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=" " /><Run Text="{Binding DisplayMessage, Mode=OneWay}" Foreground="{Binding MessageBrush, Mode=OneWay}" /></TextBlock>
-                                                        <TextBox Text="{Binding DisplayText, Mode=OneWay}"
-                                                                 ContextMenu="{StaticResource ConsoleContextMenu}"
-                                                                 IsReadOnly="True"
-                                                                 TextWrapping="Wrap"
-                                                                 BorderThickness="0"
-                                                                 Padding="0,0,28,0"
-                                                                 Background="Transparent"
-                                                                 Foreground="Transparent"
-                                                                 CaretBrush="{DynamicResource VP.TextPrimaryBrush}"
-                                                                 SelectionBrush="#334AA3FF" />
+                                                    <Grid Margin="0,0,0,2" MinHeight="22" MaxHeight="58" ContextMenu="{StaticResource ConsoleContextMenu}">
+                                                        <TextBlock TextWrapping="Wrap" TextTrimming="CharacterEllipsis" Margin="0,2,28,2"><Run Text="{Binding TimeText, Mode=OneWay}" Foreground="{Binding TimeBrush, Mode=OneWay}" /><Run Text=" " /><Run Text="{Binding LevelText, Mode=OneWay}" Foreground="{Binding LevelBrush, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=" " /><Run Text="{Binding DisplayMessage, Mode=OneWay}" Foreground="{Binding MessageBrush, Mode=OneWay}" /></TextBlock>
                                                         <Border HorizontalAlignment="Right"
                                                                 VerticalAlignment="Top"
                                                                 Margin="0,1,3,0"
@@ -404,30 +474,18 @@
                                                                     </Style.Triggers>
                                                                 </Style>
                                                             </Border.Style>
-                                                            <Canvas Width="14" Height="14">
-                                                                <Path Data="M6.2513 6.24935V2.91602H17.0846V13.7493H13.7513M13.7513 6.24935V17.0827H2.91797V6.24935H13.7513Z"
-                                                                      Stroke="{DynamicResource VP.TextSecondaryBrush}"
-                                                                      StrokeThickness="1.5"
-                                                                      StrokeStartLineCap="Round"
-                                                                      StrokeEndLineCap="Round">
-                                                                    <Path.Style>
-                                                                        <Style TargetType="Path">
-                                                                            <Setter Property="Opacity" Value="0.6" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
-                                                                                    <Setter Property="Opacity" Value="1" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </Path.Style>
-                                                                </Path>
-                                                            </Canvas>
+                                                            <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource VP.TextSecondaryBrush}" />
                                                         </Border>
                                                     </Grid>
                                                 </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </ScrollViewer>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                        <Button x:Name="ConsoleLatestButton" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,8"
+                                                Width="30" Height="30" Padding="0" Style="{DynamicResource VP.ButtonIcon}" Visibility="Collapsed"
+                                                ToolTip="{loc:Loc ConsoleLatestToolTip}" AutomationProperties.Name="{loc:Loc ConsoleLatestToolTip}" Click="ConsoleLatest_Click">
+                                            <TextBlock Text="&#xE74B;" FontFamily="Segoe MDL2 Assets" FontSize="14" />
+                                        </Button>
+                                    </Grid>
                                 </Border>
                             </Grid>
                         </Grid>
