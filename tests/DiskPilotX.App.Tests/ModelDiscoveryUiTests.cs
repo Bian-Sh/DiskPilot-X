@@ -79,6 +79,7 @@ public sealed class ModelDiscoveryUiTests
         Directory.CreateDirectory(directory);
         var file = Path.Combine(directory, "验证.log");
         var sink = new UiLogSink();
+        var console = "";
         using (var serilog = new LoggerConfiguration().MinimumLevel.Verbose().WriteTo.Sink(sink).WriteTo.File(file).CreateLogger())
         using (var loggers = new SerilogLoggerFactory(serilog, dispose: false))
         {
@@ -91,9 +92,9 @@ public sealed class ModelDiscoveryUiTests
                 logger: loggers.CreateLogger<SettingsViewModel>());
             await vm.RefreshModelsCommand.ExecuteAsync(null);
             Assert.Contains("401", vm.ModelRefreshMessage);
+            console = ReadConsole(sink);
         }
         var disk = await File.ReadAllTextAsync(file);
-        var console = string.Join("\n", sink.Entries.Select(item => item.DisplayText));
         foreach (var text in new[] { disk, console })
         {
             Assert.Contains("401", text);
@@ -131,14 +132,16 @@ public sealed class ModelDiscoveryUiTests
         Directory.CreateDirectory(directory);
         var file = Path.Combine(directory, "验证.log");
         var sink = new UiLogSink();
+        var console = "";
         using (var serilog = new LoggerConfiguration().MinimumLevel.Verbose().WriteTo.Sink(sink).WriteTo.File(file).CreateLogger())
         using (var loggers = new SerilogLoggerFactory(serilog, dispose: false))
         using (var clients = new ModelHttpClientFactory(() => new Handler(_ => new(HttpStatusCode.Unauthorized) { Content = new StringContent(body) })))
         {
             var config = ModelEndpointConfig.FromSettings(new AppSettings { AnthropicBaseUrl = "https://relay.example" }, "test-key", "model") with { ProxyPassword = "prefix\"private-tail" };
             await Assert.ThrowsAsync<TinyHarness.ModelClientException>(() => new ModelCatalogService(clients, loggers.CreateLogger<ModelCatalogService>()).FetchAsync(config, CancellationToken.None));
+            console = ReadConsole(sink);
         }
-        foreach (var text in new[] { await File.ReadAllTextAsync(file), string.Join("\n", sink.Entries.Select(item => item.DisplayText)) })
+        foreach (var text in new[] { await File.ReadAllTextAsync(file), console })
         {
             Assert.Contains("401", text);
             Assert.DoesNotContain("private-tail", text);
@@ -152,6 +155,7 @@ public sealed class ModelDiscoveryUiTests
         Directory.CreateDirectory(directory);
         var file = Path.Combine(directory, "验证.log");
         var sink = new UiLogSink();
+        var console = "";
         using (var serilog = new LoggerConfiguration().MinimumLevel.Verbose().WriteTo.Sink(sink).WriteTo.File(file).CreateLogger())
         using (var loggers = new SerilogLoggerFactory(serilog, dispose: false))
         {
@@ -163,13 +167,26 @@ public sealed class ModelDiscoveryUiTests
                 var config = ModelEndpointConfig.FromSettings(new AppSettings { AnthropicBaseUrl = "https://relay.example" }, "test-key", "model") with { ProxyPassword = secret };
                 await Assert.ThrowsAsync<TinyHarness.ModelClientException>(() => new ModelCatalogService(clients, loggers.CreateLogger<ModelCatalogService>()).FetchAsync(config, CancellationToken.None));
             }
+            console = ReadConsole(sink);
         }
-        foreach (var text in new[] { await File.ReadAllTextAsync(file), string.Join("\n", sink.Entries.Select(item => item.DisplayText)) })
+        foreach (var text in new[] { await File.ReadAllTextAsync(file), console })
         {
             Assert.Contains("401", text);
             foreach (var marker in new[] { "known-tail", "nested-private-tail", "space-tail", "field-tail" }) Assert.DoesNotContain(marker, text);
         }
     }
+    private static string ReadConsole(UiLogSink sink)
+    {
+        var text = "";
+        StaHost.Run(() =>
+        {
+            sink.SetActive(true);
+            text = string.Join("\n", sink.Entries.Select(item => item.DisplayText));
+            sink.SetActive(false);
+        });
+        return text;
+    }
+
     private sealed class Handler(Func<HttpRequestMessage, HttpResponseMessage> send) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) => Task.FromResult(send(request));

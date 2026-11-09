@@ -3,6 +3,8 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
+using System.Text;
+using DiskPilotX.App.Logging;
 using Serilog;
 
 namespace DiskPilotX.App.Diagnostics;
@@ -11,25 +13,20 @@ internal static class CrashDiagnostics
 {
     private static int _isWritingCrashReport;
 
-    public static string DiagnosticsDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "DiskPilot-X",
-        "Diagnostics");
+    public static string DiagnosticsDirectory => Path.Combine(Path.GetDirectoryName(AppLog.LogDirectory)!, "Diagnostics");
 
-    public static string LogDirectory { get; } = Path.Combine(DiagnosticsDirectory, "logs");
+    public static string LogDirectory => Path.Combine(DiagnosticsDirectory, "logs");
 
-    public static string DumpDirectory { get; } = Path.Combine(DiagnosticsDirectory, "dumps");
+    public static string DumpDirectory => Path.Combine(DiagnosticsDirectory, "dumps");
 
     public static void Register(Application app)
     {
-        Directory.CreateDirectory(LogDirectory);
-        Directory.CreateDirectory(DumpDirectory);
-
-        Log("startup", "Crash diagnostics registered.");
-
         app.DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+        try { Directory.CreateDirectory(LogDirectory); Directory.CreateDirectory(DumpDirectory); }
+        catch (Exception exception) { AppLog.WriteFailureDiagnostic(exception.ToString()); }
+        Log("startup", "崩溃诊断已注册。");
     }
 
     public static void Log(string category, string message)
@@ -38,7 +35,7 @@ internal static class CrashDiagnostics
         Serilog.Log.Debug("运行诊断 {Category}: {Message}", category, message);
     }
 
-    public static void CaptureException(string source, Exception exception)
+    public static void CaptureException(string source, Exception exception, bool terminating = false)
     {
         if (Interlocked.Exchange(ref _isWritingCrashReport, 1) != 0)
             return;
@@ -48,38 +45,66 @@ internal static class CrashDiagnostics
             Directory.CreateDirectory(LogDirectory);
             Directory.CreateDirectory(DumpDirectory);
 
-            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
+            var stamp = $"{DateTime.Now:yyyyMMdd-HHmmss-fff}-{Environment.ProcessId}-{Guid.NewGuid():N}";
             var logPath = Path.Combine(LogDirectory, $"crash-{stamp}.log");
             var crashLog = BuildCrashLog(source, exception);
             var dumpPath = Path.Combine(DumpDirectory, $"crash-{stamp}.dmp");
+            WriteDurably(logPath, writer => writer.Write(crashLog));
+            var tsvPath = Path.Combine(LogDirectory, $"crash-{stamp}.tsv");
+            WriteDurably(tsvPath, writer =>
+            {
+                LogTsvFormatter.WriteRow(writer, "时间", "来源", "进程", "异常类型", "消息", "异常堆栈", "应用目录", "系统", "运行时", "Dump路径", "Dump错误");
+                LogTsvFormatter.WriteRow(writer, DateTimeOffset.Now.ToString("O"), source, Environment.ProcessId.ToString(),
+                    exception.GetType().FullName, exception.Message, exception.ToString(), AppContext.BaseDirectory,
+                    Environment.OSVersion.ToString(), RuntimeInformation.FrameworkDescription, dumpPath, "");
+            });
             if (!TryWriteMiniDump(dumpPath, out var dumpError))
             {
-                crashLog += $"{Environment.NewLine}MiniDumpWriteDump failed: {dumpError}{Environment.NewLine}";
+                WriteDurably(logPath, writer => writer.WriteLine($"MiniDumpWriteDump 失败：{dumpError}"), append: true);
+                WriteDurably(tsvPath, writer => LogTsvFormatter.WriteRow(writer, DateTimeOffset.Now.ToString("O"), "MiniDumpWriteDump", Environment.ProcessId.ToString(),
+                    exception.GetType().FullName, exception.Message, exception.ToString(), AppContext.BaseDirectory,
+                    Environment.OSVersion.ToString(), RuntimeInformation.FrameworkDescription, dumpPath, dumpError), append: true);
             }
-
-            File.WriteAllText(logPath, crashLog);
             Serilog.Log.Fatal(exception, "Unhandled exception captured from {Source}; report={LogPath}; dump={DumpPath}", source, logPath, dumpPath);
         }
-        catch
+        catch (Exception reportError)
         {
-            // Last-chance diagnostics must not throw.
+            AppLog.WriteFailureDiagnostic($"崩溃报告写入失败：{reportError}\n原始异常：{exception}");
         }
+        finally
+        {
+            Interlocked.Exchange(ref _isWritingCrashReport, 0);
+            if (terminating)
+            {
+                try { Serilog.Log.CloseAndFlush(); }
+                catch (Exception flushError) { AppLog.WriteFailureDiagnostic(flushError.ToString()); }
+            }
+        }
+    }
+
+    private static void WriteDurably(string path, Action<TextWriter> write, bool append = false)
+    {
+        using var stream = new FileStream(path, append ? FileMode.Append : FileMode.CreateNew, FileAccess.Write, FileShare.Read);
+        using var writer = new StreamWriter(stream, new UTF8Encoding(true));
+        write(writer);
+        writer.Flush();
+        stream.Flush(true);
     }
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        CaptureException("DispatcherUnhandledException", e.Exception);
+        CaptureException("DispatcherUnhandledException", e.Exception, terminating: true);
     }
 
     private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
     {
         if (e.ExceptionObject is Exception exception)
         {
-            CaptureException("AppDomain.UnhandledException", exception);
+            CaptureException("AppDomain.UnhandledException", exception, terminating: e.IsTerminating);
         }
         else
         {
-            CaptureException("AppDomain.UnhandledException", new InvalidOperationException(e.ExceptionObject?.ToString() ?? "Unknown exception object"));
+            CaptureException("AppDomain.UnhandledException", new InvalidOperationException(e.ExceptionObject?.ToString() ?? "未知异常对象"), terminating: e.IsTerminating);
         }
     }
 

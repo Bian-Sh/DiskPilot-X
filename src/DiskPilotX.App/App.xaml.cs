@@ -34,12 +34,12 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        CrashDiagnostics.Register(this);
         AppLog.Configure();
         // 模型流协议故障时把最近 SSE 原始帧转储到 logs/llm-streams/，用于事后定位流未完整结束类问题。
         DiskPilotX.Core.Services.Llm.LlmStreamDiagnostics.Configure(AppLog.LogDirectory);
         Log.Information("Application startup begin");
         base.OnStartup(e);
-        CrashDiagnostics.Register(this);
 
         try
         {

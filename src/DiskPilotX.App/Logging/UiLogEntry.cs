@@ -4,8 +4,9 @@ using Serilog.Events;
 
 namespace DiskPilotX.App.Logging;
 
-public sealed record UiLogEntry(DateTimeOffset Timestamp, LogEventLevel Level, string Message, string? Exception)
+public sealed record UiLogEntry(DateTimeOffset Timestamp, LogEventLevel Level, string Message, string? Exception, string SourceContext = "Runtime")
 {
+    public long Sequence { get; init; }
     public string TimeText => $"[{Timestamp:HH:mm:ss}]";
 
     public string LevelText => Level switch
