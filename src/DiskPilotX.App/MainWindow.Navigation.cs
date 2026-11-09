@@ -415,6 +415,7 @@ public partial class MainWindow
     {
         if (sender is Button btn && btn.ContextMenu is ContextMenu cm)
         {
+            cm.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
             cm.PlacementTarget = btn;
             cm.IsOpen = true;
         }
@@ -448,13 +449,11 @@ public partial class MainWindow
 
         // Discover target directory
         string? dirPath = null;
-        FileEntry? dirEntry = null;
         if (menu.PlacementTarget is FrameworkElement fe)
         {
             if (fe.Tag is ValueTuple<string, string, FileEntry?> segment)
             {
                 dirPath = segment.Item1;
-                dirEntry = segment.Item3;
             }
             else if (fe.Tag is string tagPath)
             {
@@ -477,8 +476,8 @@ public partial class MainWindow
         }
         else
         {
-            // ── Try scanned tree first ──
-            dirEntry ??= FindEntryByPathInTree(_treemapViewModel?.ScanRoot, dirPath);
+            // 仅信任真实扫描树，外部路径的父级占位节点只包含当前路径分支。
+            var dirEntry = FindEntryByPathInTree(_treemapViewModel?.ScanRoot, dirPath);
             if (dirEntry is not null)
             {
                 var children = dirEntry.Children
@@ -626,7 +625,7 @@ public partial class MainWindow
     {
         if (root is null)
             return null;
-        if (string.Equals(root.Path, targetPath, StringComparison.OrdinalIgnoreCase))
+        if (BreadcrumbPathsEqual(root.Path, targetPath))
             return root;
         foreach (var child in root.Children)
         {
